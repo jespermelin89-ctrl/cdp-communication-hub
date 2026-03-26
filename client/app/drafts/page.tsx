@@ -5,6 +5,7 @@ import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import type { Draft, DraftStatus } from '@/lib/types';
 
 export default function DraftCenterPage() {
@@ -12,6 +13,7 @@ export default function DraftCenterPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<DraftStatus | ''>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     loadDrafts();
@@ -37,44 +39,44 @@ export default function DraftCenterPage() {
       await api.approveDraft(draftId);
       await loadDrafts();
     } catch (err: any) {
-      alert(`Approve failed: ${err.message}`);
+      alert(`${t.drafts.approve} failed: ${err.message}`);
     } finally {
       setActionLoading(null);
     }
   }
 
   async function handleSend(draftId: string) {
-    if (!confirm('Are you sure you want to send this email?')) return;
+    if (!confirm(t.drafts.confirmSend)) return;
     setActionLoading(draftId);
     try {
       await api.sendDraft(draftId);
       await loadDrafts();
     } catch (err: any) {
-      alert(`Send failed: ${err.message}`);
+      alert(`${t.drafts.sendFailed}: ${err.message}`);
     } finally {
       setActionLoading(null);
     }
   }
 
   async function handleDiscard(draftId: string) {
-    if (!confirm('Discard this draft?')) return;
+    if (!confirm(t.drafts.confirmDiscard)) return;
     setActionLoading(draftId);
     try {
       await api.discardDraft(draftId);
       await loadDrafts();
     } catch (err: any) {
-      alert(`Discard failed: ${err.message}`);
+      alert(`${t.drafts.discard} failed: ${err.message}`);
     } finally {
       setActionLoading(null);
     }
   }
 
   const statusFilters: Array<{ value: DraftStatus | ''; label: string }> = [
-    { value: '', label: 'All' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'sent', label: 'Sent' },
-    { value: 'failed', label: 'Failed' },
+    { value: '', label: t.drafts.all },
+    { value: 'pending', label: t.drafts.pending },
+    { value: 'approved', label: t.drafts.approved },
+    { value: 'sent', label: t.drafts.sent },
+    { value: 'failed', label: t.drafts.failed },
   ];
 
   return (
@@ -83,7 +85,7 @@ export default function DraftCenterPage() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Draft Center</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t.drafts.title}</h1>
         </div>
 
         {/* Status Filters */}
@@ -105,10 +107,10 @@ export default function DraftCenterPage() {
 
         {/* Drafts List */}
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Loading drafts...</div>
+          <div className="text-center py-12 text-gray-500">{t.drafts.loadingDrafts}</div>
         ) : drafts.length === 0 ? (
           <div className="card text-center py-12">
-            <p className="text-gray-500">No drafts found.</p>
+            <p className="text-gray-500">{t.drafts.noDrafts}</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -124,10 +126,10 @@ export default function DraftCenterPage() {
                     <StatusBadge status={draft.status} />
                   </div>
                   <div className="text-sm text-gray-500 truncate">
-                    To: {draft.toAddresses.join(', ')}
+                    {t.common.to}: {draft.toAddresses.join(', ')}
                   </div>
                   <div className="text-sm text-gray-400 truncate mt-0.5">
-                    From: {draft.account.emailAddress} | {new Date(draft.createdAt).toLocaleString()}
+                    {t.common.from}: {draft.account.emailAddress} | {new Date(draft.createdAt).toLocaleString()}
                   </div>
                   <div className="text-sm text-gray-600 mt-2 line-clamp-2">
                     {draft.bodyText.substring(0, 150)}...
@@ -139,21 +141,21 @@ export default function DraftCenterPage() {
                   {draft.status === 'pending' && (
                     <>
                       <Link href={`/drafts/${draft.id}`} className="btn-secondary text-sm">
-                        Edit
+                        {t.drafts.edit}
                       </Link>
                       <button
                         onClick={() => handleApprove(draft.id)}
                         disabled={actionLoading === draft.id}
                         className="btn-primary text-sm"
                       >
-                        Approve
+                        {t.drafts.approve}
                       </button>
                       <button
                         onClick={() => handleDiscard(draft.id)}
                         disabled={actionLoading === draft.id}
                         className="text-sm text-gray-400 hover:text-red-500"
                       >
-                        Discard
+                        {t.drafts.discard}
                       </button>
                     </>
                   )}
@@ -163,12 +165,12 @@ export default function DraftCenterPage() {
                       disabled={actionLoading === draft.id}
                       className="btn-success text-sm"
                     >
-                      Send Now
+                      {t.drafts.sendNow}
                     </button>
                   )}
                   {draft.status === 'failed' && (
                     <span className="text-sm text-red-500">
-                      {draft.errorMessage || 'Send failed'}
+                      {draft.errorMessage || t.drafts.sendFailed}
                     </span>
                   )}
                 </div>

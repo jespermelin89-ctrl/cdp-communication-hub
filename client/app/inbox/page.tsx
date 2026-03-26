@@ -7,6 +7,7 @@ import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import type { EmailThread, Account } from '@/lib/types';
 
 export default function InboxPage() {
@@ -16,6 +17,7 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
+  const { t } = useI18n();
 
   useEffect(() => {
     loadAccounts();
@@ -52,7 +54,6 @@ export default function InboxPage() {
   async function handleSync() {
     setSyncing(true);
     try {
-      // Sync all active accounts (or selected one)
       const toSync = selectedAccountId
         ? accounts.filter((a) => a.id === selectedAccountId)
         : accounts.filter((a) => a.isActive);
@@ -79,7 +80,6 @@ export default function InboxPage() {
     }
   }
 
-  // Build a lookup for account colors/labels
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
 
   return (
@@ -88,13 +88,13 @@ export default function InboxPage() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Inbox</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t.inbox.title}</h1>
           <button
             onClick={handleSync}
             disabled={syncing}
             className="btn-primary text-sm"
           >
-            {syncing ? 'Syncing...' : 'Sync All'}
+            {syncing ? t.inbox.syncing : t.inbox.syncAll}
           </button>
         </div>
 
@@ -109,7 +109,7 @@ export default function InboxPage() {
                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
-              All Accounts
+              {t.inbox.allAccounts}
             </button>
             {accounts.map((acc) => (
               <button
@@ -136,7 +136,7 @@ export default function InboxPage() {
         <div className="mb-6">
           <input
             type="text"
-            placeholder="Search threads..."
+            placeholder={t.inbox.searchPlaceholder}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && loadThreads()}
@@ -146,12 +146,12 @@ export default function InboxPage() {
 
         {/* Thread List */}
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Loading threads...</div>
+          <div className="text-center py-12 text-gray-500">{t.inbox.loadingThreads}</div>
         ) : threads.length === 0 ? (
           <div className="card text-center py-12">
-            <p className="text-gray-500 mb-4">No threads found. Sync your accounts to get started.</p>
+            <p className="text-gray-500 mb-4">{t.inbox.noThreads}</p>
             <button onClick={handleSync} className="btn-primary">
-              Sync Now
+              {t.inbox.syncNow}
             </button>
           </div>
         ) : (
@@ -167,7 +167,6 @@ export default function InboxPage() {
                 >
                   <Link href={`/threads/${thread.id}`} className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      {/* Account badge */}
                       {accounts.length > 1 && acc && (
                         <>
                           <AccountBadge
@@ -180,7 +179,7 @@ export default function InboxPage() {
                         </>
                       )}
                       <span className={`text-sm truncate ${!thread.isRead ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
-                        {thread.subject || '(No Subject)'}
+                        {thread.subject || t.inbox.noSubject}
                       </span>
                       {thread.latestAnalysis && (
                         <PriorityBadge priority={thread.latestAnalysis.priority} />
@@ -191,7 +190,7 @@ export default function InboxPage() {
                       {thread.participantEmails.slice(0, 3).join(', ')}
                       {thread.participantEmails.length > 3 && ` +${thread.participantEmails.length - 3}`}
                       <span className="mx-1.5">|</span>
-                      {thread.messageCount} messages
+                      {thread.messageCount} {t.inbox.messages}
                       <span className="mx-1.5">|</span>
                       {thread.lastMessageAt && new Date(thread.lastMessageAt).toLocaleString()}
                     </div>
@@ -216,7 +215,7 @@ export default function InboxPage() {
                         onClick={() => handleAnalyze(thread.id)}
                         className="btn-secondary text-xs"
                       >
-                        Analyze
+                        {t.inbox.analyze}
                       </button>
                     )}
                   </div>

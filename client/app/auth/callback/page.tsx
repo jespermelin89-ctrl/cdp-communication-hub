@@ -3,19 +3,22 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 function AuthCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [status, setStatus] = useState('Processing authentication...');
+  const [status, setStatus] = useState('');
+  const { t } = useI18n();
 
   useEffect(() => {
+    setStatus(t.auth.processing);
     const token = searchParams.get('token');
     const error = searchParams.get('error');
     const addedEmail = searchParams.get('added');
 
     if (error) {
-      setStatus(`Authentication failed: ${error}`);
+      setStatus(t.auth.failed.replace('{error}', error));
       return;
     }
 
@@ -23,18 +26,16 @@ function AuthCallbackContent() {
       api.setToken(token);
 
       if (addedEmail) {
-        // Add-account mode: account was linked to existing user
-        setStatus(`${addedEmail} kopplad! Omdirigerar...`);
+        setStatus(t.auth.accountLinked.replace('{email}', addedEmail));
         setTimeout(() => router.push('/settings/accounts'), 1000);
       } else {
-        // Normal login
-        setStatus('Authenticated! Redirecting...');
+        setStatus(t.auth.authenticated);
         setTimeout(() => router.push('/'), 1000);
       }
     } else {
-      setStatus('Waiting for authentication response...');
+      setStatus(t.auth.waiting);
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, t]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -49,11 +50,12 @@ function AuthCallbackContent() {
 }
 
 export default function AuthCallbackPage() {
+  const { t } = useI18n();
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="card max-w-md w-full text-center">
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">{t.auth.loading}</p>
         </div>
       </div>
     }>

@@ -7,6 +7,7 @@ import StatusBadge from '@/components/StatusBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AddEmailAccount from '@/components/AddEmailAccount';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import type { CommandCenterData, Account } from '@/lib/types';
 
 export default function CommandCenterPage() {
@@ -14,6 +15,7 @@ export default function CommandCenterPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     loadData();
@@ -39,13 +41,28 @@ export default function CommandCenterPage() {
     return <AddEmailAccount onSuccess={() => window.location.reload()} />;
   }
 
+  function formatTime(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    if (diff < 60000) return t.time.justNow;
+    if (diff < 3600000) return t.time.minutesAgo.replace('{n}', String(Math.floor(diff / 60000)));
+    if (diff < 86400000) return t.time.hoursAgo.replace('{n}', String(Math.floor(diff / 3600000)));
+    return date.toLocaleDateString();
+  }
+
+  function formatActionType(type: string): string {
+    const key = type as keyof typeof t.actions;
+    return t.actions[key] || type;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <TopBar pendingCount={data?.overview.pending_drafts} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Command Center</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t.dashboard.title}</h1>
           {data && data.accounts.length > 0 && (
             <div className="flex gap-2">
               {data.accounts.map((acc: Account) => (
@@ -63,7 +80,7 @@ export default function CommandCenterPage() {
         </div>
 
         {loading && (
-          <div className="text-center py-12 text-gray-500">Loading dashboard...</div>
+          <div className="text-center py-12 text-gray-500">{t.dashboard.loading}</div>
         )}
 
         {error && (
@@ -75,25 +92,25 @@ export default function CommandCenterPage() {
             {/* Overview Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <OverviewCard
-                label="Pending Drafts"
+                label={t.dashboard.pendingDrafts}
                 value={data.overview.pending_drafts}
                 color="amber"
                 href="/drafts?status=pending"
               />
               <OverviewCard
-                label="Ready to Send"
+                label={t.dashboard.readyToSend}
                 value={data.overview.approved_drafts}
                 color="blue"
                 href="/drafts?status=approved"
               />
               <OverviewCard
-                label="High Priority"
+                label={t.dashboard.highPriority}
                 value={data.overview.high_priority_threads}
                 color="red"
                 href="/inbox?priority=high"
               />
               <OverviewCard
-                label="Unread"
+                label={t.dashboard.unread}
                 value={data.overview.unread_threads}
                 color="gray"
                 href="/inbox?unread=true"
@@ -104,9 +121,9 @@ export default function CommandCenterPage() {
             <div className="grid lg:grid-cols-3 gap-6">
               {/* Pending Drafts Preview */}
               <div className="card">
-                <h2 className="font-semibold text-gray-900 mb-4">Drafts Awaiting Action</h2>
+                <h2 className="font-semibold text-gray-900 mb-4">{t.dashboard.draftsAwaitingAction}</h2>
                 {data.drafts_preview.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No pending drafts. All clear!</p>
+                  <p className="text-gray-500 text-sm">{t.dashboard.noPendingDrafts}</p>
                 ) : (
                   <div className="space-y-3">
                     {data.drafts_preview.map((draft) => (
@@ -122,7 +139,7 @@ export default function CommandCenterPage() {
                           <StatusBadge status={draft.status} />
                         </div>
                         <div className="text-xs text-gray-500">
-                          To: {draft.toAddresses.join(', ')}
+                          {t.common.to}: {draft.toAddresses.join(', ')}
                         </div>
                       </Link>
                     ))}
@@ -133,13 +150,13 @@ export default function CommandCenterPage() {
               {/* Categories Overview */}
               <div className="card">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-semibold text-gray-900">Categories</h2>
+                  <h2 className="font-semibold text-gray-900">{t.dashboard.categories}</h2>
                   <Link href="/categories" className="text-xs text-brand-500 hover:text-brand-600">
-                    Manage
+                    {t.dashboard.manage}
                   </Link>
                 </div>
                 {categories.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Categories will appear after first sync.</p>
+                  <p className="text-gray-500 text-sm">{t.dashboard.categoriesEmpty}</p>
                 ) : (
                   <div className="space-y-2">
                     {categories.map((cat: any) => (
@@ -152,7 +169,7 @@ export default function CommandCenterPage() {
                           <span className="text-sm text-gray-700">{cat.icon} {cat.name}</span>
                         </div>
                         {cat._count?.rules > 0 && (
-                          <span className="text-xs text-gray-400">{cat._count.rules} rules</span>
+                          <span className="text-xs text-gray-400">{cat._count.rules} {t.dashboard.rules}</span>
                         )}
                       </div>
                     ))}
@@ -162,9 +179,9 @@ export default function CommandCenterPage() {
 
               {/* Recent Activity */}
               <div className="card">
-                <h2 className="font-semibold text-gray-900 mb-4">Recent Activity</h2>
+                <h2 className="font-semibold text-gray-900 mb-4">{t.dashboard.recentActivity}</h2>
                 {data.recent_actions.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No recent activity.</p>
+                  <p className="text-gray-500 text-sm">{t.dashboard.noRecentActivity}</p>
                 ) : (
                   <div className="space-y-3">
                     {data.recent_actions.map((action, i) => (
@@ -192,13 +209,13 @@ export default function CommandCenterPage() {
 
             {/* Priority Summary */}
             <div className="mt-6 card">
-              <h2 className="font-semibold text-gray-900 mb-4">Priority Summary</h2>
+              <h2 className="font-semibold text-gray-900 mb-4">{t.dashboard.prioritySummary}</h2>
               <div className="flex items-center gap-8">
-                <PriorityStat label="High" count={data.overview.high_priority_threads} color="red" />
-                <PriorityStat label="Medium" count={data.overview.medium_priority_threads} color="amber" />
-                <PriorityStat label="Low" count={data.overview.low_priority_threads} color="emerald" />
+                <PriorityStat label={t.dashboard.high} count={data.overview.high_priority_threads} color="red" />
+                <PriorityStat label={t.dashboard.medium} count={data.overview.medium_priority_threads} color="amber" />
+                <PriorityStat label={t.dashboard.low} count={data.overview.low_priority_threads} color="emerald" />
                 <div className="text-sm text-gray-500 ml-auto">
-                  {data.overview.total_threads} threads cached across {data.accounts.length} account{data.accounts.length !== 1 ? 's' : ''}
+                  {data.overview.total_threads} {t.dashboard.threadsCached} {data.accounts.length} {data.accounts.length !== 1 ? t.dashboard.accounts : t.dashboard.account}
                 </div>
               </div>
             </div>
@@ -247,27 +264,4 @@ function ActionIcon({ type }: { type: string }) {
     rule_created: '🏷️',
   };
   return <span className="text-lg">{icons[type] || '📋'}</span>;
-}
-
-function formatActionType(type: string): string {
-  const labels: Record<string, string> = {
-    draft_created: 'Draft created',
-    draft_approved: 'Draft approved',
-    draft_sent: 'Email sent',
-    draft_discarded: 'Draft discarded',
-    analysis_run: 'AI analysis run',
-    account_connected: 'Account connected',
-    rule_created: 'Rule created',
-  };
-  return labels[type] || type;
-}
-
-function formatTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  if (diff < 60000) return 'just now';
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-  return date.toLocaleDateString();
 }

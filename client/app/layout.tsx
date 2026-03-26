@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import ChatWidget from '@/components/ChatWidget';
+import I18nProvider from '@/components/I18nProvider';
 
 export const metadata: Metadata = {
   title: 'CDP Communication Hub',
@@ -9,10 +10,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="sv">
       <body className="min-h-screen">
-        {children}
-        <ChatWidget />
+        <I18nProvider>
+          {children}
+          <ChatWidget />
+        </I18nProvider>
       </body>
     </html>
   );

@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useI18n } from '@/lib/i18n';
+import LanguageSwitcher from './LanguageSwitcher';
 
 interface TopBarProps {
   pendingCount?: number;
@@ -10,12 +12,13 @@ interface TopBarProps {
 
 export default function TopBar({ pendingCount = 0, userEmail }: TopBarProps) {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   const navItems = [
-    { href: '/', label: 'Command Center', icon: '⚡' },
-    { href: '/drafts', label: 'Drafts', icon: '📝' },
-    { href: '/inbox', label: 'Inbox', icon: '📥' },
-    { href: '/categories', label: 'Regler', icon: '🏷️' },
+    { href: '/', label: t.nav.commandCenter, icon: '⚡' },
+    { href: '/drafts', label: t.nav.drafts, icon: '📝' },
+    { href: '/inbox', label: t.nav.inbox, icon: '📥' },
+    { href: '/categories', label: t.nav.rules, icon: '🏷️' },
   ];
 
   return (
@@ -53,16 +56,17 @@ export default function TopBar({ pendingCount = 0, userEmail }: TopBarProps) {
             ))}
           </nav>
 
-          {/* User Info */}
-          <div className="flex items-center gap-3">
+          {/* User Info + Language */}
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
             {userEmail && (
               <span className="text-sm text-gray-500 hidden md:block">{userEmail}</span>
             )}
             <Link
               href="/settings"
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 transition-colors text-sm"
             >
-              Settings
+              {t.nav.settings}
             </Link>
           </div>
         </div>

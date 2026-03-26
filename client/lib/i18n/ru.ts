@@ -51,6 +51,17 @@ const ru: Translations = {
     messages: 'сообщений',
     analyze: 'Анализировать',
     noSubject: '(Без темы)',
+    notAnalyzed: 'Не проанализировано',
+    unanalyzed: 'не проанализированы',
+    open: 'Открыть',
+    selected: 'выбрано',
+    analyzeSelected: 'Анализировать выбранные',
+    selectAll: 'Выбрать все',
+    deselectAll: 'Снять выбор',
+    suggestedAction: 'Предложенное действие',
+    confidence: 'Уверенность',
+    model: 'Модель',
+    draftSuggestion: 'Черновик предложения',
   },
 
   drafts: {

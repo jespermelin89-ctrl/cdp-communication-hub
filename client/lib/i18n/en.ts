@@ -51,6 +51,17 @@ const en: Translations = {
     messages: 'messages',
     analyze: 'Analyze',
     noSubject: '(No Subject)',
+    notAnalyzed: 'Not analyzed',
+    unanalyzed: 'unanalyzed',
+    open: 'Open',
+    selected: 'selected',
+    analyzeSelected: 'Analyze selected',
+    selectAll: 'Select all',
+    deselectAll: 'Deselect all',
+    suggestedAction: 'Suggested action',
+    confidence: 'Confidence',
+    model: 'Model',
+    draftSuggestion: 'Draft suggestion',
   },
 
   drafts: {

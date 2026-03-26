@@ -52,6 +52,17 @@ const sv = {
     messages: 'meddelanden',
     analyze: 'Analysera',
     noSubject: '(Inget ämne)',
+    notAnalyzed: 'Ej analyserad',
+    unanalyzed: 'ej analyserade',
+    open: 'Öppna',
+    selected: 'valda',
+    analyzeSelected: 'Analysera valda',
+    selectAll: 'Välj alla',
+    deselectAll: 'Avmarkera alla',
+    suggestedAction: 'Föreslagen åtgärd',
+    confidence: 'Konfidens',
+    model: 'Modell',
+    draftSuggestion: 'Utkastsförslag',
   },
 
   // Drafts

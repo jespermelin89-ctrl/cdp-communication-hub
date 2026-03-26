@@ -1,0 +1,120 @@
+/**
+ * Auth routes - Google OAuth flow and JWT management.
+ */
+
+import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { env } from '../config/env';
+import { authService } from '../services/auth.service';
+import { authMiddleware } from '../middleware/auth.middleware';
+import { detectProvider } from '../config/email-providers';
+
+export async function authRoutes(fastify: FastifyInstance) {
+  /**
+   * POST /auth/google - Get the Google OAuth consent URL
+   */
+  fastify.post('/auth/google', async (request, reply) => {
+    const url = authService.getConsentUrl();
+    return { url };
+  });
+
+  /**
+   * GET /auth/google/callback - Handle OAuth callback
+   * Google redirects here with ?code=...
+   */
+  fastify.get('/auth/google/callback', async (request, reply) => {
+    const { code } = request.query as { code?: string };
+
+    if (!code) {
+      return reply.code(400).send({
+        error: 'Missing authorization code',
+        message: 'No code parameter found in callback URL.',
+      });
+    }
+
+    try {
+      const result = await authService.handleCallback(code);
+
+      // Redirect to frontend with token in query parameter
+      const frontendCallback = `${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(result.token)}`;
+      return reply.redirect(frontendCallback);
+    } catch (error: any) {
+      const frontendError = `${env.FRONTEND_URL}/auth/callback?error=${encodeURIComponent(error.message)}`;
+      return reply.redirect(frontendError);
+    }
+  });
+
+  /**
+   * POST /auth/connect - Smart connect endpoint for multi-provider OAuth
+   * Takes email address, detects provider, returns appropriate auth URL or IMAP instructions
+   * No auth required (user hasn't logged in yet)
+   */
+  fastify.post('/auth/connect', async (request, reply) => {
+    const schema = z.object({
+      email: z.string().email('Invalid email address'),
+    });
+
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'Invalid input',
+        details: parsed.error.issues,
+      });
+    }
+
+    const { email } = parsed.data;
+    const provider = detectProvider(email);
+
+    const response: any = {
+      provider: {
+        id: provider.id,
+        name: provider.name,
+        type: provider.type,
+        icon: provider.icon,
+        authMethod: provider.authMethod,
+      },
+    };
+
+    // Handle OAuth providers
+    if (provider.authMethod === 'oauth') {
+      try {
+        response.authUrl = authService.getConsentUrlForEmail(email);
+      } catch (error: any) {
+        // OAuth not available for this provider or error generating URL
+        if (provider.imapDefaults || provider.smtpDefaults) {
+          // Provider supports IMAP as fallback
+          response.requiresImap = true;
+          response.message = error.message || `OAuth not available for ${provider.name}. Use IMAP instead.`;
+          response.provider.imapDefaults = provider.imapDefaults;
+          response.provider.smtpDefaults = provider.smtpDefaults;
+        } else {
+          return reply.code(400).send({
+            error: 'Provider error',
+            message: error.message,
+          });
+        }
+      }
+    } else {
+      // IMAP provider
+      response.requiresImap = true;
+      if (provider.imapDefaults) {
+        response.provider.imapDefaults = provider.imapDefaults;
+      }
+      if (provider.smtpDefaults) {
+        response.provider.smtpDefaults = provider.smtpDefaults;
+      }
+    }
+
+    return response;
+  });
+
+  /**
+   * GET /auth/me - Get current authenticated user profile
+   */
+  fastify.get('/auth/me', {
+    preHandler: authMiddleware,
+  }, async (request, reply) => {
+    const profile = await authService.getProfile(request.userId);
+    return { user: profile };
+  });
+}

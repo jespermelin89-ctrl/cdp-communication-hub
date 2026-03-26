@@ -1,0 +1,252 @@
+// CDP Communication Hub - Database Schema
+// All tables use UUID primary keys and timestamps
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// USERS
+// ============================================================
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  googleId  String?  @unique @map("google_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  accounts   EmailAccount[]
+  drafts     Draft[]
+  actionLogs ActionLog[]
+  settings   UserSettings?
+
+  @@map("users")
+}
+
+// ============================================================
+// EMAIL ACCOUNTS (Gmail, IMAP/SMTP, or other providers)
+// ============================================================
+model EmailAccount {
+  id                    String    @id @default(uuid())
+  userId                String    @map("user_id")
+  provider              String    @default("gmail") // gmail | imap | microsoft (future)
+  emailAddress          String    @map("email_address")
+  displayName           String?   @map("display_name") // "Jesper @ CDP" etc.
+
+  // OAuth tokens (Gmail, Microsoft)
+  accessTokenEncrypted  String?   @map("access_token_encrypted")
+  refreshTokenEncrypted String?   @map("refresh_token_encrypted")
+  tokenExpiresAt        DateTime? @map("token_expires_at")
+
+  // IMAP/SMTP credentials (custom domain mail)
+  imapHost              String?   @map("imap_host")     // e.g. mail.domain.com
+  imapPort              Int?      @map("imap_port")     // e.g. 993
+  imapUseSsl            Boolean   @default(true) @map("imap_use_ssl")
+  smtpHost              String?   @map("smtp_host")     // e.g. smtp.domain.com
+  smtpPort              Int?      @map("smtp_port")     // e.g. 465
+  smtpUseSsl            Boolean   @default(true) @map("smtp_use_ssl")
+  imapPasswordEncrypted String?   @map("imap_password_encrypted") // encrypted at rest
+
+  isDefault             Boolean   @default(false) @map("is_default")
+  label                 String?   // personal, business, outreach, partnerships, founder, operations
+  color                 String?   // hex color for UI badge (e.g. #3B82F6)
+  isActive              Boolean   @default(true) @map("is_active") // disable without deleting
+  lastSyncAt            DateTime? @map("last_sync_at")
+  syncError             String?   @map("sync_error") // last sync error message
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  threads  EmailThread[]
+  drafts   Draft[]
+
+  @@unique([userId, emailAddress])
+  @@map("email_accounts")
+}
+
+// ============================================================
+// EMAIL THREADS (cached from Gmail)
+// ============================================================
+model EmailThread {
+  id                String   @id @default(uuid())
+  accountId         String   @map("account_id")
+  gmailThreadId     String   @map("gmail_thread_id")
+  subject           String?
+  snippet           String?
+  lastMessageAt     DateTime? @map("last_message_at")
+  participantEmails String[] @map("participant_emails")
+  messageCount      Int      @default(0) @map("message_count")
+  labels            String[] @default([])
+  isRead            Boolean  @default(true) @map("is_read")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  account  EmailAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  messages EmailMessage[]
+  analyses AIAnalysis[]
+  drafts   Draft[]
+
+  @@unique([accountId, gmailThreadId])
+  @@index([accountId, lastMessageAt(sort: Desc)], name: "idx_threads_account_last_msg")
+  @@map("email_threads")
+}
+
+// ============================================================
+// EMAIL MESSAGES (cached individual messages)
+// ============================================================
+model EmailMessage {
+  id             String   @id @default(uuid())
+  threadId       String   @map("thread_id")
+  gmailMessageId String   @map("gmail_message_id")
+  fromAddress    String   @map("from_address")
+  toAddresses    String[] @map("to_addresses")
+  ccAddresses    String[] @default([]) @map("cc_addresses")
+  subject        String?
+  bodyText       String?  @map("body_text")
+  bodyHtml       String?  @map("body_html")
+  receivedAt     DateTime @map("received_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  thread EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, gmailMessageId])
+  @@map("email_messages")
+}
+
+// ============================================================
+// AI ANALYSES (latest analysis per thread)
+// ============================================================
+model AIAnalysis {
+  id              String   @id @default(uuid())
+  threadId        String   @map("thread_id")
+  summary         String
+  classification  String   // lead|partner|personal|spam|operational|founder|outreach
+  priority        String   // high|medium|low
+  suggestedAction String   @map("suggested_action") // reply|ignore|review_later|archive_suggestion
+  draftText       String?  @map("draft_text")
+  confidence      Float    @default(0)
+  modelUsed       String   @map("model_used")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  thread EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId], name: "idx_ai_thread")
+  @@map("ai_analyses")
+}
+
+// ============================================================
+// DRAFTS - CRITICAL TABLE
+// Every outgoing email starts here.
+// Status field enforces the approval gate.
+// ============================================================
+model Draft {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  accountId      String    @map("account_id")
+  threadId       String?   @map("thread_id") // null for new emails
+  toAddresses    String[]  @map("to_addresses")
+  ccAddresses    String[]  @default([]) @map("cc_addresses")
+  subject        String
+  bodyText       String    @map("body_text")
+  status         String    @default("pending") // pending|approved|sent|failed|discarded
+  gmailMessageId String?   @map("gmail_message_id") // set after successful send
+  approvedAt     DateTime? @map("approved_at")
+  sentAt         DateTime? @map("sent_at")
+  errorMessage   String?   @map("error_message")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account EmailAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  thread  EmailThread?  @relation(fields: [threadId], references: [id], onDelete: SetNull)
+
+  @@index([status], name: "idx_drafts_status")
+  @@index([accountId], name: "idx_drafts_account")
+  @@map("drafts")
+}
+
+// ============================================================
+// ACTION LOGS - Immutable audit trail
+// ============================================================
+model ActionLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  actionType String   @map("action_type") // draft_created|draft_approved|draft_sent|draft_discarded|analysis_run
+  targetType String?  @map("target_type") // draft|thread|analysis
+  targetId   String?  @map("target_id")
+  metadata   Json?    @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], name: "idx_action_logs_user")
+  @@map("action_logs")
+}
+
+// ============================================================
+// CATEGORIES - User-defined email groupings
+// ============================================================
+model Category {
+  id          String  @id @default(uuid())
+  userId      String  @map("user_id")
+  name        String  // e.g. "CI/CD Noise", "Business Revenue", "Dev Tools"
+  slug        String  // url-safe identifier
+  color       String? // hex color
+  icon        String? // emoji or icon name
+  description String?
+  sortOrder   Int     @default(0) @map("sort_order")
+  isSystem    Boolean @default(false) @map("is_system") // built-in categories
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  rules SenderRule[]
+
+  @@unique([userId, slug])
+  @@map("categories")
+}
+
+// ============================================================
+// SENDER RULES - Learn from user actions
+// When a sender is marked spam/categorized, future mail follows.
+// ============================================================
+model SenderRule {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  senderPattern  String   @map("sender_pattern")  // email or domain pattern (e.g. "noreply@skool.com" or "*@github.com")
+  subjectPattern String?  @map("subject_pattern")  // optional regex/glob for subject
+  action         String   // categorize | spam | archive | star | mute
+  categoryId     String?  @map("category_id")
+  priority       String?  // override priority: high | medium | low
+  confidence     Float    @default(1.0)  // 1.0 = user-set, <1 = AI-suggested
+  isActive       Boolean  @default(true) @map("is_active")
+  timesApplied   Int      @default(0)    @map("times_applied")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, senderPattern], name: "idx_sender_rules_pattern")
+  @@map("sender_rules")
+}
+
+// ============================================================
+// USER SETTINGS
+// ============================================================
+model UserSettings {
+  id                      String  @id @default(uuid())
+  userId                  String  @unique @map("user_id")
+  defaultAccountId        String? @map("default_account_id")
+  uiTheme                 String  @default("light") @map("ui_theme")
+  notificationPreferences Json    @default("{}") @map("notification_preferences")
+  aiTonePreference        String? @map("ai_tone_preference")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CDP Communication Hub — Command Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+  body { background: #f8fafc; }
+  .card { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+  .badge-high { background: #fef2f2; color: #dc2626; }
+  .badge-medium { background: #fffbeb; color: #d97706; }
+  .badge-low { background: #ecfdf5; color: #059669; }
+  .badge-pending { background: #fffbeb; color: #d97706; }
+  .badge-operational { background: #eff6ff; color: #2563eb; }
+  .badge-spam { background: #f3f4f6; color: #6b7280; }
+  .stat-card { border-radius: 12px; padding: 1.25rem; transition: box-shadow 0.2s; cursor: pointer; }
+  .stat-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  .draft-row { padding: 12px 16px; border-radius: 8px; border: 1px solid #f1f5f9; transition: all 0.15s; cursor: pointer; }
+  .draft-row:hover { border-color: #bfdbfe; background: #eff6ff22; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header style="background: white; border-bottom: 1px solid #e2e8f0; position: sticky; top: 0; z-index: 50;">
+  <div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 60px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="width: 32px; height: 32px; background: #1a73e8; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+        <span style="color: white; font-weight: 700; font-size: 14px;">C</span>
+      </div>
+      <span style="font-weight: 600; color: #1e293b;">CDP Hub</span>
+    </div>
+    <nav style="display: flex; gap: 4px;">
+      <a href="#" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; background: #eff6ff; color: #1a73e8; text-decoration: none;">
+        ⚡ Command Center
+      </a>
+      <a href="#" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none;">
+        📝 Drafts
+        <span style="background: #dc2626; color: white; font-size: 11px; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;">2</span>
+      </a>
+      <a href="#" style="display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; color: #64748b; text-decoration: none;">
+        📥 Inbox
+      </a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="font-size: 13px; color: #94a3b8;">jesper.melin89@gmail.com</span>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main style="max-width: 1200px; margin: 0 auto; padding: 32px 24px;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+    <h1 style="font-size: 24px; font-weight: 700; color: #1e293b;">Command Center</h1>
+    <span style="font-size: 13px; color: #94a3b8;">Tue 24 Mar 2026, 21:45</span>
+  </div>
+
+  <!-- OVERVIEW CARDS -->
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px;">
+    <div class="stat-card" style="background: #fffbeb; border: 1px solid #fde68a;">
+      <div style="font-size: 32px; font-weight: 700; color: #92400e;">2</div>
+      <div style="font-size: 14px; color: #b45309; margin-top: 4px;">Pending Drafts</div>
+    </div>
+    <div class="stat-card" style="background: #fef2f2; border: 1px solid #fecaca;">
+      <div style="font-size: 32px; font-weight: 700; color: #991b1b;">2</div>
+      <div style="font-size: 14px; color: #dc2626; margin-top: 4px;">High Priority</div>
+    </div>
+    <div class="stat-card" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+      <div style="font-size: 32px; font-weight: 700; color: #334155;">15</div>
+      <div style="font-size: 14px; color: #64748b; margin-top: 4px;">Unread</div>
+    </div>
+    <div class="stat-card" style="background: #ecfdf5; border: 1px solid #a7f3d0;">
+      <div style="font-size: 32px; font-weight: 700; color: #065f46;">229</div>
+      <div style="font-size: 14px; color: #059669; margin-top: 4px;">Total Threads</div>
+    </div>
+  </div>
+
+  <!-- DAILY BRIEFING -->
+  <div class="card" style="margin-bottom: 24px; border-left: 4px solid #1a73e8;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+      <span style="font-size: 18px;">🤖</span>
+      <h2 style="font-size: 16px; font-weight: 600; color: #1e293b;">Daily Briefing — AI Summary</h2>
+    </div>
+    <div style="font-size: 14px; color: #475569; line-height: 1.7;">
+      <strong style="color: #dc2626;">Heads up:</strong> Your Anthropic payment (€142.54) on Mastercard ending 6236 failed earlier today, but a receipt came through at 19:38 showing it was eventually charged successfully — looks like it resolved itself, but worth checking your card.
+      <br><br>
+      <strong style="color: #dc2626;">CDP-LIVING is broken:</strong> Your CI/CD pipeline has failed 7+ times today on the main branch. The GitHub Actions workflow <code>ci.yml</code> shows "No jobs were run" — likely a YAML config issue. The Render deploy also failed on the Sprint 27 commit (admin dashboard + org settings). This is blocking your production deployment.
+      <br><br>
+      <strong>Low noise:</strong> 3 Skool community notifications, 1 Ollama Pro promo, 1 n8n email verification, 1 Coachesdontplay event reminder. None require action.
+    </div>
+  </div>
+
+  <!-- TWO COLUMN -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+
+    <!-- DRAFTS AWAITING ACTION -->
+    <div class="card">
+      <h2 style="font-size: 16px; font-weight: 600; color: #1e293b; margin-bottom: 16px;">Drafts Awaiting Action</h2>
+
+      <!-- Draft 1 -->
+      <div class="draft-row" style="margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <span style="font-size: 14px; font-weight: 500; color: #1e293b;">Re: CI/CD Pipeline Fix Needed</span>
+          <span class="badge badge-pending">Pending</span>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8;">
+          To: self (internal note) | From: jesper.melin89@gmail.com
+        </div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 8px; line-height: 1.5;">
+          "Check the ci.yml workflow file — the error 'No jobs were run' typically means the YAML syntax has an issue, possibly with branch filters or the jobs definition. Look at the recent commits that modified .github/workflows/..."
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 8px;">
+          <button style="background: #f1f5f9; color: #475569; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer;">Edit</button>
+          <button style="background: #1a73e8; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer;">Approve</button>
+        </div>
+      </div>
+
+      <!-- Draft 2 -->
+      <div class="draft-row">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+          <span style="font-size: 14px; font-weight: 500; color: #1e293b;">Re: Anthropic Payment</span>
+          <span class="badge badge-pending">Pending</span>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8;">
+          To: support@anthropic.com | From: jesper.melin89@gmail.com
+        </div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 8px; line-height: 1.5;">
+          "Hi, I received a failed payment notification for €142.54 on my Mastercard ending 6236, but shortly after a receipt came through confirming the charge. Could you confirm my subscription is active and there are no issues on your end? Thanks, Jesper"
+        </div>
+        <div style="margin-top: 10px; display: flex; gap: 8px;">
+          <button style="background: #f1f5f9; color: #475569; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer;">Edit</button>
+          <button style="background: #1a73e8; color: white; padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; border: none; cursor: pointer;">Approve</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ANALYZED THREADS -->
+    <div class="card">
+      <h2 style="font-size: 16px; font-weight: 600; color: #1e293b; margin-bottom: 16px;">Thread Analysis</h2>
+
+      <!-- Thread 1 -->
+      <div style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span class="dot" style="background: #dc2626;"></span>
+          <span style="font-size: 14px; font-weight: 500; color: #1e293b;">€142.54 payment unsuccessful</span>
+          <span class="badge badge-high">High</span>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8;">Anthropic, PBC | operational</div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+          Mastercard 6236 failed for Anthropic subscription. Payment later succeeded (receipt received). Verify subscription status.
+        </div>
+        <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Suggested: <span class="badge badge-operational" style="font-size: 11px;">reply</span> | Confidence: 91%</div>
+      </div>
+
+      <!-- Thread 2 -->
+      <div style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span class="dot" style="background: #dc2626;"></span>
+          <span style="font-size: 14px; font-weight: 500; color: #1e293b;">Deploy failed for cdp-living</span>
+          <span class="badge badge-high">High</span>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8;">Render | operational</div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+          Sprint 27 deploy (admin dashboard, org settings, system health) failed on Render. CI/CD also broken — 7 workflow failures today.
+        </div>
+        <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Suggested: <span class="badge badge-operational" style="font-size: 11px;">review_later</span> | Confidence: 94%</div>
+      </div>
+
+      <!-- Thread 3 -->
+      <div style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span class="dot" style="background: #d97706;"></span>
+          <span style="font-size: 14px; font-weight: 500; color: #1e293b;">Anthropic Receipt #2648-4707-4623</span>
+          <span class="badge badge-medium">Medium</span>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8;">Anthropic, PBC | operational</div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+          Receipt for €142.54. Max plan upgraded from 5x to 20x. Includes €65.97 credit for unused time. Tax 25% = €28.51.
+        </div>
+        <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Suggested: <span class="badge" style="background: #f3f4f6; color: #6b7280; font-size: 11px;">archive</span> | Confidence: 96%</div>
+      </div>
+
+      <!-- Thread 4-6: Low priority -->
+      <div style="padding: 10px 0; border-bottom: 1px solid #f1f5f9;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span class="dot" style="background: #059669;"></span>
+          <span style="font-size: 14px; font-weight: 500; color: #1e293b;">CI/CD Failures (x7)</span>
+          <span class="badge badge-low">Low</span>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8;">GitHub | operational</div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 4px;">7 identical CI failures on CDP-LIVING main branch. All show "No jobs were run". Root cause is in workflow YAML, not code.</div>
+        <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Suggested: <span class="badge" style="background: #f3f4f6; color: #6b7280; font-size: 11px;">ignore</span> | Confidence: 89%</div>
+      </div>
+
+      <div style="padding: 10px 0;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+          <span class="dot" style="background: #059669;"></span>
+          <span style="font-size: 14px; font-weight: 500; color: #1e293b;">Skool / Ollama / n8n notifications</span>
+          <span class="badge badge-low">Low</span>
+        </div>
+        <div style="font-size: 12px; color: #94a3b8;">Various | spam/outreach</div>
+        <div style="font-size: 13px; color: #64748b; margin-top: 4px;">Community updates and promotional emails. No action needed.</div>
+        <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">Suggested: <span class="badge" style="background: #f3f4f6; color: #6b7280; font-size: 11px;">ignore</span> | Confidence: 97%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RECENT ACTIVITY -->
+  <div class="card">
+    <h2 style="font-size: 16px; font-weight: 600; color: #1e293b; margin-bottom: 16px;">Recent Activity</h2>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 14px;">
+        <span>🤖</span>
+        <span style="color: #475569; flex: 1;">AI analysis run on 15 threads</span>
+        <span style="font-size: 12px; color: #94a3b8;">just now</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 14px;">
+        <span>📝</span>
+        <span style="color: #475569; flex: 1;">Draft created — Re: Anthropic Payment</span>
+        <span style="font-size: 12px; color: #94a3b8;">just now</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 14px;">
+        <span>📝</span>
+        <span style="color: #475569; flex: 1;">Draft created — Re: CI/CD Pipeline Fix Needed</span>
+        <span style="font-size: 12px; color: #94a3b8;">just now</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; font-size: 14px;">
+        <span>🔗</span>
+        <span style="color: #475569; flex: 1;">Gmail account connected — jesper.melin89@gmail.com</span>
+        <span style="font-size: 12px; color: #94a3b8;">just now</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="text-align: center; margin-top: 32px; padding: 16px; font-size: 12px; color: #94a3b8;">
+    CDP Communication Hub v1.0 — Draft-first, approval-required. AI suggests, human decides.
+  </div>
+
+</main>
+</body>
+</html>

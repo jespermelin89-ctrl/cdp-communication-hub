@@ -32,6 +32,11 @@ const sv = {
     accounts: 'konton',
     loading: 'Laddar dashboard...',
     rules: 'regler',
+    viewAll: 'Visa alla',
+    syncStatus: 'Synkstatus',
+    totalThreads: 'Totalt antal trådar',
+    analyzeAll: 'Analysera',
+    goToInbox: 'Gå till inkorg',
   },
 
   // Inbox

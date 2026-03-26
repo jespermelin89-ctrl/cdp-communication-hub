@@ -32,6 +32,11 @@ const es: Translations = {
     accounts: 'cuentas',
     loading: 'Cargando panel...',
     rules: 'reglas',
+    viewAll: 'Ver todos',
+    syncStatus: 'Estado de sincronización',
+    totalThreads: 'Total de hilos',
+    analyzeAll: 'Analizar',
+    goToInbox: 'Ir a la bandeja',
   },
 
   inbox: {

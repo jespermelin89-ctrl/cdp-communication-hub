@@ -32,6 +32,11 @@ const ru: Translations = {
     accounts: 'аккаунтах',
     loading: 'Загрузка панели...',
     rules: 'правил',
+    viewAll: 'Смотреть все',
+    syncStatus: 'Статус синхронизации',
+    totalThreads: 'Всего цепочек',
+    analyzeAll: 'Анализировать',
+    goToInbox: 'Перейти во входящие',
   },
 
   inbox: {

@@ -32,6 +32,11 @@ const en: Translations = {
     accounts: 'accounts',
     loading: 'Loading dashboard...',
     rules: 'rules',
+    viewAll: 'View all',
+    syncStatus: 'Sync Status',
+    totalThreads: 'Total threads',
+    analyzeAll: 'Analyze',
+    goToInbox: 'Go to Inbox',
   },
 
   inbox: {

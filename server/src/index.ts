@@ -10,6 +10,7 @@ import cors from '@fastify/cors';
 import { env } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { errorHandler } from './middleware/error.middleware';
+import { startSyncScheduler, stopSyncScheduler } from './services/sync-scheduler.service';
 
 // Routes
 import { authRoutes } from './routes/auth';
@@ -94,6 +95,9 @@ async function main() {
   const dbConnected = await connectDatabase();
   if (!dbConnected) {
     console.warn('⚠️ Server running without database. API routes requiring DB will fail.');
+  } else {
+    // Start background sync scheduler once DB is confirmed ready
+    startSyncScheduler();
   }
 
   // Graceful shutdown
@@ -101,6 +105,7 @@ async function main() {
   signals.forEach((signal) => {
     process.on(signal, async () => {
       console.log(`\n${signal} received. Shutting down gracefully...`);
+      stopSyncScheduler();
       await fastify.close();
       await disconnectDatabase();
       process.exit(0);

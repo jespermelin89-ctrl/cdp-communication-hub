@@ -19,6 +19,7 @@ export interface Account {
   isActive: boolean;
   label: string | null;
   color: string | null;
+  badges: string[];
   lastSyncAt: string | null;
   syncError: string | null;
   createdAt: string;

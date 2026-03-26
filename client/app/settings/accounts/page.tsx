@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import AddEmailAccount from '@/components/AddEmailAccount';
+import { BadgeIcons, BadgeContextMenu, BadgeManager } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import type { Account } from '@/lib/types';
 
@@ -96,6 +97,12 @@ export default function AccountsSettingsPage() {
     }
   }
 
+  function handleBadgesChanged(accountId: string, newBadges: string[]) {
+    setAccounts((prev) =>
+      prev.map((a) => (a.id === accountId ? { ...a, badges: newBadges } : a))
+    );
+  }
+
   const providerLabel = (provider: string) => {
     switch (provider) {
       case 'gmail': return 'Gmail (OAuth)';
@@ -172,8 +179,13 @@ export default function AccountsSettingsPage() {
           ) : (
             <div className="space-y-4">
               {accounts.map((account) => (
-                <div
+                <BadgeContextMenu
                   key={account.id}
+                  accountId={account.id}
+                  currentBadges={account.badges || []}
+                  onBadgesChanged={(badges) => handleBadgesChanged(account.id, badges)}
+                >
+                <div
                   className="rounded-xl border border-gray-200 overflow-hidden hover:border-gray-300 transition-colors"
                 >
                   <div className="flex items-center justify-between p-4">
@@ -182,8 +194,9 @@ export default function AccountsSettingsPage() {
                         {providerIcon(account.provider)}
                       </div>
                       <div className="flex-1">
-                        <div className="font-medium text-gray-900">
+                        <div className="font-medium text-gray-900 flex items-center">
                           {account.displayName || account.emailAddress}
+                          <BadgeIcons badges={account.badges || []} size="md" />
                         </div>
                         <div className="text-sm text-gray-500">
                           {account.emailAddress}
@@ -298,7 +311,14 @@ export default function AccountsSettingsPage() {
                           />
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      {/* Badge Manager */}
+                      <BadgeManager
+                        accountId={account.id}
+                        currentBadges={account.badges || []}
+                        onBadgesChanged={(badges) => handleBadgesChanged(account.id, badges)}
+                      />
+
+                      <div className="flex gap-2 mt-3">
                         <button
                           onClick={handleSaveEdit}
                           disabled={actionLoading}
@@ -316,6 +336,7 @@ export default function AccountsSettingsPage() {
                     </div>
                   )}
                 </div>
+                </BadgeContextMenu>
               ))}
             </div>
           )}

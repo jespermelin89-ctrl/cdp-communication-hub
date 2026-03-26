@@ -57,6 +57,7 @@ model EmailAccount {
   isDefault             Boolean   @default(false) @map("is_default")
   label                 String?   // personal, business, outreach, partnerships, founder, operations
   color                 String?   // hex color for UI badge (e.g. #3B82F6)
+  badges                String[]  @default([]) // multi_person | ai_managed | shared_inbox
   isActive              Boolean   @default(true) @map("is_active") // disable without deleting
   lastSyncAt            DateTime? @map("last_sync_at")
   syncError             String?   @map("sync_error") // last sync error message

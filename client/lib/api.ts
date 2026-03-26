@@ -180,6 +180,15 @@ class ApiClient {
     return this.request<{ message: string }>('DELETE', `/accounts/${id}`);
   }
 
+  // Badges
+  async addBadge(accountId: string, badge: string) {
+    return this.request<any>('POST', `/accounts/${accountId}/badges`, { badge });
+  }
+
+  async removeBadge(accountId: string, badge: string) {
+    return this.request<any>('DELETE', `/accounts/${accountId}/badges/${badge}`);
+  }
+
   // Threads
   async getThreads(params?: { account_id?: string; page?: number; limit?: number; search?: string }) {
     const query: Record<string, string> = {};

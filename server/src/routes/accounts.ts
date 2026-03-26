@@ -52,6 +52,7 @@ export async function accountRoutes(fastify: FastifyInstance) {
         isActive: true,
         label: true,
         color: true,
+        badges: true,
         lastSyncAt: true,
         syncError: true,
         createdAt: true,
@@ -277,5 +278,72 @@ export async function accountRoutes(fastify: FastifyInstance) {
     });
 
     return { message: 'Account disconnected', email: account.emailAddress };
+  });
+
+  // ============================================================
+  // BADGE MANAGEMENT
+  // Badges: multi_person | ai_managed | shared_inbox
+  // ============================================================
+
+  const VALID_BADGES = ['multi_person', 'ai_managed', 'shared_inbox'];
+
+  /**
+   * POST /accounts/:id/badges - Add a badge to an account
+   */
+  fastify.post('/accounts/:id/badges', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { badge } = request.body as { badge: string };
+
+    if (!badge || !VALID_BADGES.includes(badge)) {
+      return reply.code(400).send({
+        error: `Invalid badge. Must be one of: ${VALID_BADGES.join(', ')}`,
+      });
+    }
+
+    const account = await prisma.emailAccount.findFirst({
+      where: { id, userId: request.userId },
+    });
+
+    if (!account) {
+      return reply.code(404).send({ error: 'Account not found' });
+    }
+
+    // Add badge if not already present
+    const currentBadges = account.badges || [];
+    if (currentBadges.includes(badge)) {
+      return { account: { id, badges: currentBadges }, message: 'Badge already set' };
+    }
+
+    const updated = await prisma.emailAccount.update({
+      where: { id },
+      data: { badges: [...currentBadges, badge] },
+      select: { id: true, emailAddress: true, badges: true },
+    });
+
+    return { account: updated, message: `Badge '${badge}' added` };
+  });
+
+  /**
+   * DELETE /accounts/:id/badges/:badge - Remove a badge from an account
+   */
+  fastify.delete('/accounts/:id/badges/:badge', async (request, reply) => {
+    const { id, badge } = request.params as { id: string; badge: string };
+
+    const account = await prisma.emailAccount.findFirst({
+      where: { id, userId: request.userId },
+    });
+
+    if (!account) {
+      return reply.code(404).send({ error: 'Account not found' });
+    }
+
+    const currentBadges = account.badges || [];
+    const updated = await prisma.emailAccount.update({
+      where: { id },
+      data: { badges: currentBadges.filter((b: string) => b !== badge) },
+      select: { id: true, emailAddress: true, badges: true },
+    });
+
+    return { account: updated, message: `Badge '${badge}' removed` };
   });
 }

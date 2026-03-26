@@ -5,6 +5,7 @@ import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
+import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import type { EmailThread, Account } from '@/lib/types';
 
@@ -125,6 +126,7 @@ export default function InboxPage() {
                   style={{ backgroundColor: acc.color || (acc.provider === 'gmail' ? '#EA4335' : '#6366F1') }}
                 />
                 {acc.label || acc.emailAddress.split('@')[0]}
+                <BadgeIcons badges={acc.badges || []} size="sm" />
               </button>
             ))}
           </div>
@@ -167,12 +169,15 @@ export default function InboxPage() {
                     <div className="flex items-center gap-2 mb-1">
                       {/* Account badge */}
                       {accounts.length > 1 && acc && (
-                        <AccountBadge
-                          emailAddress={acc.emailAddress}
-                          provider={acc.provider}
-                          color={acc.color}
-                          label={acc.label}
-                        />
+                        <>
+                          <AccountBadge
+                            emailAddress={acc.emailAddress}
+                            provider={acc.provider}
+                            color={acc.color}
+                            label={acc.label}
+                          />
+                          <BadgeIcons badges={acc.badges || []} size="sm" />
+                        </>
                       )}
                       <span className={`text-sm truncate ${!thread.isRead ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
                         {thread.subject || '(No Subject)'}

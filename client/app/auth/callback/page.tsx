@@ -12,6 +12,7 @@ function AuthCallbackContent() {
   useEffect(() => {
     const token = searchParams.get('token');
     const error = searchParams.get('error');
+    const addedEmail = searchParams.get('added');
 
     if (error) {
       setStatus(`Authentication failed: ${error}`);
@@ -20,8 +21,16 @@ function AuthCallbackContent() {
 
     if (token) {
       api.setToken(token);
-      setStatus('Authenticated! Redirecting...');
-      setTimeout(() => router.push('/'), 1000);
+
+      if (addedEmail) {
+        // Add-account mode: account was linked to existing user
+        setStatus(`${addedEmail} kopplad! Omdirigerar...`);
+        setTimeout(() => router.push('/settings/accounts'), 1000);
+      } else {
+        // Normal login
+        setStatus('Authenticated! Redirecting...');
+        setTimeout(() => router.push('/'), 1000);
+      }
     } else {
       setStatus('Waiting for authentication response...');
     }

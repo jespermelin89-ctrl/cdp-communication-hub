@@ -318,10 +318,15 @@ class ApiClient {
     return this.request<{ classified: number; total: number; results: any }>('POST', '/categories/classify');
   }
 
-  // Provider detection
+  // Provider detection — passes current token for add-account OAuth state
   async detectProvider(email: string) {
+    const currentToken = this.getToken();
+    const body: any = { email };
+    if (currentToken) {
+      body.token = currentToken; // Embed in OAuth state for add-account flow
+    }
     return this.request<{ provider: string; imap_host?: string; imap_port?: number; smtp_host?: string; smtp_port?: number; oauth_available?: boolean }>(
-      'POST', '/auth/connect', { email }
+      'POST', '/auth/connect', body
     );
   }
 

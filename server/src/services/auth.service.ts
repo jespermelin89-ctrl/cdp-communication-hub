@@ -27,9 +27,10 @@ export class AuthService {
   /**
    * Generate OAuth consent URL for a specific email address.
    * Detects the provider and includes login_hint for Google.
-   * For non-OAuth providers, throws an error.
+   * If existingToken is provided, it's embedded in OAuth state so the callback
+   * can add the account to the existing user instead of creating a new session.
    */
-  getConsentUrlForEmail(email: string): string {
+  getConsentUrlForEmail(email: string, existingToken?: string): string {
     const provider = detectProvider(email);
 
     if (provider.authMethod !== 'oauth') {
@@ -39,8 +40,11 @@ export class AuthService {
     }
 
     if (provider.type === 'google') {
-      // Generate Google OAuth URL with login_hint to pre-select the account
-      return getAuthUrl(undefined, email);
+      // Build state: encode existing token so callback knows to add-account
+      const state = existingToken
+        ? JSON.stringify({ mode: 'add_account', token: existingToken })
+        : undefined;
+      return getAuthUrl(state, email);
     }
 
     if (provider.type === 'microsoft') {
@@ -52,8 +56,9 @@ export class AuthService {
 
   /**
    * Handle the OAuth callback: exchange code, get user info, create/update user and account.
+   * If state contains a valid JWT (add_account mode), the new email is linked to the existing user.
    */
-  async handleCallback(code: string) {
+  async handleCallback(code: string, state?: string) {
     // Exchange authorization code for tokens
     const tokens = await exchangeCode(code);
 
@@ -70,8 +75,75 @@ export class AuthService {
       throw new Error('Could not get email from Google account.');
     }
 
-    // Upsert user
-    const user = await prisma.user.upsert({
+    // Check if this is an "add account" flow (existing user adding a new email)
+    let existingUserId: string | null = null;
+    let isAddAccountMode = false;
+
+    if (state) {
+      try {
+        const parsed = JSON.parse(state);
+        if (parsed.mode === 'add_account' && parsed.token) {
+          const decoded = this.verifyJwt(parsed.token);
+          existingUserId = decoded.userId;
+          isAddAccountMode = true;
+        }
+      } catch {
+        // Invalid state — fall through to normal login flow
+      }
+    }
+
+    let user;
+    let returnToken: string;
+
+    if (isAddAccountMode && existingUserId) {
+      // ADD ACCOUNT MODE: Link the new email to the existing user
+      user = await prisma.user.findUniqueOrThrow({
+        where: { id: existingUserId },
+      });
+
+      // Upsert email account under the EXISTING user
+      const account = await prisma.emailAccount.upsert({
+        where: {
+          userId_emailAddress: {
+            userId: user.id,
+            emailAddress: userInfo.data.email,
+          },
+        },
+        update: {
+          accessTokenEncrypted: encrypt(tokens.access_token),
+          refreshTokenEncrypted: encrypt(tokens.refresh_token),
+          tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+        },
+        create: {
+          userId: user.id,
+          provider: 'gmail',
+          emailAddress: userInfo.data.email,
+          accessTokenEncrypted: encrypt(tokens.access_token),
+          refreshTokenEncrypted: encrypt(tokens.refresh_token),
+          tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+          isDefault: false, // Not default — user already has a primary account
+        },
+      });
+
+      await actionLogService.log(user.id, 'account_connected', 'account', account.id, {
+        email: userInfo.data.email,
+        provider: 'gmail',
+        mode: 'add_account',
+      });
+
+      // Return the SAME token (keep existing session)
+      returnToken = this.generateJwt(user.id, user.email);
+
+      return {
+        token: returnToken,
+        user: { id: user.id, email: user.email, name: user.name },
+        account: { id: account.id, email: account.emailAddress },
+        addedAccount: true,
+      };
+    }
+
+    // NORMAL LOGIN FLOW: Create or update user based on OAuth email
+    user = await prisma.user.upsert({
       where: { email: userInfo.data.email },
       update: {
         name: userInfo.data.name || undefined,
@@ -125,19 +197,13 @@ export class AuthService {
     });
 
     // Generate JWT
-    const token = this.generateJwt(user.id, user.email);
+    returnToken = this.generateJwt(user.id, user.email);
 
     return {
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
-      account: {
-        id: account.id,
-        email: account.emailAddress,
-      },
+      token: returnToken,
+      user: { id: user.id, email: user.email, name: user.name },
+      account: { id: account.id, email: account.emailAddress },
+      addedAccount: false,
     };
   }
 

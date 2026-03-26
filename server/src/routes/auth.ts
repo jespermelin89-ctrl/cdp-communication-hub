@@ -5,6 +5,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { env } from '../config/env';
+import { prisma } from '../config/database';
 import { authService } from '../services/auth.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { detectProvider } from '../config/email-providers';
@@ -23,7 +24,7 @@ export async function authRoutes(fastify: FastifyInstance) {
    * Google redirects here with ?code=...
    */
   fastify.get('/auth/google/callback', async (request, reply) => {
-    const { code } = request.query as { code?: string };
+    const { code, state } = request.query as { code?: string; state?: string };
 
     if (!code) {
       return reply.code(400).send({
@@ -33,9 +34,16 @@ export async function authRoutes(fastify: FastifyInstance) {
     }
 
     try {
-      const result = await authService.handleCallback(code);
+      const result = await authService.handleCallback(code, state);
 
-      // Redirect to frontend with token in query parameter
+      if (result.addedAccount) {
+        // Add-account mode: redirect to accounts page with success indicator
+        // Keep the existing session token
+        const frontendCallback = `${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(result.token)}&added=${encodeURIComponent(result.account.email)}`;
+        return reply.redirect(frontendCallback);
+      }
+
+      // Normal login: redirect with new token
       const frontendCallback = `${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(result.token)}`;
       return reply.redirect(frontendCallback);
     } catch (error: any) {
@@ -52,6 +60,7 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/auth/connect', async (request, reply) => {
     const schema = z.object({
       email: z.string().email('Invalid email address'),
+      token: z.string().optional(), // Existing JWT for add-account mode
     });
 
     const parsed = schema.safeParse(request.body);
@@ -62,7 +71,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       });
     }
 
-    const { email } = parsed.data;
+    const { email, token } = parsed.data;
     const provider = detectProvider(email);
 
     const response: any = {
@@ -78,7 +87,8 @@ export async function authRoutes(fastify: FastifyInstance) {
     // Handle OAuth providers
     if (provider.authMethod === 'oauth') {
       try {
-        response.authUrl = authService.getConsentUrlForEmail(email);
+        // Pass existing token so it's embedded in OAuth state for add-account flow
+        response.authUrl = authService.getConsentUrlForEmail(email, token);
       } catch (error: any) {
         // OAuth not available for this provider or error generating URL
         if (provider.imapDefaults || provider.smtpDefaults) {
@@ -116,5 +126,88 @@ export async function authRoutes(fastify: FastifyInstance) {
   }, async (request, reply) => {
     const profile = await authService.getProfile(request.userId);
     return { user: profile };
+  });
+
+  /**
+   * POST /auth/admin/merge-accounts - TEMPORARY: Merge orphaned accounts
+   * Moves email accounts from one user to another (for fixing the add-account bug).
+   * Protected by a simple secret key.
+   */
+  fastify.post('/auth/admin/merge-accounts', async (request, reply) => {
+    const { secret, target_email, source_email } = request.body as {
+      secret?: string;
+      target_email?: string; // Primary user email (e.g. jesper.melin89@gmail.com)
+      source_email?: string; // Orphaned user email (e.g. jesper.melin@gmail.com)
+    };
+
+    // Simple protection — only allow with correct secret
+    if (secret !== env.JWT_SECRET) {
+      return reply.code(403).send({ error: 'Forbidden' });
+    }
+
+    if (!target_email || !source_email) {
+      return reply.code(400).send({ error: 'target_email and source_email required' });
+    }
+
+    // Find both users
+    const targetUser = await prisma.user.findUnique({ where: { email: target_email } });
+    const sourceUser = await prisma.user.findUnique({ where: { email: source_email } });
+
+    if (!targetUser) {
+      return reply.code(404).send({ error: `Target user ${target_email} not found` });
+    }
+    if (!sourceUser) {
+      return reply.code(404).send({ error: `Source user ${source_email} not found` });
+    }
+
+    // Find accounts belonging to the source user
+    const sourceAccounts = await prisma.emailAccount.findMany({
+      where: { userId: sourceUser.id },
+    });
+
+    const results: any[] = [];
+
+    for (const account of sourceAccounts) {
+      // Check if target user already has this email
+      const existing = await prisma.emailAccount.findFirst({
+        where: { userId: targetUser.id, emailAddress: account.emailAddress },
+      });
+
+      if (existing) {
+        // Update existing with fresh tokens from the source account
+        await prisma.emailAccount.update({
+          where: { id: existing.id },
+          data: {
+            accessTokenEncrypted: account.accessTokenEncrypted,
+            refreshTokenEncrypted: account.refreshTokenEncrypted,
+            tokenExpiresAt: account.tokenExpiresAt,
+          },
+        });
+        // Delete the source account
+        await prisma.emailAccount.delete({ where: { id: account.id } });
+        results.push({ email: account.emailAddress, action: 'updated_existing' });
+      } else {
+        // Move account to target user
+        await prisma.emailAccount.update({
+          where: { id: account.id },
+          data: { userId: targetUser.id, isDefault: false },
+        });
+        results.push({ email: account.emailAddress, action: 'moved_to_target' });
+      }
+    }
+
+    // Clean up source user settings
+    await prisma.userSettings.deleteMany({ where: { userId: sourceUser.id } });
+    // Clean up source action logs
+    await prisma.actionLog.deleteMany({ where: { userId: sourceUser.id } });
+    // Delete the orphaned source user
+    await prisma.user.delete({ where: { id: sourceUser.id } });
+
+    return {
+      message: 'Accounts merged successfully',
+      target_user: targetUser.email,
+      source_user_deleted: sourceUser.email,
+      accounts: results,
+    };
   });
 }

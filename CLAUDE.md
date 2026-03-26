@@ -104,10 +104,15 @@ Email sync every 5 min, AI classification every 10 min, backoff after 3 failures
 - Removed `POST /auth/admin/merge-accounts` temporary endpoint from auth.ts
 - Local `master` branch now tracks `origin/main`
 
-## What's Left
+### ✅ Auto-Updating Styrdokument
+- `STYRDOKUMENT.md` — auto-genererat governance-dokument
+- `scripts/update-styrdokument.js` — scanner rutter, tjänster, DB-tabeller, sidor, beroenden
+- `npm run styrdokument` — kör manuellt
+- `.git/hooks/post-commit` — uppdaterar automatiskt och amends commiten vid varje push
 
-### Auto-Updating Styrdokument
-Governance document that auto-updates as the system evolves. Not yet started.
+## Allt genomfört ✓
+
+Inga kvarstående uppgifter.
 
 ## i18n System (Already Implemented)
 - React Context-based with useI18n() hook

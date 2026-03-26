@@ -6,9 +6,11 @@ import TopBar from '@/components/TopBar';
 import AddEmailAccount from '@/components/AddEmailAccount';
 import { BadgeIcons, BadgeContextMenu, BadgeManager } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import type { Account } from '@/lib/types';
 
 export default function AccountsSettingsPage() {
+  const { t } = useI18n();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddAccount, setShowAddAccount] = useState(false);
@@ -39,7 +41,7 @@ export default function AccountsSettingsPage() {
       await api.setDefaultAccount(accountId);
       await loadAccounts();
     } catch (err: any) {
-      alert(`Fel: ${err.message}`);
+      alert(err.message);
     } finally {
       setActionLoading(false);
     }
@@ -51,20 +53,20 @@ export default function AccountsSettingsPage() {
       await api.updateAccount(account.id, { is_active: !account.isActive });
       await loadAccounts();
     } catch (err: any) {
-      alert(`Fel: ${err.message}`);
+      alert(err.message);
     } finally {
       setActionLoading(false);
     }
   }
 
   async function handleDeleteAccount(account: Account) {
-    if (!confirm(`Koppla bort ${account.emailAddress}? All cachad data för det här kontot kommer att tas bort.`)) return;
+    if (!confirm(t.settings.disconnectConfirm.replace('{email}', account.emailAddress))) return;
     setActionLoading(true);
     try {
       await api.deleteAccount(account.id);
       await loadAccounts();
     } catch (err: any) {
-      alert(`Fel: ${err.message}`);
+      alert(err.message);
     } finally {
       setActionLoading(false);
     }
@@ -91,7 +93,7 @@ export default function AccountsSettingsPage() {
       setEditingAccount(null);
       await loadAccounts();
     } catch (err: any) {
-      alert(`Fel: ${err.message}`);
+      alert(err.message);
     } finally {
       setActionLoading(false);
     }
@@ -104,30 +106,23 @@ export default function AccountsSettingsPage() {
   }
 
   const providerLabel = (provider: string) => {
-    switch (provider) {
-      case 'gmail': return 'Gmail (OAuth)';
-      case 'imap': return 'IMAP/SMTP';
-      case 'microsoft': return 'Microsoft 365';
-      default: return provider;
-    }
+    const map: Record<string, string> = {
+      gmail: t.accounts.gmail,
+      imap: t.accounts.imap,
+      microsoft: t.accounts.microsoft,
+    };
+    return map[provider] || provider;
   };
 
   const providerIcon = (provider: string) => {
-    switch (provider) {
-      case 'gmail': return '📧';
-      case 'imap': return '⚙️';
-      case 'microsoft': return '💼';
-      default: return '📬';
-    }
+    const map: Record<string, string> = { gmail: '📧', imap: '⚙️', microsoft: '💼' };
+    return map[provider] || '📬';
   };
 
   if (showAddAccount) {
     return (
       <AddEmailAccount
-        onSuccess={() => {
-          setShowAddAccount(false);
-          loadAccounts();
-        }}
+        onSuccess={() => { setShowAddAccount(false); loadAccounts(); }}
         onCancel={() => setShowAddAccount(false)}
       />
     );
@@ -138,46 +133,50 @@ export default function AccountsSettingsPage() {
       <TopBar />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">E-postkonton</h1>
-            <p className="text-gray-600 mt-1">Hantera anslutna e-postkonton</p>
+            <h1 className="text-2xl font-bold text-gray-900">{t.accounts.title}</h1>
+            <p className="text-sm text-gray-400 mt-0.5">{t.accounts.subtitle}</p>
           </div>
           <button
             onClick={() => setShowAddAccount(true)}
             className="btn-primary text-sm"
           >
-            + Lägg till konto
+            {t.accounts.addAccount}
           </button>
         </div>
 
         <div className="mb-6">
           <Link href="/settings" className="text-sm text-brand-600 hover:text-brand-700">
-            ← Tillbaka till inställningar
+            {t.accounts.back}
           </Link>
         </div>
 
         {error && (
-          <div className="card border-red-200 bg-red-50 text-red-700 mb-6">
+          <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 mb-6 text-sm">
             {error}
           </div>
         )}
 
-        <div className="card">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           {loading ? (
-            <div className="text-center py-12 text-gray-500">Läser in konton...</div>
+            <div className="flex items-center justify-center py-16">
+              <div className="flex flex-col items-center gap-3 text-gray-400">
+                <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
+                <span className="text-sm">{t.accounts.loading}</span>
+              </div>
+            </div>
           ) : accounts.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 mb-4">Inga e-postkonton är anslutna ännu.</p>
-              <button
-                onClick={() => setShowAddAccount(true)}
-                className="btn-primary"
-              >
-                Anslut ditt första konto
+            <div className="text-center py-16">
+              <div className="text-4xl mb-3">📭</div>
+              <p className="text-gray-400 text-sm mb-4">{t.accounts.noAccounts}</p>
+              <button onClick={() => setShowAddAccount(true)} className="btn-primary text-sm">
+                {t.accounts.connectFirst}
               </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="divide-y divide-gray-100">
               {accounts.map((account) => (
                 <BadgeContextMenu
                   key={account.id}
@@ -185,169 +184,164 @@ export default function AccountsSettingsPage() {
                   currentBadges={account.badges || []}
                   onBadgesChanged={(badges) => handleBadgesChanged(account.id, badges)}
                 >
-                <div
-                  className="rounded-xl border border-gray-200 overflow-hidden hover:border-gray-300 transition-colors"
-                >
-                  <div className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-4 flex-1">
-                      <div className="text-2xl">
-                        {providerIcon(account.provider)}
+                  <div>
+                    {/* Account row */}
+                    <div className="flex items-center justify-between px-5 py-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <span className="text-2xl shrink-0">{providerIcon(account.provider)}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-gray-900">
+                              {account.displayName || account.emailAddress}
+                            </span>
+                            <BadgeIcons badges={account.badges || []} size="md" />
+                          </div>
+                          <div className="text-sm text-gray-500 truncate">
+                            {account.emailAddress}
+                            {account.label && (
+                              <span className="ml-2 text-gray-400">({account.label})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap mt-1">
+                            <span className="text-xs text-gray-400">{providerLabel(account.provider)}</span>
+                            {account.isDefault && (
+                              <span className="text-xs px-2 py-0.5 bg-brand-100 text-brand-700 rounded-full font-medium">
+                                {t.settings.default}
+                              </span>
+                            )}
+                            {!account.isActive && (
+                              <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">
+                                {t.settings.disabled}
+                              </span>
+                            )}
+                            {account.syncError && (
+                              <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full font-medium">
+                                {t.settings.syncError}
+                              </span>
+                            )}
+                            {account.lastSyncAt && (
+                              <span className="text-xs text-gray-400">
+                                {t.accounts.lastSynced}: {new Date(account.lastSyncAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 flex items-center">
-                          {account.displayName || account.emailAddress}
-                          <BadgeIcons badges={account.badges || []} size="md" />
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {account.emailAddress}
-                          {account.label && <span className="ml-2 text-gray-400">({account.label})</span>}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1 flex items-center gap-2 flex-wrap">
-                          <span>{providerLabel(account.provider)}</span>
-                          {account.isDefault && (
-                            <span className="px-2 py-0.5 bg-brand-100 text-brand-700 rounded-full text-xs font-medium">
-                              Standard
-                            </span>
-                          )}
-                          {!account.isActive && (
-                            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">
-                              Inaktiv
-                            </span>
-                          )}
-                          {account.syncError && (
-                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
-                              Synkfel
-                            </span>
-                          )}
-                          {account.lastSyncAt && (
-                            <span className="text-gray-400">
-                              Senast synkad: {new Date(account.lastSyncAt).toLocaleDateString('sv-SE')}
-                            </span>
-                          )}
-                        </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => editingAccount === account.id ? setEditingAccount(null) : startEdit(account)}
+                          className="text-xs px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                        >
+                          {t.settings.edit}
+                        </button>
+                        {!account.isDefault && (
+                          <button
+                            onClick={() => handleSetDefault(account.id)}
+                            disabled={actionLoading}
+                            className="btn-secondary text-xs"
+                          >
+                            {t.settings.setDefault}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleToggleActive(account)}
+                          disabled={actionLoading}
+                          className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
+                            account.isActive
+                              ? 'text-orange-600 hover:text-orange-700 hover:bg-orange-50'
+                              : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                          }`}
+                        >
+                          {account.isActive ? t.settings.disable : t.settings.enable}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAccount(account)}
+                          disabled={actionLoading}
+                          className="text-xs px-3 py-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          {t.settings.remove}
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => startEdit(account)}
-                        className="text-xs px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                      >
-                        Redigera
-                      </button>
-                      {!account.isDefault && (
-                        <button
-                          onClick={() => handleSetDefault(account.id)}
-                          disabled={actionLoading}
-                          className="btn-secondary text-xs"
-                        >
-                          Sätt som standard
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleToggleActive(account)}
-                        disabled={actionLoading}
-                        className={`text-xs px-3 py-1.5 rounded-lg transition-colors ${
-                          account.isActive
-                            ? 'text-orange-600 hover:text-orange-700 hover:bg-orange-50'
-                            : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
-                        }`}
-                      >
-                        {account.isActive ? 'Inaktivera' : 'Aktivera'}
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAccount(account)}
-                        disabled={actionLoading}
-                        className="text-xs px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        Ta bort
-                      </button>
-                    </div>
+                    {/* Inline edit panel */}
+                    {editingAccount === account.id && (
+                      <div className="px-5 pb-5 pt-3 border-t border-gray-100 bg-gray-50">
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                          {t.accounts.editTitle}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              {t.settings.displayName}
+                            </label>
+                            <input
+                              type="text"
+                              value={editForm.display_name}
+                              onChange={(e) => setEditForm((f) => ({ ...f, display_name: e.target.value }))}
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                              placeholder={t.settings.optional}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              {t.settings.label}
+                            </label>
+                            <input
+                              type="text"
+                              value={editForm.label}
+                              onChange={(e) => setEditForm((f) => ({ ...f, label: e.target.value }))}
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                              placeholder={t.settings.egWork}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              {t.settings.color}
+                            </label>
+                            <input
+                              type="color"
+                              value={editForm.color}
+                              onChange={(e) => setEditForm((f) => ({ ...f, color: e.target.value }))}
+                              className="w-full h-[34px] rounded-lg border border-gray-200 cursor-pointer"
+                            />
+                          </div>
+                        </div>
+
+                        <BadgeManager
+                          accountId={account.id}
+                          currentBadges={account.badges || []}
+                          onBadgesChanged={(badges) => handleBadgesChanged(account.id, badges)}
+                        />
+
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={handleSaveEdit}
+                            disabled={actionLoading}
+                            className="btn-primary text-xs"
+                          >
+                            {t.settings.save}
+                          </button>
+                          <button
+                            onClick={() => setEditingAccount(null)}
+                            className="btn-secondary text-xs"
+                          >
+                            {t.settings.cancel}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Inline edit panel */}
-                  {editingAccount === account.id && (
-                    <div className="px-4 pb-4 pt-2 border-t border-gray-100 bg-gray-50">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Visningsnamn
-                          </label>
-                          <input
-                            type="text"
-                            value={editForm.display_name}
-                            onChange={(e) =>
-                              setEditForm((f) => ({ ...f, display_name: e.target.value }))
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-                            placeholder="Valfritt"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Etikett
-                          </label>
-                          <input
-                            type="text"
-                            value={editForm.label}
-                            onChange={(e) =>
-                              setEditForm((f) => ({ ...f, label: e.target.value }))
-                            }
-                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-                            placeholder="t.ex. Arbete"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
-                            Färg
-                          </label>
-                          <input
-                            type="color"
-                            value={editForm.color}
-                            onChange={(e) =>
-                              setEditForm((f) => ({ ...f, color: e.target.value }))
-                            }
-                            className="w-full h-[34px] rounded-lg border border-gray-200 cursor-pointer"
-                          />
-                        </div>
-                      </div>
-                      {/* Badge Manager */}
-                      <BadgeManager
-                        accountId={account.id}
-                        currentBadges={account.badges || []}
-                        onBadgesChanged={(badges) => handleBadgesChanged(account.id, badges)}
-                      />
-
-                      <div className="flex gap-2 mt-3">
-                        <button
-                          onClick={handleSaveEdit}
-                          disabled={actionLoading}
-                          className="btn-primary text-xs"
-                        >
-                          Spara
-                        </button>
-                        <button
-                          onClick={() => setEditingAccount(null)}
-                          className="btn-secondary text-xs"
-                        >
-                          Avbryt
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
                 </BadgeContextMenu>
               ))}
             </div>
           )}
         </div>
 
-        <div className="mt-6 text-sm text-gray-500">
-          <p>
-            💡 <strong>Tips:</strong> Du kan ansluta flera e-postkonton och välja vilket som är standard.
-            Varje konto kan ha sina egna etiketter och inställningar.
-          </p>
-        </div>
+        <p className="mt-5 text-xs text-gray-400">
+          💡 {t.accounts.tip}
+        </p>
       </main>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 interface Category {
   id: string;
@@ -25,21 +26,29 @@ interface SenderRule {
   category: { name: string; icon: string | null } | null;
 }
 
+const ACTION_COLORS: Record<string, string> = {
+  spam: 'bg-red-100 text-red-700',
+  archive: 'bg-gray-100 text-gray-600',
+  categorize: 'bg-blue-100 text-blue-700',
+  mute: 'bg-orange-100 text-orange-700',
+  star: 'bg-amber-100 text-amber-700',
+};
+
 export default function CategoriesPage() {
+  const { t } = useI18n();
   const [categories, setCategories] = useState<Category[]>([]);
   const [rules, setRules] = useState<SenderRule[]>([]);
   const [loading, setLoading] = useState(true);
+  const [classifying, setClassifying] = useState(false);
 
-  // New rule form
   const [showAddRule, setShowAddRule] = useState(false);
   const [ruleForm, setRuleForm] = useState({
     sender_pattern: '',
     subject_pattern: '',
     action: 'spam',
-    category_slug: 'spam',
+    category_slug: '',
   });
 
-  // New category form
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [catForm, setCatForm] = useState({ name: '', color: '#6366F1', icon: '', description: '' });
 
@@ -52,6 +61,9 @@ export default function CategoriesPage() {
       const [catRes, ruleRes] = await Promise.all([api.getCategories(), api.getRules()]);
       setCategories(catRes.categories);
       setRules(ruleRes.rules);
+      if (!ruleForm.category_slug && catRes.categories.length > 0) {
+        setRuleForm((f) => ({ ...f, category_slug: catRes.categories[0].slug }));
+      }
     } catch (err) {
       console.error('Failed to load:', err);
     } finally {
@@ -68,7 +80,7 @@ export default function CategoriesPage() {
         category_slug: ruleForm.category_slug || undefined,
       });
       setShowAddRule(false);
-      setRuleForm({ sender_pattern: '', subject_pattern: '', action: 'spam', category_slug: 'spam' });
+      setRuleForm((f) => ({ ...f, sender_pattern: '', subject_pattern: '' }));
       await loadAll();
     } catch (err: any) {
       alert(err.message);
@@ -76,7 +88,7 @@ export default function CategoriesPage() {
   }
 
   async function handleDeleteRule(id: string) {
-    if (!confirm('Ta bort denna regel?')) return;
+    if (!confirm(t.categories.deleteConfirm)) return;
     try {
       await api.deleteRule(id);
       await loadAll();
@@ -102,64 +114,95 @@ export default function CategoriesPage() {
   }
 
   async function handleClassify() {
+    setClassifying(true);
     try {
       const result = await api.classifyThreads();
-      alert(`Klassificering klar: ${result.classified} av ${result.total} trådar matchade regler.`);
+      alert(`${result.classified} / ${result.total}`);
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setClassifying(false);
     }
   }
+
+  const actionLabel = (action: string) => {
+    const map: Record<string, string> = {
+      spam: t.categories.spam,
+      archive: t.categories.archive,
+      categorize: t.categories.categorize,
+      mute: t.categories.mute,
+      star: t.categories.star,
+    };
+    return map[action] || action;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <TopBar />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Kategorier & Regler</h1>
-          <button onClick={handleClassify} className="btn-primary text-sm">
-            Kör Klassificering
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">{t.categories.title}</h1>
+          <button
+            onClick={handleClassify}
+            disabled={classifying}
+            className="btn-primary text-sm flex items-center gap-2"
+          >
+            <span className={classifying ? 'animate-spin' : ''}>⚡</span>
+            {classifying ? '…' : t.categories.runClassification}
           </button>
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-500">Laddar...</div>
+          <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-3 text-gray-400">
+              <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
+              <span className="text-sm">{t.categories.loading}</span>
+            </div>
+          </div>
         ) : (
           <div className="grid lg:grid-cols-2 gap-6">
-            {/* Categories */}
+            {/* ── Categories ── */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-gray-900">Kategorier</h2>
-                <button onClick={() => setShowAddCategory(!showAddCategory)} className="btn-secondary text-xs">
-                  + Ny Kategori
+                <h2 className="font-semibold text-gray-900">{t.categories.categoriesHeading}</h2>
+                <button
+                  onClick={() => setShowAddCategory(!showAddCategory)}
+                  className="btn-secondary text-xs"
+                >
+                  {t.categories.newCategory}
                 </button>
               </div>
 
               {showAddCategory && (
-                <div className="card mb-3 space-y-3">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-3 space-y-3">
                   <input
                     type="text"
-                    placeholder="Namn"
+                    placeholder={t.categories.nameLabel}
                     value={catForm.name}
                     onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                   />
                   <div className="grid grid-cols-3 gap-2">
                     <input
                       type="text"
-                      placeholder="Emoji"
+                      placeholder={t.categories.emojiLabel}
                       value={catForm.icon}
                       onChange={(e) => setCatForm((f) => ({ ...f, icon: e.target.value }))}
-                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none"
                     />
                     <input
                       type="color"
                       value={catForm.color}
                       onChange={(e) => setCatForm((f) => ({ ...f, color: e.target.value }))}
-                      className="h-[38px] rounded-lg border border-gray-200 cursor-pointer"
+                      className="h-[38px] rounded-xl border border-gray-200 cursor-pointer"
                     />
-                    <button onClick={handleAddCategory} className="btn-primary text-xs" disabled={!catForm.name}>
-                      Skapa
+                    <button
+                      onClick={handleAddCategory}
+                      className="btn-primary text-xs"
+                      disabled={!catForm.name}
+                    >
+                      {t.categories.create}
                     </button>
                   </div>
                 </div>
@@ -167,24 +210,32 @@ export default function CategoriesPage() {
 
               <div className="space-y-2">
                 {categories.map((cat) => (
-                  <div key={cat.id} className="card py-3 px-4 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  <div
+                    key={cat.id}
+                    className="bg-white rounded-2xl border border-gray-200 shadow-sm py-3 px-4 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2.5">
                       <span
                         className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: cat.color || '#9CA3AF' }}
                       />
-                      <span className="text-sm">{cat.icon}</span>
+                      <span className="text-base">{cat.icon}</span>
                       <span className="text-sm font-medium text-gray-900">{cat.name}</span>
                       {cat._count?.rules ? (
-                        <span className="text-xs text-gray-400">{cat._count.rules} regler</span>
+                        <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded-full border border-gray-200">
+                          {cat._count.rules}
+                        </span>
                       ) : null}
+                      {cat.isSystem && (
+                        <span className="text-xs text-gray-400 italic">{t.categories.system}</span>
+                      )}
                     </div>
                     {!cat.isSystem && (
                       <button
                         onClick={() => api.deleteCategory(cat.id).then(loadAll)}
                         className="text-xs text-red-400 hover:text-red-600"
                       >
-                        Ta bort
+                        ✕
                       </button>
                     )}
                   </div>
@@ -192,54 +243,59 @@ export default function CategoriesPage() {
               </div>
             </div>
 
-            {/* Sender Rules */}
+            {/* ── Sender Rules ── */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-gray-900">Avsändarregler</h2>
-                <button onClick={() => setShowAddRule(!showAddRule)} className="btn-secondary text-xs">
-                  + Ny Regel
+                <h2 className="font-semibold text-gray-900">{t.categories.rulesHeading}</h2>
+                <button
+                  onClick={() => setShowAddRule(!showAddRule)}
+                  className="btn-secondary text-xs"
+                >
+                  {t.categories.newRule}
                 </button>
               </div>
 
               {showAddRule && (
-                <div className="card mb-3 space-y-3">
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-3 space-y-3">
                   <input
                     type="text"
-                    placeholder="Avsändarmönster (t.ex. noreply@skool.com eller *@github.com)"
+                    placeholder={t.categories.senderPattern}
                     value={ruleForm.sender_pattern}
                     onChange={(e) => setRuleForm((f) => ({ ...f, sender_pattern: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                   />
                   <input
                     type="text"
-                    placeholder="Ämnesmönster (regex, valfritt)"
+                    placeholder={t.categories.subjectPattern}
                     value={ruleForm.subject_pattern}
                     onChange={(e) => setRuleForm((f) => ({ ...f, subject_pattern: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                   />
                   <div className="grid grid-cols-3 gap-2">
                     <select
                       value={ruleForm.action}
                       onChange={(e) => setRuleForm((f) => ({ ...f, action: e.target.value }))}
-                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-brand-500 outline-none"
                     >
-                      <option value="spam">Skräp</option>
-                      <option value="archive">Arkivera</option>
-                      <option value="categorize">Kategorisera</option>
-                      <option value="mute">Tysta</option>
-                      <option value="star">Stjärnmärk</option>
+                      {(['spam', 'archive', 'categorize', 'mute', 'star'] as const).map((a) => (
+                        <option key={a} value={a}>{actionLabel(a)}</option>
+                      ))}
                     </select>
                     <select
                       value={ruleForm.category_slug}
                       onChange={(e) => setRuleForm((f) => ({ ...f, category_slug: e.target.value }))}
-                      className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-brand-500 outline-none"
                     >
                       {categories.map((c) => (
                         <option key={c.slug} value={c.slug}>{c.icon} {c.name}</option>
                       ))}
                     </select>
-                    <button onClick={handleAddRule} className="btn-primary text-xs" disabled={!ruleForm.sender_pattern}>
-                      Lägg till
+                    <button
+                      onClick={handleAddRule}
+                      className="btn-primary text-xs"
+                      disabled={!ruleForm.sender_pattern}
+                    >
+                      {t.categories.add}
                     </button>
                   </div>
                 </div>
@@ -247,30 +303,40 @@ export default function CategoriesPage() {
 
               <div className="space-y-2">
                 {rules.length === 0 ? (
-                  <div className="card text-center py-6 text-sm text-gray-500">
-                    Inga regler ännu. Lägg till en ovan eller skriv "markera X som skräp" i chatten.
+                  <div className="bg-white rounded-2xl border border-dashed border-gray-300 text-center py-10 text-sm text-gray-400">
+                    {t.categories.noRules}
                   </div>
                 ) : (
                   rules.map((rule) => (
-                    <div key={rule.id} className="card py-3 px-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900 font-mono">
+                    <div
+                      key={rule.id}
+                      className="bg-white rounded-2xl border border-gray-200 shadow-sm py-3 px-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 font-mono truncate">
                             {rule.senderPattern}
                             {rule.subjectPattern && (
-                              <span className="text-gray-400 font-normal ml-2">[{rule.subjectPattern}]</span>
+                              <span className="text-gray-400 font-normal ml-2 text-xs">[{rule.subjectPattern}]</span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-500 mt-0.5">
-                            {rule.category ? `${rule.category.icon || '📁'} ${rule.category.name}` : rule.action}
-                            <span className="text-gray-400 ml-2">Använd {rule.timesApplied}x</span>
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ACTION_COLORS[rule.action] || 'bg-gray-100 text-gray-600'}`}>
+                              {actionLabel(rule.action)}
+                            </span>
+                            {rule.category && (
+                              <span className="text-xs text-gray-600">
+                                → {rule.category.icon || '📁'} {rule.category.name}
+                              </span>
+                            )}
+                            <span className="text-xs text-gray-400">{rule.timesApplied} {t.categories.timesApplied}</span>
                           </div>
                         </div>
                         <button
                           onClick={() => handleDeleteRule(rule.id)}
-                          className="text-xs text-red-400 hover:text-red-600"
+                          className="text-xs text-red-400 hover:text-red-600 shrink-0"
                         >
-                          Ta bort
+                          ✕
                         </button>
                       </div>
                     </div>

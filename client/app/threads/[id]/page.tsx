@@ -5,18 +5,48 @@ import { useParams, useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
 import { api } from '@/lib/api';
-import type { EmailThread } from '@/lib/types';
+import { useI18n } from '@/lib/i18n';
+import type { EmailThread, AIAnalysis } from '@/lib/types';
+
+const CLASSIFICATION_COLORS: Record<string, string> = {
+  lead: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  partner: 'bg-blue-100 text-blue-700 border-blue-200',
+  personal: 'bg-purple-100 text-purple-700 border-purple-200',
+  spam: 'bg-red-100 text-red-600 border-red-200',
+  operational: 'bg-gray-100 text-gray-600 border-gray-200',
+  founder: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  outreach: 'bg-orange-100 text-orange-700 border-orange-200',
+};
+
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  lead: '🎯 Lead', partner: '🤝 Partner', personal: '👤 Personal',
+  spam: '🚫 Spam', operational: '⚙️ Operational', founder: '🚀 Founder', outreach: '📣 Outreach',
+};
+
+function initials(email: string): string {
+  const name = email.split('@')[0];
+  return name.slice(0, 2).toUpperCase();
+}
+
+function avatarColor(email: string): string {
+  const colors = ['bg-violet-400', 'bg-blue-400', 'bg-emerald-400', 'bg-amber-400', 'bg-rose-400', 'bg-indigo-400'];
+  let hash = 0;
+  for (const c of email) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff;
+  return colors[hash % colors.length];
+}
 
 export default function ThreadDetailPage() {
   const params = useParams();
   const router = useRouter();
   const threadId = params.id as string;
+  const { t } = useI18n();
 
   const [thread, setThread] = useState<EmailThread | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [draftInstruction, setDraftInstruction] = useState('');
+  const [syncingMessages, setSyncingMessages] = useState(false);
 
   useEffect(() => {
     loadThread();
@@ -34,14 +64,23 @@ export default function ThreadDetailPage() {
     }
   }
 
+  async function handleSyncMessages() {
+    setSyncingMessages(true);
+    try {
+      await api.syncMessages(threadId);
+      await loadThread();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setSyncingMessages(false);
+    }
+  }
+
   async function handleAnalyze() {
     setAnalyzing(true);
     try {
       await api.syncMessages(threadId);
-      const result = await api.analyzeThread(threadId);
-      if (result.draft) {
-        alert(`Analysis complete! A reply draft was created (status: pending). View it in Draft Center.`);
-      }
+      await api.analyzeThread(threadId);
       await loadThread();
     } catch (err: any) {
       alert(`Analysis failed: ${err.message}`);
@@ -60,7 +99,6 @@ export default function ThreadDetailPage() {
         instruction: draftInstruction,
       });
       setDraftInstruction('');
-      alert(result.message);
       router.push(`/drafts/${result.draft.id}`);
     } catch (err: any) {
       alert(`Generate draft failed: ${err.message}`);
@@ -73,7 +111,12 @@ export default function ThreadDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <TopBar />
-        <div className="text-center py-12 text-gray-500">Loading thread...</div>
+        <div className="flex items-center justify-center py-24">
+          <div className="flex flex-col items-center gap-3 text-gray-400">
+            <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
+            <span className="text-sm">{t.thread.loading}</span>
+          </div>
+        </div>
       </div>
     );
   }
@@ -82,150 +125,197 @@ export default function ThreadDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <TopBar />
-        <div className="text-center py-12 text-gray-500">Thread not found.</div>
+        <div className="text-center py-24 text-gray-400">{t.thread.notFound}</div>
       </div>
     );
   }
 
-  const analysis = thread.latestAnalysis;
+  const analysis = thread.latestAnalysis as AIAnalysis | null;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <TopBar />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
-        <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 mb-4">
-          &larr; Back to Inbox
+        <button
+          onClick={() => router.back()}
+          className="text-sm text-gray-400 hover:text-gray-700 mb-5 inline-flex items-center gap-1"
+        >
+          {t.thread.back}
         </button>
 
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">{thread.subject || '(No Subject)'}</h1>
-            <div className="text-sm text-gray-500 mt-1">
-              {thread.messageCount} messages | {thread.account.emailAddress}
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl font-bold text-gray-900 leading-snug">
+              {thread.subject || '(No Subject)'}
+            </h1>
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              <span className="text-sm text-gray-400">
+                {thread.messageCount} {t.thread.messages} · {thread.account.emailAddress}
+              </span>
+              {analysis && (
+                <>
+                  <PriorityBadge priority={analysis.priority} />
+                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${CLASSIFICATION_COLORS[analysis.classification] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                    {CLASSIFICATION_LABELS[analysis.classification] || analysis.classification}
+                  </span>
+                </>
+              )}
             </div>
           </div>
-          {analysis && <PriorityBadge priority={analysis.priority} />}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Messages Column */}
+          {/* Messages — 2/3 */}
           <div className="lg:col-span-2 space-y-4">
             {thread.messages && thread.messages.length > 0 ? (
               thread.messages.map((msg) => (
-                <div key={msg.id} className="card">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-900">{msg.fromAddress}</span>
-                    <span className="text-xs text-gray-400">
+                <div key={msg.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100">
+                    <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.fromAddress)}`}>
+                      {initials(msg.fromAddress)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{msg.fromAddress}</div>
+                      <div className="text-xs text-gray-400 truncate">
+                        {t.common.to}: {msg.toAddresses.slice(0, 2).join(', ')}
+                        {msg.toAddresses.length > 2 && ` +${msg.toAddresses.length - 2}`}
+                        {msg.ccAddresses.length > 0 && ` · Cc: ${msg.ccAddresses[0]}`}
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400 shrink-0">
                       {new Date(msg.receivedAt).toLocaleString()}
                     </span>
                   </div>
-                  <div className="text-xs text-gray-500 mb-3">
-                    To: {msg.toAddresses.join(', ')}
-                    {msg.ccAddresses.length > 0 && (
-                      <span> | Cc: {msg.ccAddresses.join(', ')}</span>
-                    )}
-                  </div>
-                  <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  <div className="px-5 py-4 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                     {msg.bodyText || '(No text content)'}
                   </div>
                 </div>
               ))
             ) : (
-              <div className="card text-center py-8">
-                <p className="text-gray-500 mb-4">Messages not yet synced.</p>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm text-center py-12">
+                <div className="text-3xl mb-2">📭</div>
+                <p className="text-gray-400 text-sm mb-4">{t.thread.noMessages}</p>
                 <button
-                  onClick={async () => {
-                    await api.syncMessages(threadId);
-                    await loadThread();
-                  }}
-                  className="btn-primary"
+                  onClick={handleSyncMessages}
+                  disabled={syncingMessages}
+                  className="btn-primary text-sm"
                 >
-                  Sync Messages
+                  {syncingMessages ? '…' : t.thread.syncMessages}
                 </button>
               </div>
             )}
 
             {/* Generate Reply Draft */}
-            <div className="card border-brand-200 bg-brand-50/30">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Generate Reply Draft</h3>
+            <div className="bg-white rounded-2xl border border-brand-200 shadow-sm p-5">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3">{t.thread.generateDraft}</h3>
               <textarea
                 value={draftInstruction}
                 onChange={(e) => setDraftInstruction(e.target.value)}
-                placeholder="Tell the AI what to write, e.g.: 'Reply confirming the meeting for Thursday at 2pm'"
+                placeholder={t.thread.draftPlaceholder}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-y mb-3"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm resize-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none mb-3"
               />
               <button
                 onClick={handleGenerateDraft}
                 disabled={generatingDraft || !draftInstruction.trim()}
                 className="btn-primary text-sm"
               >
-                {generatingDraft ? 'Generating...' : 'Generate Draft'}
+                {generatingDraft ? t.thread.generating : t.thread.generate}
               </button>
             </div>
           </div>
 
-          {/* AI Analysis Sidebar */}
+          {/* Sidebar — 1/3 */}
           <div className="space-y-4">
+            {/* AI Analysis */}
             {analysis ? (
-              <div className="card">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">AI Analysis</h3>
-
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4">{t.thread.aiAnalysis}</h3>
                 <div className="space-y-3">
                   <div>
-                    <div className="text-xs font-medium text-gray-500 uppercase mb-1">Summary</div>
-                    <div className="text-sm text-gray-700">{analysis.summary}</div>
+                    <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">{t.thread.summary}</div>
+                    <div className="text-sm text-gray-700 leading-relaxed">{analysis.summary}</div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <div>
-                      <div className="text-xs font-medium text-gray-500 uppercase mb-1">Type</div>
-                      <span className="badge bg-gray-100 text-gray-700">{analysis.classification}</span>
+                      <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">{t.thread.type}</div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${CLASSIFICATION_COLORS[analysis.classification] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+                        {CLASSIFICATION_LABELS[analysis.classification] || analysis.classification}
+                      </span>
                     </div>
                     <div>
-                      <div className="text-xs font-medium text-gray-500 uppercase mb-1">Priority</div>
+                      <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Priority</div>
                       <PriorityBadge priority={analysis.priority} />
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-xs font-medium text-gray-500 uppercase mb-1">Suggested Action</div>
-                    <span className="badge bg-brand-100 text-brand-700">{analysis.suggestedAction}</span>
+                    <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">{t.inbox.suggestedAction}</div>
+                    <span className="text-xs font-medium text-brand-700 bg-brand-50 px-2 py-0.5 rounded-full border border-brand-200">
+                      {analysis.suggestedAction.replace(/_/g, ' ')}
+                    </span>
                   </div>
 
-                  <div className="text-xs text-gray-400 pt-2 border-t border-gray-100">
-                    Confidence: {Math.round(analysis.confidence * 100)}% | {analysis.modelUsed}
+                  <div>
+                    <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">{t.inbox.confidence}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-brand-500 rounded-full"
+                          style={{ width: `${Math.round(analysis.confidence * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-500">{Math.round(analysis.confidence * 100)}%</span>
+                    </div>
                   </div>
+
+                  <div className="pt-2 border-t border-gray-100 text-xs text-gray-400">{analysis.modelUsed}</div>
                 </div>
               </div>
             ) : (
-              <div className="card text-center">
-                <p className="text-sm text-gray-500 mb-3">No AI analysis yet.</p>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 text-center">
+                <div className="text-3xl mb-2">🤖</div>
+                <p className="text-sm text-gray-400 mb-4">{t.thread.noAnalysis}</p>
                 <button
                   onClick={handleAnalyze}
                   disabled={analyzing}
                   className="btn-primary text-sm w-full"
                 >
-                  {analyzing ? 'Analyzing...' : 'Run AI Analysis'}
+                  {analyzing ? t.thread.analyzing : t.thread.runAnalysis}
                 </button>
               </div>
             )}
 
-            {/* Pending Drafts for this thread */}
+            {/* Draft suggestion from analysis */}
+            {analysis?.draftText && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">{t.inbox.draftSuggestion}</div>
+                <div className="text-xs text-gray-600 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100 leading-relaxed">
+                  {analysis.draftText}
+                </div>
+              </div>
+            )}
+
+            {/* Pending drafts for thread */}
             {thread.drafts && thread.drafts.length > 0 && (
-              <div className="card">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">Drafts for this Thread</h3>
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">{t.thread.draftsForThread}</h3>
                 <div className="space-y-2">
                   {thread.drafts.map((draft) => (
                     <a
                       key={draft.id}
                       href={`/drafts/${draft.id}`}
-                      className="block p-2 rounded border border-gray-100 hover:bg-gray-50 text-sm"
+                      className="flex items-center justify-between p-2.5 rounded-xl border border-gray-100 hover:border-brand-200 hover:bg-brand-50/30 transition-all text-sm"
                     >
-                      <span className="font-medium">{draft.subject}</span>
-                      <div className="text-xs text-gray-500 mt-0.5">Status: {draft.status}</div>
+                      <span className="font-medium text-gray-800 truncate">{draft.subject}</span>
+                      <span className={`text-xs ml-2 shrink-0 px-2 py-0.5 rounded-full ${
+                        draft.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {draft.status}
+                      </span>
                     </a>
                   ))}
                 </div>

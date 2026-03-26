@@ -86,51 +86,28 @@ Tables: users, email_accounts, email_threads, email_messages, ai_analyses, draft
 ### Unstaged change:
 - `server/src/prisma/schema.prisma` — Modified (review before committing)
 
-## What Needs To Be Done (Priority Order)
+## Completed Work (2026-03-26)
 
-### 1. IMMEDIATE: Commit & Push existing work
-- Commit the 14 staged i18n files
-- Review and stage the schema.prisma change
-- Push all (3 unpushed commits + new i18n commit) to remote
-- Verify Vercel + Render deployments succeed
+### ✅ i18n System
+React Context-based with useI18n() hook, 4 languages (sv default, en, es, ru), localStorage persistence, LanguageSwitcher in TopBar.
 
-### 2. Dashboard Redesign (client/app/page.tsx)
-The current staged page.tsx has basic i18n support. Needs a visual redesign with:
-- Gradient stat cards (total threads, unread, AI-analyzed, pending drafts)
-- Quick action cards (Sync Email, AI Analyze, New Draft, Settings)
-- Email sync status panel with per-account last-sync times
-- AI classification breakdown (pie/bar chart)
-- Priority distribution visualization
-- Pending drafts preview with approve/discard actions
-- Categories overview
-- Activity feed (recent action logs)
-- Real data from /api/v1/command-center endpoint
+### ✅ Dashboard Redesign (client/app/page.tsx)
+Gradient stat cards, quick action buttons, priority distribution bars, account sync status panel (with per-account errors), activity feed, categories grid.
 
-### 3. Inbox Redesign (client/app/inbox/page.tsx)
-The current staged inbox has basic i18n. Needs redesign with:
-- AI classification badges with color coding
-- Priority indicators (urgent/high/normal/low)
-- Category filter tabs
-- Search functionality
-- Bulk analyze/classify actions
-- Click-to-expand thread preview
-- Visual sender badges
+### ✅ Inbox Redesign (client/app/inbox/page.tsx)
+Color-coded AI classification badges, priority filter pills, classification filter tabs (dynamically generated from data), checkbox multi-select + bulk analyze, click-to-expand (full AI summary, confidence bar, model, draft suggestion), per-thread spinner during analysis.
 
-### 4. Sync Scheduler Service (NEW FILE: server/src/services/sync-scheduler.service.ts)
-Auto-sync service that needs to be created:
-- Email sync every 5 minutes
-- AI classification every 10 minutes
-- Failure backoff after 3 consecutive failures per account
-- Uses setInterval (no extra npm dependencies)
-- Graceful lifecycle (start on DB connect, stop on SIGINT/SIGTERM)
-- Import and wire up in server/src/index.ts
+### ✅ Sync Scheduler (server/src/services/sync-scheduler.service.ts)
+Email sync every 5 min, AI classification every 10 min, backoff after 3 failures/account, graceful start/stop, wired into index.ts.
 
-### 5. Auto-Updating Styrdokument
+### ✅ Cleanup
+- Removed `POST /auth/admin/merge-accounts` temporary endpoint from auth.ts
+- Local `master` branch now tracks `origin/main`
+
+## What's Left
+
+### Auto-Updating Styrdokument
 Governance document that auto-updates as the system evolves. Not yet started.
-
-### 6. Cleanup
-- Remove any temporary admin/merge-accounts endpoints
-- Align branch names (local master vs remote main)
 
 ## i18n System (Already Implemented)
 - React Context-based with useI18n() hook

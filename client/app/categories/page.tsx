@@ -27,11 +27,11 @@ interface SenderRule {
 }
 
 const ACTION_COLORS: Record<string, string> = {
-  spam: 'bg-red-100 text-red-700',
-  archive: 'bg-gray-100 text-gray-600',
-  categorize: 'bg-blue-100 text-blue-700',
-  mute: 'bg-orange-100 text-orange-700',
-  star: 'bg-amber-100 text-amber-700',
+  spam: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  archive: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+  categorize: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  mute: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+  star: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
 };
 
 export default function CategoriesPage() {
@@ -40,6 +40,8 @@ export default function CategoriesPage() {
   const [rules, setRules] = useState<SenderRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [classifying, setClassifying] = useState(false);
+  const [classifyResult, setClassifyResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [showAddRule, setShowAddRule] = useState(false);
   const [ruleForm, setRuleForm] = useState({
@@ -72,6 +74,7 @@ export default function CategoriesPage() {
   }
 
   async function handleAddRule() {
+    setError(null);
     try {
       await api.createRule({
         sender_pattern: ruleForm.sender_pattern,
@@ -83,21 +86,23 @@ export default function CategoriesPage() {
       setRuleForm((f) => ({ ...f, sender_pattern: '', subject_pattern: '' }));
       await loadAll();
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message);
     }
   }
 
   async function handleDeleteRule(id: string) {
     if (!confirm(t.categories.deleteConfirm)) return;
+    setError(null);
     try {
       await api.deleteRule(id);
       await loadAll();
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message);
     }
   }
 
   async function handleAddCategory() {
+    setError(null);
     try {
       await api.createCategory({
         name: catForm.name,
@@ -109,17 +114,19 @@ export default function CategoriesPage() {
       setCatForm({ name: '', color: '#6366F1', icon: '', description: '' });
       await loadAll();
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message);
     }
   }
 
   async function handleClassify() {
+    setError(null);
+    setClassifyResult(null);
     setClassifying(true);
     try {
       const result = await api.classifyThreads();
-      alert(`${result.classified} / ${result.total}`);
+      setClassifyResult(`${result.classified} / ${result.total}`);
     } catch (err: any) {
-      alert(err.message);
+      setError(err.message);
     } finally {
       setClassifying(false);
     }
@@ -136,13 +143,16 @@ export default function CategoriesPage() {
     return map[action] || action;
   };
 
+  const inputCls = 'w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none';
+  const selectCls = 'px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 outline-none';
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">{t.categories.title}</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.categories.title}</h1>
           <button
             onClick={handleClassify}
             disabled={classifying}
@@ -152,6 +162,20 @@ export default function CategoriesPage() {
             {classifying ? '…' : t.categories.runClassification}
           </button>
         </div>
+
+        {/* Feedback banners */}
+        {classifyResult && (
+          <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-sm text-emerald-700 dark:text-emerald-300">
+            <span className="flex-1">⚡ Klassificerade {classifyResult} trådar</span>
+            <button onClick={() => setClassifyResult(null)} className="text-emerald-400 hover:text-emerald-600 shrink-0">✕</button>
+          </div>
+        )}
+        {error && (
+          <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
+            <span className="flex-1">{error}</span>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -165,7 +189,7 @@ export default function CategoriesPage() {
             {/* ── Categories ── */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-gray-900">{t.categories.categoriesHeading}</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t.categories.categoriesHeading}</h2>
                 <button
                   onClick={() => setShowAddCategory(!showAddCategory)}
                   className="btn-secondary text-xs"
@@ -175,13 +199,13 @@ export default function CategoriesPage() {
               </div>
 
               {showAddCategory && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-3 space-y-3">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 mb-3 space-y-3">
                   <input
                     type="text"
                     placeholder={t.categories.nameLabel}
                     value={catForm.name}
                     onChange={(e) => setCatForm((f) => ({ ...f, name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                    className={inputCls}
                   />
                   <div className="grid grid-cols-3 gap-2">
                     <input
@@ -189,13 +213,13 @@ export default function CategoriesPage() {
                       placeholder={t.categories.emojiLabel}
                       value={catForm.icon}
                       onChange={(e) => setCatForm((f) => ({ ...f, icon: e.target.value }))}
-                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                      className={inputCls}
                     />
                     <input
                       type="color"
                       value={catForm.color}
                       onChange={(e) => setCatForm((f) => ({ ...f, color: e.target.value }))}
-                      className="h-[38px] rounded-xl border border-gray-200 cursor-pointer"
+                      className="h-[38px] rounded-xl border border-gray-200 dark:border-gray-600 cursor-pointer w-full"
                     />
                     <button
                       onClick={handleAddCategory}
@@ -212,7 +236,7 @@ export default function CategoriesPage() {
                 {categories.map((cat) => (
                   <div
                     key={cat.id}
-                    className="bg-white rounded-2xl border border-gray-200 shadow-sm py-3 px-4 flex items-center justify-between"
+                    className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm py-3 px-4 flex items-center justify-between"
                   >
                     <div className="flex items-center gap-2.5">
                       <span
@@ -220,9 +244,9 @@ export default function CategoriesPage() {
                         style={{ backgroundColor: cat.color || '#9CA3AF' }}
                       />
                       <span className="text-base">{cat.icon}</span>
-                      <span className="text-sm font-medium text-gray-900">{cat.name}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{cat.name}</span>
                       {cat._count?.rules ? (
-                        <span className="text-xs text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded-full border border-gray-200">
+                        <span className="text-xs text-gray-400 bg-gray-50 dark:bg-gray-700 px-1.5 py-0.5 rounded-full border border-gray-200 dark:border-gray-600">
                           {cat._count.rules}
                         </span>
                       ) : null}
@@ -246,7 +270,7 @@ export default function CategoriesPage() {
             {/* ── Sender Rules ── */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="font-semibold text-gray-900">{t.categories.rulesHeading}</h2>
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t.categories.rulesHeading}</h2>
                 <button
                   onClick={() => setShowAddRule(!showAddRule)}
                   className="btn-secondary text-xs"
@@ -256,26 +280,26 @@ export default function CategoriesPage() {
               </div>
 
               {showAddRule && (
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-3 space-y-3">
+                <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-4 mb-3 space-y-3">
                   <input
                     type="text"
                     placeholder={t.categories.senderPattern}
                     value={ruleForm.sender_pattern}
                     onChange={(e) => setRuleForm((f) => ({ ...f, sender_pattern: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                    className={inputCls}
                   />
                   <input
                     type="text"
                     placeholder={t.categories.subjectPattern}
                     value={ruleForm.subject_pattern}
                     onChange={(e) => setRuleForm((f) => ({ ...f, subject_pattern: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                    className={inputCls}
                   />
                   <div className="grid grid-cols-3 gap-2">
                     <select
                       value={ruleForm.action}
                       onChange={(e) => setRuleForm((f) => ({ ...f, action: e.target.value }))}
-                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-brand-500 outline-none"
+                      className={selectCls}
                     >
                       {(['spam', 'archive', 'categorize', 'mute', 'star'] as const).map((a) => (
                         <option key={a} value={a}>{actionLabel(a)}</option>
@@ -284,7 +308,7 @@ export default function CategoriesPage() {
                     <select
                       value={ruleForm.category_slug}
                       onChange={(e) => setRuleForm((f) => ({ ...f, category_slug: e.target.value }))}
-                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-brand-500 outline-none"
+                      className={selectCls}
                     >
                       {categories.map((c) => (
                         <option key={c.slug} value={c.slug}>{c.icon} {c.name}</option>
@@ -303,18 +327,18 @@ export default function CategoriesPage() {
 
               <div className="space-y-2">
                 {rules.length === 0 ? (
-                  <div className="bg-white rounded-2xl border border-dashed border-gray-300 text-center py-10 text-sm text-gray-400">
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 text-center py-10 text-sm text-gray-400 dark:text-gray-500">
                     {t.categories.noRules}
                   </div>
                 ) : (
                   rules.map((rule) => (
                     <div
                       key={rule.id}
-                      className="bg-white rounded-2xl border border-gray-200 shadow-sm py-3 px-4"
+                      className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm py-3 px-4"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 font-mono truncate">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 font-mono truncate">
                             {rule.senderPattern}
                             {rule.subjectPattern && (
                               <span className="text-gray-400 font-normal ml-2 text-xs">[{rule.subjectPattern}]</span>
@@ -325,7 +349,7 @@ export default function CategoriesPage() {
                               {actionLabel(rule.action)}
                             </span>
                             {rule.category && (
-                              <span className="text-xs text-gray-600">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">
                                 → {rule.category.icon || '📁'} {rule.category.name}
                               </span>
                             )}

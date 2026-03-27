@@ -172,6 +172,7 @@ const en: Translations = {
     editMode: 'Editing',
     saveChanges: 'Save',
     saving: 'Saving...',
+    autoSaved: 'Auto-saved',
     sentAt: 'Sent at',
     sendConfirm: 'Send this email? This action cannot be undone.',
     discardConfirm: 'Discard this draft?',

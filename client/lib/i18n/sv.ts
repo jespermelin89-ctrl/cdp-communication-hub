@@ -154,6 +154,7 @@ const sv = {
     editMode: 'Redigerar',
     saveChanges: 'Spara',
     saving: 'Sparar...',
+    autoSaved: 'Autosparat',
     sentAt: 'Skickat',
     sendConfirm: 'Skicka detta mejl? Åtgärden kan inte ångras.',
     discardConfirm: 'Radera detta utkast?',

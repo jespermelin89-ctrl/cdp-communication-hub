@@ -172,6 +172,7 @@ const ru: Translations = {
     editMode: 'Редактирование',
     saveChanges: 'Сохранить',
     saving: 'Сохранение...',
+    autoSaved: 'Автосохранено',
     sentAt: 'Отправлено',
     sendConfirm: 'Отправить это письмо? Действие нельзя отменить.',
     discardConfirm: 'Удалить этот черновик?',

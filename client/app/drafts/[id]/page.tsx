@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
@@ -33,6 +33,8 @@ export default function DraftDetailPage() {
   const [subject, setSubject] = useState('');
   const [bodyText, setBodyText] = useState('');
   const [toAddresses, setToAddresses] = useState('');
+  const [autoSavedAt, setAutoSavedAt] = useState<Date | null>(null);
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadDraft();
@@ -53,15 +55,37 @@ export default function DraftDetailPage() {
     }
   }
 
+  // Auto-save: debounce 30s after last keystroke while in edit mode
+  useEffect(() => {
+    if (!editMode || !draft) return;
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(async () => {
+      try {
+        await api.updateDraft(draftId, {
+          subject,
+          body_text: bodyText,
+          to_addresses: toAddresses.split(',').map((e) => e.trim()).filter(Boolean),
+        });
+        setAutoSavedAt(new Date());
+      } catch {
+        // silent — user can still manually save
+      }
+    }, 30000);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subject, bodyText, toAddresses, editMode]);
+
   async function handleSave() {
     setError(null);
     setSaving(true);
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     try {
       await api.updateDraft(draftId, {
         subject,
         body_text: bodyText,
         to_addresses: toAddresses.split(',').map((e) => e.trim()).filter(Boolean),
       });
+      setAutoSavedAt(null);
       setEditMode(false);
       await loadDraft();
     } catch (err: any) {
@@ -220,12 +244,24 @@ export default function DraftDetailPage() {
           {/* Body */}
           <div className="px-6 py-4">
             {editMode ? (
-              <textarea
-                value={bodyText}
-                onChange={(e) => setBodyText(e.target.value)}
-                rows={14}
-                className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 font-mono resize-y focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-              />
+              <>
+                <textarea
+                  value={bodyText}
+                  onChange={(e) => setBodyText(e.target.value)}
+                  rows={14}
+                  className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 font-mono resize-y focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                />
+                <div className="flex items-center justify-between mt-1.5 text-xs text-gray-400">
+                  <span>
+                    {bodyText.length} tecken · {bodyText.trim() ? bodyText.trim().split(/\s+/).length : 0} ord
+                  </span>
+                  {autoSavedAt && (
+                    <span className="text-emerald-500">
+                      {t.draftDetail.autoSaved} {autoSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+              </>
             ) : (
               <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
                 {draft.bodyText}

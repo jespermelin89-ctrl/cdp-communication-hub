@@ -73,9 +73,11 @@ export default function DashboardPage() {
   }
 
   const totalThreads = data?.overview.total_threads ?? 0;
-  const highPct = totalThreads > 0 ? Math.round((data!.overview.high_priority_threads / totalThreads) * 100) : 0;
-  const medPct = totalThreads > 0 ? Math.round((data!.overview.medium_priority_threads / totalThreads) * 100) : 0;
-  const lowPct = totalThreads > 0 ? Math.round((data!.overview.low_priority_threads / totalThreads) * 100) : 0;
+  const unanalyzed = data?.overview.unanalyzed_threads ?? 0;
+  const analyzedThreads = totalThreads - unanalyzed;
+  const highPct = analyzedThreads > 0 ? Math.round((data!.overview.high_priority_threads / analyzedThreads) * 100) : 0;
+  const medPct = analyzedThreads > 0 ? Math.round((data!.overview.medium_priority_threads / analyzedThreads) * 100) : 0;
+  const lowPct = analyzedThreads > 0 ? Math.round((data!.overview.low_priority_threads / analyzedThreads) * 100) : 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -246,6 +248,17 @@ export default function DashboardPage() {
                     textColor="text-emerald-600"
                   />
                 </div>
+                {unanalyzed > 0 && (
+                  <div className="mt-3 flex items-center justify-between text-xs">
+                    <Link href="/inbox" className="flex items-center gap-1.5 text-amber-600 hover:text-amber-700">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                      {unanalyzed} {t.inbox.notAnalyzed}
+                    </Link>
+                    <Link href="/inbox" className="text-brand-500 hover:text-brand-600 font-medium">
+                      {t.dashboard.analyzeAll} →
+                    </Link>
+                  </div>
+                )}
                 <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
                   <span>{t.dashboard.totalThreads}</span>
                   <span className="font-semibold text-gray-700">{totalThreads}</span>

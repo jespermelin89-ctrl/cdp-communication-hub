@@ -45,6 +45,7 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
+  const [analyzeErrors, setAnalyzeErrors] = useState<Map<string, string>>(new Map());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
@@ -96,7 +97,7 @@ export default function InboxPage() {
       }
       await loadThreads();
     } catch (err: any) {
-      alert(`Sync failed: ${err.message}`);
+      console.error('Sync failed:', err);
     } finally {
       setSyncing(false);
     }
@@ -104,12 +105,15 @@ export default function InboxPage() {
 
   async function handleAnalyze(threadId: string) {
     setAnalyzingIds((prev) => new Set(prev).add(threadId));
+    setAnalyzeErrors((prev) => { const next = new Map(prev); next.delete(threadId); return next; });
     try {
       await api.syncMessages(threadId);
       await api.analyzeThread(threadId);
       await loadThreads();
     } catch (err: any) {
-      alert(`Analysis failed: ${err.message}`);
+      const msg: string = err?.message || 'Analysis failed';
+      console.error(`Analyze thread ${threadId}:`, msg);
+      setAnalyzeErrors((prev) => new Map(prev).set(threadId, msg));
     } finally {
       setAnalyzingIds((prev) => {
         const next = new Set(prev);
@@ -325,6 +329,7 @@ export default function InboxPage() {
                 const isExpanded = expandedId === thread.id;
                 const isSelected = selectedIds.has(thread.id);
                 const isAnalyzing = analyzingIds.has(thread.id);
+                const analyzeError = analyzeErrors.get(thread.id);
 
                 return (
                   <div
@@ -434,6 +439,18 @@ export default function InboxPage() {
                         </Link>
                       </div>
                     </div>
+
+                    {/* Inline analyze error */}
+                    {analyzeError && (
+                      <div className="mx-4 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
+                        <span className="shrink-0">⚠️</span>
+                        <span>{analyzeError}</span>
+                        <button
+                          onClick={() => setAnalyzeErrors((prev) => { const next = new Map(prev); next.delete(thread.id); return next; })}
+                          className="ml-auto shrink-0 text-red-400 hover:text-red-600"
+                        >✕</button>
+                      </div>
+                    )}
 
                     {/* Expanded Details */}
                     {isExpanded && thread.latestAnalysis && (

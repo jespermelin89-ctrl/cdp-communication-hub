@@ -33,6 +33,7 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
       unreadThreads,
       recentActions,
       totalThreads,
+      analyzedThreads,
     ] = await Promise.all([
       // Pending drafts count
       prisma.draft.count({
@@ -89,6 +90,13 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
       prisma.emailThread.count({
         where: { accountId: { in: accountIds } },
       }),
+      // Threads with at least one analysis
+      prisma.emailThread.count({
+        where: {
+          accountId: { in: accountIds },
+          analyses: { some: {} },
+        },
+      }),
     ]);
 
     // Get pending drafts for quick preview
@@ -110,6 +118,7 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
         low_priority_threads: lowPriorityThreads,
         unread_threads: unreadThreads,
         total_threads: totalThreads,
+        unanalyzed_threads: totalThreads - analyzedThreads,
       },
       drafts_preview: pendingDraftsList,
       recent_actions: recentActions,

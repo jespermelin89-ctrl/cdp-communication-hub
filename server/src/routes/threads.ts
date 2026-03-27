@@ -179,11 +179,27 @@ export async function threadRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Thread not found' });
     }
 
-    const messages = await emailProviderFactory.fetchMessages(thread.accountId, thread.gmailThreadId);
+    let messages: any[];
+    try {
+      messages = await emailProviderFactory.fetchMessages(thread.accountId, thread.gmailThreadId);
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown error';
+      // Token-related errors from Gmail API
+      if (msg.includes('invalid_grant') || msg.includes('Token has been expired') || msg.includes('Invalid Credentials')) {
+        return reply.code(401).send({ error: 'Gmail access expired. Please reconnect your account.' });
+      }
+      return reply.code(502).send({ error: `Failed to fetch messages from email provider: ${msg}` });
+    }
+
+    if (messages.length === 0) {
+      return reply.code(400).send({
+        error: 'No messages found for this thread. The thread may be empty or have been deleted in Gmail.',
+      });
+    }
 
     return {
       message: `Synced ${messages.length} messages`,
-      messages,
+      count: messages.length,
     };
   });
 }

@@ -58,14 +58,15 @@ Tables: users, email_accounts, email_threads, email_messages, ai_analyses, draft
   - Root directory: `client`
 - **Backend**: Render — auto-deploys from GitHub main branch
   - URL: https://cdp-communication-hub.onrender.com
-  - Build command: `cd server && npm install && npx prisma generate && npx prisma db push && npx tsc`
+  - Build command: `cd server && npm install && npm run build`
+  - (`npm run build` = `prisma generate && (prisma migrate resolve --applied 0_init 2>/dev/null || true) && prisma migrate deploy && tsc`)
 - **GitHub**: github.com/jespermelin89-ctrl/cdp-communication-hub (private)
   - Default branch: main (remote) / master (local — needs alignment)
 
 ## Current Git Status (2026-03-27)
 
 All work is committed and pushed to `origin/main`. Local branch `master` tracks `origin/main`.
-Latest commit: `5c0be7a` feat: batch AI classification with Groq rate-limit protection
+Latest commit: `057146b` feat: brain-summary tests + Render deploy fix + client api method
 
 ## Completed Work (2026-03-27)
 
@@ -138,6 +139,29 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ### ✅ Batch AI Classification (Sprint 2 Final)
 - sync-scheduler: processes unanalyzed threads in batches of 5, 2s delay between batches
 - Respects Groq rate limit (30 req/min)
+
+### ✅ Prisma Migration Baseline — Fas 1 (Sprint 2 Final)
+- `server/src/prisma/migrations/0_init/migration.sql`: baseline SQL for all 16 tables
+- Generated via `prisma migrate diff --from-empty` — safe for existing Supabase DB with production data
+- `server/package.json` build script: idempotent — `migrate resolve --applied 0_init || true` before `migrate deploy`
+- First Render deploy registers baseline; subsequent deploys skip silently
+
+### ✅ Brain Summary Endpoint + API Surface — Fas 2 (Sprint 2 Final)
+- `GET /api/v1/brain-summary`: aggregated read-only view for BRAIN-OS
+  - Returns: generated_at, accounts, summary counts, important_threads (metadata only), pending_drafts (metadata only), daily_summary
+  - Safety guarantee: `draft.body_text` NEVER included — excluded by Prisma select, verified in tests
+- `API_SURFACE.md` (project root): stable vs internal endpoints, prefix mismatch documented
+  - BRAIN-OS must use `/api/v1/` not `/api/` — no aliases added on Hub side
+- `client/lib/api.ts`: `getBrainSummary()` method added
+
+### ✅ Vitest Test Suite — Fas 4 (Sprint 2 Final)
+- `server/vitest.config.ts`: Node environment, v8 coverage
+- `server/package.json`: `test`, `test:watch`, `test:coverage` scripts
+- 87 tests across 4 files:
+  - `validators.test.ts` (34 tests): all Zod schemas
+  - `ai-service.test.ts` (21 tests): cleanJsonResponse, AIAnalysisSchema, parsing pipeline
+  - `draft-approval.test.ts` (20 tests): state machine — pending→approved→sent safety gate
+  - `brain-summary.test.ts` (13 tests): response shape, SAFETY body_text never leaks (×2), counts, daily_summary, empty inbox
 
 ## Kända Buggar / TODO (2026-03-27)
 

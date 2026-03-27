@@ -8,6 +8,7 @@ const es: Translations = {
     inbox: 'Bandeja de entrada',
     rules: 'Reglas',
     settings: 'Configuración',
+    activity: 'Actividad',
   },
 
   dashboard: {
@@ -110,6 +111,27 @@ const es: Translations = {
     notAuthenticated: 'No autenticado.',
     optional: 'Opcional',
     egWork: 'ej. Trabajo',
+  },
+
+  activity: {
+    title: 'Registro de actividad',
+    subtitle: 'Historial de auditoría inmutable de todos los eventos del sistema',
+    loading: 'Cargando actividad...',
+    noLogs: 'No hay eventos registrados aún.',
+    all: 'Todos',
+    page: 'Página',
+    of: 'de',
+    filterLabel: 'Filtrar',
+    actionTypes: {
+      draft_created: 'Borrador creado',
+      draft_approved: 'Borrador aprobado',
+      draft_sent: 'Borrador enviado',
+      draft_send_failed: 'Envío fallido',
+      draft_discarded: 'Borrador descartado',
+      analysis_run: 'Análisis IA ejecutado',
+      account_connected: 'Cuenta conectada',
+      account_disconnected: 'Cuenta desconectada',
+    },
   },
 
   thread: {

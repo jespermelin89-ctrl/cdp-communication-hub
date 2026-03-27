@@ -8,6 +8,7 @@ const ru: Translations = {
     inbox: 'Входящие',
     rules: 'Правила',
     settings: 'Настройки',
+    activity: 'Активность',
   },
 
   dashboard: {
@@ -110,6 +111,27 @@ const ru: Translations = {
     notAuthenticated: 'Не аутентифицирован.',
     optional: 'Необязательно',
     egWork: 'напр. Работа',
+  },
+
+  activity: {
+    title: 'Журнал активности',
+    subtitle: 'Неизменяемый журнал аудита всех системных событий',
+    loading: 'Загрузка активности...',
+    noLogs: 'Событий пока нет.',
+    all: 'Все',
+    page: 'Страница',
+    of: 'из',
+    filterLabel: 'Фильтр',
+    actionTypes: {
+      draft_created: 'Черновик создан',
+      draft_approved: 'Черновик одобрен',
+      draft_sent: 'Черновик отправлен',
+      draft_send_failed: 'Отправка не удалась',
+      draft_discarded: 'Черновик удалён',
+      analysis_run: 'AI-анализ выполнен',
+      account_connected: 'Аккаунт подключён',
+      account_disconnected: 'Аккаунт отключён',
+    },
   },
 
   thread: {

@@ -19,6 +19,7 @@ export default function TopBar({ pendingCount = 0, userEmail }: TopBarProps) {
     { href: '/drafts', label: t.nav.drafts, icon: '📝' },
     { href: '/inbox', label: t.nav.inbox, icon: '📥' },
     { href: '/categories', label: t.nav.rules, icon: '🏷️' },
+    { href: '/activity', label: t.nav.activity, icon: '📋' },
   ];
 
   return (

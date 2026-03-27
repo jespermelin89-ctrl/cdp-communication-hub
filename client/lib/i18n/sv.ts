@@ -7,6 +7,7 @@ const sv = {
     inbox: 'Inkorg',
     rules: 'Regler',
     settings: 'Inställningar',
+    activity: 'Aktivitet',
   },
 
   // Command Center
@@ -193,6 +194,28 @@ const sv = {
     microsoft: 'Microsoft 365',
     redigera: 'Redigera',
     editTitle: 'Redigera konto',
+  },
+
+  // Activity log
+  activity: {
+    title: 'Aktivitetslogg',
+    subtitle: 'Oföränderlig revisionslogg över alla systemhändelser',
+    loading: 'Laddar aktivitet...',
+    noLogs: 'Inga händelser loggade ännu.',
+    all: 'Alla',
+    page: 'Sida',
+    of: 'av',
+    filterLabel: 'Filtrera',
+    actionTypes: {
+      draft_created: 'Utkast skapat',
+      draft_approved: 'Utkast godkänt',
+      draft_sent: 'Utkast skickat',
+      draft_send_failed: 'Utskick misslyckades',
+      draft_discarded: 'Utkast raderat',
+      analysis_run: 'AI-analys körd',
+      account_connected: 'Konto anslutet',
+      account_disconnected: 'Konto bortkopplat',
+    },
   },
 
   // Action types

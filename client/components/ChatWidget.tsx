@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 
 interface ChatMessage {
@@ -166,6 +167,36 @@ export default function ChatWidget() {
                       i % 2 === 1 ? <strong key={i}>{part}</strong> : part
                     )}
                   </div>
+
+                  {/* Thread list — render clickable links */}
+                  {msg.type === 'thread_list' && Array.isArray(msg.data) && msg.data.length > 0 && (
+                    <div className="mt-2.5 space-y-1.5 border-t border-gray-200 pt-2.5">
+                      {msg.data.slice(0, 8).map((thread: any) => (
+                        <Link
+                          key={thread.id}
+                          href={`/threads/${thread.id}`}
+                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-brand-300 hover:bg-brand-50/40 transition-all group"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-medium text-gray-800 truncate group-hover:text-brand-700">
+                              {thread.subject || '(Ingen ämnesrad)'}
+                            </div>
+                            <div className="text-xs text-gray-400 truncate">{thread.sender}</div>
+                          </div>
+                          {thread.priority === 'high' && (
+                            <span className="shrink-0 text-xs px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full">!</span>
+                          )}
+                          {!thread.isRead && (
+                            <span className="shrink-0 w-2 h-2 bg-brand-500 rounded-full" />
+                          )}
+                        </Link>
+                      ))}
+                      {msg.data.length > 8 && (
+                        <div className="text-xs text-gray-400 text-center pt-1">+{msg.data.length - 8} till</div>
+                      )}
+                    </div>
+                  )}
+
                   <QuickActions message={msg} />
                 </div>
               </div>

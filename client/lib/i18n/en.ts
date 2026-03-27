@@ -8,6 +8,7 @@ const en: Translations = {
     inbox: 'Inbox',
     rules: 'Rules',
     settings: 'Settings',
+    activity: 'Activity',
   },
 
   dashboard: {
@@ -110,6 +111,27 @@ const en: Translations = {
     notAuthenticated: 'Not authenticated.',
     optional: 'Optional',
     egWork: 'e.g. Work',
+  },
+
+  activity: {
+    title: 'Activity Log',
+    subtitle: 'Immutable audit trail of all system events',
+    loading: 'Loading activity...',
+    noLogs: 'No events logged yet.',
+    all: 'All',
+    page: 'Page',
+    of: 'of',
+    filterLabel: 'Filter',
+    actionTypes: {
+      draft_created: 'Draft Created',
+      draft_approved: 'Draft Approved',
+      draft_sent: 'Draft Sent',
+      draft_send_failed: 'Send Failed',
+      draft_discarded: 'Draft Discarded',
+      analysis_run: 'AI Analysis Run',
+      account_connected: 'Account Connected',
+      account_disconnected: 'Account Disconnected',
+    },
   },
 
   thread: {

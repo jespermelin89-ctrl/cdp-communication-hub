@@ -21,7 +21,8 @@ const envSchema = z.object({
 
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
-  AI_PROVIDER: z.enum(['anthropic', 'openai']).default('anthropic'),
+  GROQ_API_KEY: z.string().optional(),
+  AI_PROVIDER: z.enum(['anthropic', 'openai', 'groq']).default('groq'),
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
 });
@@ -35,9 +36,9 @@ if (!parsed.success) {
 }
 
 // Warn if no AI provider is configured (AI features will be unavailable)
-if (!parsed.data.ANTHROPIC_API_KEY && !parsed.data.OPENAI_API_KEY) {
+if (!parsed.data.ANTHROPIC_API_KEY && !parsed.data.OPENAI_API_KEY && !parsed.data.GROQ_API_KEY) {
   console.warn('⚠️  No AI provider configured. AI features (analysis, draft generation) will be unavailable.');
-  console.warn('   Set ANTHROPIC_API_KEY or OPENAI_API_KEY to enable AI features.');
+  console.warn('   Set GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY to enable AI features.');
 }
 
 export const env = parsed.data;

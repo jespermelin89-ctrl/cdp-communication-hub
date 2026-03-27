@@ -4,7 +4,7 @@
  * This is a SUGGESTION ENGINE, not an execution engine.
  * It produces structured outputs gated behind human approval.
  *
- * Supports both Anthropic (Claude) and OpenAI (GPT) via unified interface.
+ * Supports Groq (default/free), Anthropic (Claude), and OpenAI via unified interface.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -23,7 +23,14 @@ Analyze the email thread and return a JSON object with exactly these fields:
 - confidence: a number between 0 and 1 indicating your confidence in the analysis
 - model_used: the model identifier you are running as
 
-Return ONLY valid JSON. No markdown, no explanation outside JSON. No code fences.`;
+CRITICAL INSTRUCTIONS:
+1. Return ONLY a JSON object. No text before or after the JSON.
+2. Do NOT wrap the JSON in markdown code fences (no \`\`\`json).
+3. Every field must be present. Use null for draft_text if not applicable.
+4. The "model_used" field should be the model name you are using.
+
+Example output:
+{"summary":"The thread is about a partnership proposal from a fitness brand.","classification":"partner","priority":"high","suggested_action":"reply","draft_text":"Hi, thanks for reaching out...","confidence":0.9,"model_used":"llama-3.3-70b-versatile"}`;
 
 // System prompt for draft generation
 const DRAFT_SYSTEM_PROMPT = `You are a professional email draft writer for a business founder.
@@ -33,7 +40,10 @@ Write emails that are:
 - Concise - get to the point
 - Context-aware when thread history is provided
 
-Return ONLY the email body text. No subject line, no greeting suggestions outside the body, no meta-commentary.`;
+CRITICAL INSTRUCTIONS:
+1. Return ONLY the email body text.
+2. No subject line, no greeting suggestions outside the body, no meta-commentary.
+3. No markdown formatting.`;
 
 // System prompt for inbox summary
 const SUMMARY_SYSTEM_PROMPT = `You are an email inbox analyst for a business founder.
@@ -43,7 +53,11 @@ Focus on:
 - Key pending conversations
 - Patterns or trends (many leads? lots of spam?)
 
-Keep it under 200 words. Be specific and actionable. Return plain text, not JSON.`;
+CRITICAL INSTRUCTIONS:
+1. Keep it under 200 words.
+2. Be specific and actionable.
+3. Return plain text, not JSON.
+4. No markdown formatting.`;
 
 interface ThreadData {
   subject: string;
@@ -55,9 +69,29 @@ interface ThreadData {
   }>;
 }
 
+/**
+ * Strip markdown code fences and extract the JSON object from AI responses.
+ * Llama and other models occasionally wrap output in ```json ... ```.
+ */
+function cleanJsonResponse(raw: string): string {
+  let cleaned = raw.trim();
+  // Strip markdown code fences
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  }
+  // Strip any text before first { or after last }
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  }
+  return cleaned;
+}
+
 export class AIService {
   private anthropic: Anthropic | null = null;
   private openai: OpenAI | null = null;
+  private groq: OpenAI | null = null;
 
   constructor() {
     if (env.ANTHROPIC_API_KEY) {
@@ -65,6 +99,12 @@ export class AIService {
     }
     if (env.OPENAI_API_KEY) {
       this.openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+    }
+    if (env.GROQ_API_KEY) {
+      this.groq = new OpenAI({
+        apiKey: env.GROQ_API_KEY,
+        baseURL: 'https://api.groq.com/openai/v1',
+      });
     }
   }
 
@@ -98,8 +138,7 @@ ${m.body}
     // Parse and validate with Zod
     let parsed: any;
     try {
-      // Strip potential markdown code fences
-      const cleaned = response.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim();
+      const cleaned = cleanJsonResponse(response);
       parsed = JSON.parse(cleaned);
     } catch (e) {
       throw new Error(`AI returned invalid JSON: ${response.substring(0, 200)}`);
@@ -114,7 +153,7 @@ Please try again with EXACTLY this format:
 ${userMessage}`;
 
       const retryResponse = await this.chat(ANALYSIS_SYSTEM_PROMPT, retryMessage);
-      const retryCleaned = retryResponse.replace(/```json?\n?/g, '').replace(/```\n?/g, '').trim();
+      const retryCleaned = cleanJsonResponse(retryResponse);
       const retryParsed = JSON.parse(retryCleaned);
       const retryValidated = AIAnalysisSchema.parse(retryParsed); // Throws if invalid
       return retryValidated;
@@ -186,12 +225,27 @@ Provide a concise daily briefing summary.`;
    * Core chat method - routes to the configured AI provider.
    */
   private async chat(systemPrompt: string, userMessage: string): Promise<string> {
-    if (env.AI_PROVIDER === 'anthropic' && this.anthropic) {
+    if (env.AI_PROVIDER === 'groq' && this.groq) {
+      return this.chatGroq(systemPrompt, userMessage);
+    } else if (env.AI_PROVIDER === 'anthropic' && this.anthropic) {
       return this.chatAnthropic(systemPrompt, userMessage);
     } else if (env.AI_PROVIDER === 'openai' && this.openai) {
       return this.chatOpenAI(systemPrompt, userMessage);
     }
-    throw new Error(`No AI provider configured. Set ANTHROPIC_API_KEY or OPENAI_API_KEY.`);
+    throw new Error('No AI provider configured. Set GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.');
+  }
+
+  private async chatGroq(systemPrompt: string, userMessage: string): Promise<string> {
+    const response = await this.groq!.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 2048,
+      temperature: 0.3,
+    });
+    return response.choices[0]?.message?.content || '';
   }
 
   private async chatAnthropic(systemPrompt: string, userMessage: string): Promise<string> {

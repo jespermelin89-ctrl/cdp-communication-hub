@@ -15,7 +15,7 @@ export default function AccountsSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ display_name: '', label: '', color: '' });
+  const [editForm, setEditForm] = useState({ display_name: '', label: '', color: '', signature: '' });
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +78,7 @@ export default function AccountsSettingsPage() {
       display_name: account.displayName || '',
       label: account.label || '',
       color: account.color || '#6366F1',
+      signature: account.signature || '',
     });
   }
 
@@ -89,6 +90,7 @@ export default function AccountsSettingsPage() {
         display_name: editForm.display_name || undefined,
         label: editForm.label || undefined,
         color: editForm.color || undefined,
+        signature: editForm.signature || null,
       });
       setEditingAccount(null);
       await loadAccounts();
@@ -129,14 +131,14 @@ export default function AccountsSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t.accounts.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.accounts.title}</h1>
             <p className="text-sm text-gray-400 mt-0.5">{t.accounts.subtitle}</p>
           </div>
           <button
@@ -154,12 +156,12 @@ export default function AccountsSettingsPage() {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 mb-6 text-sm">
+          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 px-4 py-3 mb-6 text-sm">
             {error}
           </div>
         )}
 
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16">
               <div className="flex flex-col items-center gap-3 text-gray-400">
@@ -267,7 +269,7 @@ export default function AccountsSettingsPage() {
 
                     {/* Inline edit panel */}
                     {editingAccount === account.id && (
-                      <div className="px-5 pb-5 pt-3 border-t border-gray-100 bg-gray-50">
+                      <div className="px-5 pb-5 pt-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50">
                         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
                           {t.accounts.editTitle}
                         </div>
@@ -307,6 +309,27 @@ export default function AccountsSettingsPage() {
                               className="w-full h-[34px] rounded-lg border border-gray-200 cursor-pointer"
                             />
                           </div>
+                        </div>
+
+                        {/* Signature editor */}
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            {t.accounts.signature}
+                          </label>
+                          <textarea
+                            value={editForm.signature}
+                            onChange={(e) => setEditForm((f) => ({ ...f, signature: e.target.value }))}
+                            rows={3}
+                            maxLength={2000}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-y dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                            placeholder={t.accounts.signaturePlaceholder}
+                          />
+                          {editForm.signature && (
+                            <div className="mt-1 px-2 py-1 bg-gray-50 dark:bg-gray-700 rounded text-xs text-gray-500 border border-gray-100 dark:border-gray-600">
+                              <span className="font-medium text-gray-400">Preview: </span>
+                              <span className="whitespace-pre-wrap">{editForm.signature}</span>
+                            </div>
+                          )}
                         </div>
 
                         <BadgeManager

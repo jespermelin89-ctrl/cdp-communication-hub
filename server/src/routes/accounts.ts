@@ -32,6 +32,7 @@ const UpdateAccountSchema = z.object({
   label: z.string().optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   is_active: z.boolean().optional(),
+  signature: z.string().max(2000).nullable().optional(),
 });
 
 export async function accountRoutes(fastify: FastifyInstance) {
@@ -53,6 +54,7 @@ export async function accountRoutes(fastify: FastifyInstance) {
         label: true,
         color: true,
         badges: true,
+        signature: true,
         lastSyncAt: true,
         syncError: true,
         createdAt: true,
@@ -192,6 +194,7 @@ export async function accountRoutes(fastify: FastifyInstance) {
         ...(parsed.data.label !== undefined && { label: parsed.data.label }),
         ...(parsed.data.color !== undefined && { color: parsed.data.color }),
         ...(parsed.data.is_active !== undefined && { isActive: parsed.data.is_active }),
+        ...(parsed.data.signature !== undefined && { signature: parsed.data.signature }),
       },
       select: {
         id: true,
@@ -202,6 +205,7 @@ export async function accountRoutes(fastify: FastifyInstance) {
         isActive: true,
         label: true,
         color: true,
+        signature: true,
       },
     });
 

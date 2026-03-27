@@ -53,6 +53,7 @@ model EmailAccount {
   smtpUseSsl            Boolean   @default(true) @map("smtp_use_ssl")
   imapPasswordEncrypted String?   @map("imap_password_encrypted") // encrypted at rest
 
+  signature             String?   @map("signature") // email signature appended to drafts
   isDefault             Boolean   @default(false) @map("is_default")
   label                 String?   // personal, business, outreach, partnerships, founder, operations
   color                 String?   // hex color for UI badge (e.g. #3B82F6)

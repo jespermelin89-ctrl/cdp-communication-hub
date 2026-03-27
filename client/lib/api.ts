@@ -172,6 +172,7 @@ class ApiClient {
     label?: string;
     color?: string;
     is_active?: boolean;
+    signature?: string | null;
   }) {
     return this.request<{ account: any }>('PATCH', `/accounts/${id}`, data);
   }

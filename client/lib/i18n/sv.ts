@@ -199,6 +199,8 @@ const sv = {
     microsoft: 'Microsoft 365',
     redigera: 'Redigera',
     editTitle: 'Redigera konto',
+    signature: 'E-postsignatur',
+    signaturePlaceholder: 'Med vänliga hälsningar,\nJesper Melin\njespermelin89@gmail.com',
   },
 
   // Activity log

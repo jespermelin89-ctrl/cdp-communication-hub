@@ -215,6 +215,8 @@ const es: Translations = {
     microsoft: 'Microsoft 365',
     redigera: 'Editar',
     editTitle: 'Editar cuenta',
+    signature: 'Firma de correo',
+    signaturePlaceholder: 'Saludos,\nTu nombre',
   },
 
   actions: {

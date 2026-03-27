@@ -20,6 +20,7 @@ export interface Account {
   label: string | null;
   color: string | null;
   badges: string[];
+  signature: string | null;
   lastSyncAt: string | null;
   syncError: string | null;
   createdAt: string;

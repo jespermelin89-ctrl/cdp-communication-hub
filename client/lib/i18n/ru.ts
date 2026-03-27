@@ -215,6 +215,8 @@ const ru: Translations = {
     microsoft: 'Microsoft 365',
     redigera: 'Редактировать',
     editTitle: 'Редактировать аккаунт',
+    signature: 'Подпись эл. почты',
+    signaturePlaceholder: 'С уважением,\nВаше имя',
   },
 
   actions: {

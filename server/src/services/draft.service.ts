@@ -16,6 +16,15 @@ export class DraftService {
    * Create a new draft (always starts as 'pending').
    */
   async create(userId: string, input: CreateDraftInput) {
+    // Fetch account signature and append if set
+    const account = await prisma.emailAccount.findFirst({
+      where: { id: input.account_id, userId },
+      select: { signature: true },
+    });
+    const bodyWithSignature = account?.signature
+      ? `${input.body_text}\n\n--\n${account.signature}`
+      : input.body_text;
+
     const draft = await prisma.draft.create({
       data: {
         userId,
@@ -24,7 +33,7 @@ export class DraftService {
         toAddresses: input.to_addresses,
         ccAddresses: input.cc_addresses || [],
         subject: input.subject,
-        bodyText: input.body_text,
+        bodyText: bodyWithSignature,
         status: 'pending', // ALWAYS starts as pending
       },
       include: {

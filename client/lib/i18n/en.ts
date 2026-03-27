@@ -86,6 +86,8 @@ const en: Translations = {
     sendFailed: 'Send failed',
     confirmSend: 'Are you sure you want to send this email?',
     confirmDiscard: 'Discard this draft?',
+    noDraftsHint: 'Run "Analyze" on a thread in the inbox and AI will create a draft automatically.',
+    goToInbox: 'Go to inbox →',
   },
 
   settings: {

@@ -88,6 +88,8 @@ const sv = {
     sendFailed: 'Skicka misslyckades',
     confirmSend: 'Är du säker på att du vill skicka detta mail?',
     confirmDiscard: 'Radera detta utkast?',
+    noDraftsHint: 'Kör "Analysera" på en tråd i inkorgen så skapar AI ett utkast automatiskt.',
+    goToInbox: 'Gå till inkorgen →',
   },
 
   // Settings

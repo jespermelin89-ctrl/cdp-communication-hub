@@ -86,6 +86,8 @@ const es: Translations = {
     sendFailed: 'Error al enviar',
     confirmSend: '¿Estás seguro de que quieres enviar este correo?',
     confirmDiscard: '¿Descartar este borrador?',
+    noDraftsHint: 'Ejecuta "Analizar" en un hilo en la bandeja y la IA creará un borrador automáticamente.',
+    goToInbox: 'Ir a la bandeja →',
   },
 
   settings: {

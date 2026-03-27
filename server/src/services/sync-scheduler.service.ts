@@ -15,6 +15,8 @@ const AI_INTERVAL_MS = 10 * 60 * 1000;        // 10 minutes
 const MAX_THREADS_PER_SYNC = 20;
 const MAX_THREADS_TO_CLASSIFY = 10;
 const MAX_FAILURES_BEFORE_BACKOFF = 3;
+const AI_BATCH_SIZE = 5;                       // Max concurrent AI calls (Groq: 30 req/min)
+const AI_BATCH_DELAY_MS = 2000;                // 2s between batches
 
 // Track consecutive failures per account
 const failureCounts = new Map<string, number>();
@@ -119,36 +121,48 @@ async function classifyUnanalyzedThreads(): Promise<void> {
 
   if (threads.length === 0) return;
 
-  console.log(`[Scheduler] Classifying ${threads.length} unanalyzed thread(s)...`);
+  console.log(`[Scheduler] Classifying ${threads.length} unanalyzed thread(s) in batches of ${AI_BATCH_SIZE}...`);
 
-  for (const thread of threads) {
-    try {
-      const analysis = await aiService.analyzeThread({
-        subject: thread.subject ?? '(No subject)',
-        messages: thread.messages.map((m) => ({
-          from: m.fromAddress,
-          to: m.toAddresses,
-          body: m.bodyText ?? '',
-          date: m.receivedAt.toISOString(),
-        })),
-      });
+  // Process in batches to respect Groq rate limit (30 req/min)
+  for (let i = 0; i < threads.length; i += AI_BATCH_SIZE) {
+    const batch = threads.slice(i, i + AI_BATCH_SIZE);
 
-      await prisma.aIAnalysis.create({
-        data: {
-          threadId: thread.id,
-          summary: analysis.summary,
-          classification: analysis.classification,
-          priority: analysis.priority,
-          suggestedAction: analysis.suggested_action,
-          draftText: analysis.draft_text ?? null,
-          confidence: analysis.confidence,
-          modelUsed: analysis.model_used,
-        },
-      });
+    await Promise.all(
+      batch.map(async (thread) => {
+        try {
+          const analysis = await aiService.analyzeThread({
+            subject: thread.subject ?? '(No subject)',
+            messages: thread.messages.map((m) => ({
+              from: m.fromAddress,
+              to: m.toAddresses,
+              body: m.bodyText ?? '',
+              date: m.receivedAt.toISOString(),
+            })),
+          });
 
-      console.log(`[Scheduler] Classified thread ${thread.id}: ${analysis.classification}/${analysis.priority}`);
-    } catch (err: any) {
-      console.warn(`[Scheduler] Classification failed for thread ${thread.id}: ${err.message}`);
+          await prisma.aIAnalysis.create({
+            data: {
+              threadId: thread.id,
+              summary: analysis.summary,
+              classification: analysis.classification,
+              priority: analysis.priority,
+              suggestedAction: analysis.suggested_action,
+              draftText: analysis.draft_text ?? null,
+              confidence: analysis.confidence,
+              modelUsed: analysis.model_used,
+            },
+          });
+
+          console.log(`[Scheduler] Classified thread ${thread.id}: ${analysis.classification}/${analysis.priority}`);
+        } catch (err: any) {
+          console.warn(`[Scheduler] Classification failed for thread ${thread.id}: ${err.message}`);
+        }
+      })
+    );
+
+    // Wait between batches to avoid hitting Groq rate limit
+    if (i + AI_BATCH_SIZE < threads.length) {
+      await new Promise((r) => setTimeout(r, AI_BATCH_DELAY_MS));
     }
   }
 }

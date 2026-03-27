@@ -25,7 +25,7 @@ Gmail API ← Backend (Fastify :3001) ← AI Layer (Claude API) ← Frontend (Ne
 ## Tech Stack
 - Backend: Node.js + Fastify + TypeScript + Prisma + PostgreSQL (Supabase)
 - Frontend: Next.js 15 + Tailwind CSS + TypeScript
-- AI: Anthropic Claude API (claude-sonnet-4-5 primary), OpenAI as fallback
+- AI: Groq (llama-3.3-70b-versatile, free tier, default) | Anthropic Claude (claude-sonnet-4-5) | OpenAI (gpt-4o)
 - Auth: Google OAuth 2.0 + JWT sessions
 - Encryption: AES-256-GCM for OAuth tokens at rest
 - Hosting: Vercel (frontend), Render (backend)
@@ -65,7 +65,7 @@ Tables: users, email_accounts, email_threads, email_messages, ai_analyses, draft
 ## Current Git Status (2026-03-27)
 
 All work is committed and pushed to `origin/main`. Local branch `master` tracks `origin/main`.
-Latest commit: `e970605` feat: Brain Core data layer — writing profile, contacts, daily summary
+Latest commit: `5c0be7a` feat: batch AI classification with Groq rate-limit protection
 
 ## Completed Work (2026-03-27)
 
@@ -127,6 +127,17 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 - `seed-brain-core.ts`: seeds writing profile from JESPER-WRITING-PROFILE.md (run `npm run seed:brain-core`)
 - Dashboard: Brain Core daily summary widget with needs-reply, good-to-know, AI recommendation, regenerate
 - i18n: brainCore keys in all 4 languages
+
+### ✅ Groq AI Provider (Sprint 2 Final)
+- `env.ts`: GROQ_API_KEY added, AI_PROVIDER default changed to 'groq'
+- `ai.service.ts`: Groq via OpenAI SDK (baseURL: api.groq.com), model: llama-3.3-70b-versatile
+- `cleanJsonResponse()` helper: strips markdown fences from Llama responses
+- Strengthened system prompts with explicit JSON format instructions + example output
+- Groq free tier: 30 req/min, 14400 req/day — no cost
+
+### ✅ Batch AI Classification (Sprint 2 Final)
+- sync-scheduler: processes unanalyzed threads in batches of 5, 2s delay between batches
+- Respects Groq rate limit (30 req/min)
 
 ## Kända Buggar / TODO (2026-03-27)
 

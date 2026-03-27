@@ -111,11 +111,11 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t.settings.title}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">{t.settings.title}</h1>
 
         {loading ? (
           <div className="text-center py-12 text-gray-500">{t.common.loading}</div>
@@ -123,7 +123,7 @@ export default function SettingsPage() {
           <div className="space-y-6">
             {/* Profile */}
             <div className="card">
-              <h2 className="font-semibold text-gray-900 mb-4">{t.settings.profile}</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.settings.profile}</h2>
               <div className="space-y-2 text-sm">
                 <div><span className="text-gray-500">{t.settings.name}:</span> {user.name || t.settings.notSet}</div>
                 <div><span className="text-gray-500">{t.settings.email}:</span> {user.email}</div>
@@ -132,7 +132,7 @@ export default function SettingsPage() {
 
             {/* Language Selection */}
             <div className="card">
-              <h2 className="font-semibold text-gray-900 mb-4">{t.settings.language}</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.settings.language}</h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {LOCALES.map((loc) => (
                   <button
@@ -224,7 +224,7 @@ export default function SettingsPage() {
 
                     {/* Inline edit panel */}
                     {editingAccount === account.id && (
-                      <div className="px-4 pb-4 pt-2 border-t border-gray-100 bg-gray-50">
+                      <div className="px-4 pb-4 pt-2 border-t border-gray-100 dark:border-gray-700 bg-gray-50">
                         <div className="grid grid-cols-3 gap-3 mb-3">
                           <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">{t.settings.displayName}</label>

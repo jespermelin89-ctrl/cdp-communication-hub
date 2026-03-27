@@ -38,6 +38,11 @@ const en: Translations = {
     totalThreads: 'Total threads',
     analyzeAll: 'Analyze',
     goToInbox: 'Go to Inbox',
+    addAccount: '+ Add Account',
+    aiSummary: 'AI Summary',
+    aiSummaryLoading: 'Generating summary...',
+    aiSummaryEmpty: 'Sync your inbox to generate an AI summary.',
+    aiSummaryRefresh: 'Refresh',
   },
 
   inbox: {

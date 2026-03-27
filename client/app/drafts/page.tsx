@@ -20,7 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'border-amber-200 bg-amber-50',
   approved: 'border-emerald-200 bg-emerald-50',
   sent: 'border-blue-200 bg-blue-50',
-  failed: 'border-red-200 bg-red-50',
+  failed: 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20',
 };
 
 export default function DraftCenterPage() {
@@ -102,12 +102,12 @@ export default function DraftCenterPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar pendingCount={counts['pending'] || 0} />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{t.drafts.title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.drafts.title}</h1>
         </div>
 
         {/* Stat cards */}
@@ -124,7 +124,7 @@ export default function DraftCenterPage() {
                 }`}
               >
                 <div className="text-2xl mb-1">{STATUS_ICONS[s]}</div>
-                <div className="text-2xl font-bold text-gray-900">{counts[s] || 0}</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{counts[s] || 0}</div>
                 <div className="text-xs text-gray-500">{statusFilters.find((f) => f.value === s)?.label}</div>
               </button>
             ))}

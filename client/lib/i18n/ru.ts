@@ -38,6 +38,11 @@ const ru: Translations = {
     totalThreads: 'Всего цепочек',
     analyzeAll: 'Анализировать',
     goToInbox: 'Перейти во входящие',
+    addAccount: '+ Добавить аккаунт',
+    aiSummary: 'AI-сводка',
+    aiSummaryLoading: 'Генерация сводки...',
+    aiSummaryEmpty: 'Синхронизируйте входящие для AI-сводки.',
+    aiSummaryRefresh: 'Обновить',
   },
 
   inbox: {

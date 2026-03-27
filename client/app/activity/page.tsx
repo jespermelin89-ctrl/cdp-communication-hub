@@ -117,13 +117,13 @@ export default function ActivityPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">{t.activity.title}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.activity.title}</h1>
           <p className="text-sm text-gray-400 mt-1">{t.activity.subtitle}</p>
         </div>
 
@@ -198,7 +198,7 @@ export default function ActivityPage() {
               return (
                 <div
                   key={log.id}
-                  className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-3.5 flex items-center gap-4"
+                  className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm px-5 py-3.5 flex items-center gap-4"
                 >
                   {/* Icon */}
                   <span className="text-xl shrink-0 w-8 text-center">

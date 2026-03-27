@@ -164,14 +164,14 @@ export default function InboxPage() {
   const unanalyzedCount = threads.filter((t) => !t.latestAnalysis).length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t.inbox.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.inbox.title}</h1>
             {!loading && (
               <p className="text-sm text-gray-400 mt-0.5">
                 {visibleThreads.length} {t.inbox.messages}
@@ -304,7 +304,7 @@ export default function InboxPage() {
             </div>
           </div>
         ) : visibleThreads.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-200 text-center py-16 shadow-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 text-center py-16 shadow-sm">
             <div className="text-4xl mb-3">📭</div>
             <p className="text-gray-500 mb-4">{t.inbox.noThreads}</p>
             <button onClick={handleSync} className="btn-primary">
@@ -334,7 +334,7 @@ export default function InboxPage() {
                 return (
                   <div
                     key={thread.id}
-                    className={`bg-white rounded-2xl border transition-all shadow-sm ${
+                    className={`bg-white dark:bg-gray-800 rounded-2xl border transition-all shadow-sm ${
                       isSelected ? 'border-brand-300 ring-1 ring-brand-200' : 'border-gray-200'
                     } ${!thread.isRead ? 'border-l-4 border-l-brand-500' : ''}`}
                   >
@@ -401,7 +401,7 @@ export default function InboxPage() {
                         </div>
 
                         {thread.latestAnalysis ? (
-                          <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-1.5 mt-1 flex items-start gap-2">
+                          <div className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-1.5 mt-1 flex items-start gap-2">
                             <span className="text-gray-400 shrink-0">🤖</span>
                             <span className="line-clamp-2">
                               {isExpanded
@@ -454,7 +454,7 @@ export default function InboxPage() {
 
                     {/* Expanded Details */}
                     {isExpanded && thread.latestAnalysis && (
-                      <div className="border-t border-gray-100 px-4 py-4 bg-gray-50 rounded-b-2xl">
+                      <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-4 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
                         <div className="grid sm:grid-cols-3 gap-4 text-xs">
                           <div>
                             <div className="font-medium text-gray-500 mb-1">{t.inbox.suggestedAction}</div>

@@ -38,6 +38,11 @@ const sv = {
     totalThreads: 'Totalt antal trådar',
     analyzeAll: 'Analysera',
     goToInbox: 'Gå till inkorg',
+    addAccount: '+ Lägg till konto',
+    aiSummary: 'AI-sammanfattning',
+    aiSummaryLoading: 'Genererar sammanfattning...',
+    aiSummaryEmpty: 'Synka din inkorg för att generera en AI-sammanfattning.',
+    aiSummaryRefresh: 'Uppdatera',
   },
 
   // Inbox

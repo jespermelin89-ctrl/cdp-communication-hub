@@ -16,6 +16,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -31,11 +33,42 @@ export default function DashboardPage() {
       ]);
       setData(cmdResult);
       setCategories(catResult.categories || []);
+      // Auto-fetch AI summary for default account if not cached
+      const defaultAcc = cmdResult.accounts?.find((a: Account) => a.isDefault) ?? cmdResult.accounts?.[0];
+      if (defaultAcc) {
+        const cached = sessionStorage.getItem(`ai_summary_${defaultAcc.id}`);
+        if (cached) {
+          setAiSummary(cached);
+        } else {
+          fetchAiSummary(defaultAcc.id);
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchAiSummary(accountId: string) {
+    setSummaryLoading(true);
+    try {
+      const result = await api.summarizeInbox(accountId);
+      const summary = result.summary || '';
+      setAiSummary(summary);
+      sessionStorage.setItem(`ai_summary_${accountId}`, summary);
+    } catch {
+      // Non-critical — fail silently
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  function refreshSummary() {
+    const defaultAcc = data?.accounts?.find((a: Account) => a.isDefault) ?? data?.accounts?.[0];
+    if (!defaultAcc) return;
+    sessionStorage.removeItem(`ai_summary_${defaultAcc.id}`);
+    fetchAiSummary(defaultAcc.id);
   }
 
   async function handleQuickSync() {
@@ -80,14 +113,14 @@ export default function DashboardPage() {
   const lowPct = analyzedThreads > 0 ? Math.round((data!.overview.low_priority_threads / analyzedThreads) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar pendingCount={data?.overview.pending_drafts} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t.dashboard.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.dashboard.title}</h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {data
                 ? `${data.overview.total_threads} ${t.dashboard.threadsCached} ${data.accounts.length} ${data.accounts.length !== 1 ? t.dashboard.accounts : t.dashboard.account}`
@@ -118,7 +151,7 @@ export default function DashboardPage() {
         )}
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 mb-6 text-sm">{error}</div>
+          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 px-4 py-3 mb-6 text-sm">{error}</div>
         )}
 
         {data && (
@@ -184,10 +217,37 @@ export default function DashboardPage() {
               />
             </div>
 
+            {/* AI Inbox Summary */}
+            {(summaryLoading || aiSummary) && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    <span>🤖</span>
+                    {t.dashboard.aiSummary}
+                  </h2>
+                  <button
+                    onClick={refreshSummary}
+                    disabled={summaryLoading}
+                    className="text-xs text-brand-500 hover:text-brand-600 font-medium disabled:opacity-50"
+                  >
+                    {summaryLoading ? '...' : t.dashboard.aiSummaryRefresh}
+                  </button>
+                </div>
+                {summaryLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <div className="w-3 h-3 border border-gray-300 border-t-brand-500 rounded-full animate-spin" />
+                    {t.dashboard.aiSummaryLoading}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">{aiSummary}</p>
+                )}
+              </div>
+            )}
+
             {/* Main Grid */}
             <div className="grid lg:grid-cols-3 gap-6 mb-6">
               {/* Pending Drafts */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold text-gray-900">{t.dashboard.draftsAwaitingAction}</h2>
                   <Link href="/drafts" className="text-xs text-brand-500 hover:text-brand-600 font-medium">
@@ -205,7 +265,7 @@ export default function DashboardPage() {
                       <Link
                         key={draft.id}
                         href={`/drafts/${draft.id}`}
-                        className="block p-3 rounded-xl border border-gray-100 hover:border-brand-200 hover:bg-brand-50/40 transition-all group"
+                        className="block p-3 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-brand-200 hover:bg-brand-50/40 transition-all group"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium text-gray-900 truncate group-hover:text-brand-700">
@@ -223,8 +283,8 @@ export default function DashboardPage() {
               </div>
 
               {/* Priority Distribution */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                <h2 className="font-semibold text-gray-900 mb-4">{t.dashboard.prioritySummary}</h2>
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.dashboard.prioritySummary}</h2>
                 <div className="space-y-3">
                   <PriorityBar
                     label={t.dashboard.high}
@@ -259,15 +319,15 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                 )}
-                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-400">
                   <span>{t.dashboard.totalThreads}</span>
                   <span className="font-semibold text-gray-700">{totalThreads}</span>
                 </div>
               </div>
 
               {/* Recent Activity */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                <h2 className="font-semibold text-gray-900 mb-4">{t.dashboard.recentActivity}</h2>
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.dashboard.recentActivity}</h2>
                 {data.recent_actions.length === 0 ? (
                   <div className="text-center py-6">
                     <div className="text-3xl mb-2">📭</div>
@@ -299,7 +359,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Accounts Sync Status */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm mb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold text-gray-900">{t.dashboard.syncStatus}</h2>
                 <button
@@ -319,7 +379,7 @@ export default function DashboardPage() {
 
             {/* Categories */}
             {categories.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="font-semibold text-gray-900">{t.dashboard.categories}</h2>
                   <Link href="/categories" className="text-xs text-brand-500 hover:text-brand-600 font-medium">
@@ -330,7 +390,7 @@ export default function DashboardPage() {
                   {categories.map((cat: any) => (
                     <div
                       key={cat.id}
-                      className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100"
+                      className="flex items-center gap-2.5 p-3 rounded-xl bg-gray-50 border border-gray-100 dark:border-gray-700"
                     >
                       <span
                         className="w-3 h-3 rounded-full shrink-0"
@@ -384,7 +444,7 @@ function QuickActionCard({
     emerald: 'hover:bg-emerald-50 hover:border-emerald-200 text-emerald-700',
     gray: 'hover:bg-gray-100 hover:border-gray-300 text-gray-700',
   };
-  const base = `flex flex-col items-center justify-center gap-2 py-4 rounded-2xl border border-gray-200 bg-white shadow-sm transition-all ${colorMap[color]} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`;
+  const base = `flex flex-col items-center justify-center gap-2 py-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm transition-all ${colorMap[color]} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`;
 
   if (href) {
     return (
@@ -413,7 +473,7 @@ function PriorityBar({
         <span className={`font-medium ${textColor}`}>{label}</span>
         <span className="text-gray-500">{count} ({pct}%)</span>
       </div>
-      <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+      <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
         <div
           className={`h-full rounded-full ${color} transition-all duration-500`}
           style={{ width: `${pct}%` }}
@@ -432,10 +492,10 @@ function AccountSyncCard({
   const dot = hasError ? 'bg-red-500' : account.isActive ? 'bg-emerald-400' : 'bg-gray-300';
 
   return (
-    <div className={`flex items-start gap-3 p-3 rounded-xl border ${hasError ? 'border-red-200 bg-red-50' : 'border-gray-100 bg-gray-50'}`}>
+    <div className={`flex items-start gap-3 p-3 rounded-xl border ${hasError ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50'}`}>
       <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${dot}`} />
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-800 truncate">{account.emailAddress}</div>
+        <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{account.emailAddress}</div>
         {account.label && (
           <div className="text-xs text-gray-400">{account.label}</div>
         )}

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import LanguageSwitcher from './LanguageSwitcher';
+import { useTheme } from './ThemeProvider';
 
 interface TopBarProps {
   /** Override the pending draft count (e.g. from a parent that already has it). */
@@ -16,6 +17,7 @@ interface TopBarProps {
 export default function TopBar({ pendingCount: pendingCountProp, userEmail }: TopBarProps) {
   const pathname = usePathname();
   const { t } = useI18n();
+  const { theme, toggleTheme } = useTheme();
   const [fetchedCount, setFetchedCount] = useState(0);
 
   // Self-fetch pending draft count so every page gets the badge without passing props.
@@ -50,7 +52,7 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
   ];
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -58,7 +60,7 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
             <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">C</span>
             </div>
-            <span className="font-semibold text-gray-900 hidden sm:block">CDP Hub</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100 hidden sm:block">CDP Hub</span>
           </div>
 
           {/* Navigation */}
@@ -69,8 +71,8 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
                 href={item.href}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   pathname === item.href
-                    ? 'bg-brand-50 text-brand-600'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400'
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}
               >
                 <span>{item.icon}</span>
@@ -84,15 +86,29 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
             ))}
           </nav>
 
-          {/* User Info + Language */}
+          {/* User Info + Language + Theme */}
           <div className="flex items-center gap-2">
+            {/* Dark mode toggle */}
+            <button
+              onClick={toggleTheme}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
             <LanguageSwitcher />
             {userEmail && (
-              <span className="text-sm text-gray-500 hidden md:block">{userEmail}</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400 hidden md:block">{userEmail}</span>
             )}
             <Link
+              href="/settings/accounts"
+              className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors"
+            >
+              {t.dashboard.addAccount}
+            </Link>
+            <Link
               href="/settings"
-              className="text-gray-400 hover:text-gray-600 transition-colors text-sm"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors text-sm"
             >
               {t.nav.settings}
             </Link>

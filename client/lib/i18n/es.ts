@@ -38,6 +38,11 @@ const es: Translations = {
     totalThreads: 'Total de hilos',
     analyzeAll: 'Analizar',
     goToInbox: 'Ir a la bandeja',
+    addAccount: '+ Agregar cuenta',
+    aiSummary: 'Resumen IA',
+    aiSummaryLoading: 'Generando resumen...',
+    aiSummaryEmpty: 'Sincroniza tu bandeja para generar un resumen IA.',
+    aiSummaryRefresh: 'Actualizar',
   },
 
   inbox: {

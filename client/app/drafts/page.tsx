@@ -6,15 +6,18 @@ import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
+import { Clock, CheckCircle, Send, XCircle, Trash2, FileText } from 'lucide-react';
 import type { Draft, DraftStatus } from '@/lib/types';
 
-const STATUS_ICONS: Record<string, string> = {
-  pending: '⏳',
-  approved: '✅',
-  sent: '📤',
-  failed: '❌',
-  discarded: '🗑️',
-};
+function StatusIcon({ status, size = 18 }: { status: string; size?: number }) {
+  const props = { size, strokeWidth: 1.75 };
+  if (status === 'pending') return <Clock {...props} className="text-amber-500" />;
+  if (status === 'approved') return <CheckCircle {...props} className="text-emerald-500" />;
+  if (status === 'sent') return <Send {...props} className="text-blue-500" />;
+  if (status === 'failed') return <XCircle {...props} className="text-red-500" />;
+  if (status === 'discarded') return <Trash2 {...props} className="text-gray-400" />;
+  return <FileText {...props} className="text-gray-400" />;
+}
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20',
@@ -134,7 +137,7 @@ export default function DraftCenterPage() {
                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
               >
-                <div className="text-2xl mb-1">{STATUS_ICONS[s]}</div>
+                <div className="mb-1"><StatusIcon status={s} size={22} /></div>
                 <div className="text-2xl font-bold text-gray-900 dark:text-gray-100">{counts[s] || 0}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">{statusFilters.find((f) => f.value === s)?.label}</div>
               </button>
@@ -154,7 +157,7 @@ export default function DraftCenterPage() {
                   : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
-              {f.value && <span>{STATUS_ICONS[f.value]}</span>}
+              {f.value && <StatusIcon status={f.value} size={14} />}
               <span>{f.label}</span>
               {f.value && counts[f.value] != null && (
                 <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
@@ -177,7 +180,7 @@ export default function DraftCenterPage() {
           </div>
         ) : visibleDrafts.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 text-center py-16 px-6">
-            <div className="text-4xl mb-3">📝</div>
+            <div className="flex justify-center mb-3"><FileText size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" /></div>
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">{t.drafts.noDrafts}</p>
             <p className="text-gray-400 dark:text-gray-500 text-sm mb-5 max-w-sm mx-auto">{t.drafts.noDraftsHint}</p>
             <Link
@@ -201,7 +204,7 @@ export default function DraftCenterPage() {
                   {/* Draft info */}
                   <Link href={`/drafts/${draft.id}`} className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">{STATUS_ICONS[draft.status]}</span>
+                      <StatusIcon status={draft.status} size={16} />
                       <span className="font-semibold text-gray-900 dark:text-gray-100 truncate">{draft.subject}</span>
                       <StatusBadge status={draft.status} />
                     </div>

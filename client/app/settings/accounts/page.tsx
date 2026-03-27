@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Mail, Settings, Inbox, Info } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import AddEmailAccount from '@/components/AddEmailAccount';
 import { BadgeIcons, BadgeContextMenu, BadgeManager } from '@/components/EmailBadges';
@@ -117,8 +118,9 @@ export default function AccountsSettingsPage() {
   };
 
   const providerIcon = (provider: string) => {
-    const map: Record<string, string> = { gmail: '📧', imap: '⚙️', microsoft: '💼' };
-    return map[provider] || '📬';
+    if (provider === 'gmail') return <Mail size={16} className="text-red-400" />;
+    if (provider === 'imap') return <Settings size={16} className="text-gray-400" />;
+    return <Inbox size={16} className="text-blue-400" />;
   };
 
   if (showAddAccount) {
@@ -171,7 +173,7 @@ export default function AccountsSettingsPage() {
             </div>
           ) : accounts.length === 0 ? (
             <div className="text-center py-16">
-              <div className="text-4xl mb-3">📭</div>
+              <div className="flex justify-center mb-3"><Inbox size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" /></div>
               <p className="text-gray-400 text-sm mb-4">{t.accounts.noAccounts}</p>
               <button onClick={() => setShowAddAccount(true)} className="btn-primary text-sm">
                 {t.accounts.connectFirst}
@@ -363,7 +365,7 @@ export default function AccountsSettingsPage() {
         </div>
 
         <p className="mt-5 text-xs text-gray-400">
-          💡 {t.accounts.tip}
+          <Info size={12} className="inline mr-1 text-gray-400" />{t.accounts.tip}
         </p>
       </main>
     </div>

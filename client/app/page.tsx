@@ -1,7 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import {
+  Mail, AlertTriangle, FileText, CheckCircle, RefreshCw, Brain, Inbox, Settings,
+  AlertCircle, Info, Lightbulb, Sparkles, Send, Trash2, Bot, Link2, Tag,
+  MailOpen,
+} from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
 import AccountBadge from '@/components/AccountBadge';
@@ -190,28 +195,28 @@ export default function DashboardPage() {
                 label={t.dashboard.unread}
                 value={data.overview.unread_threads}
                 gradient="from-indigo-500 to-purple-600"
-                icon="✉️"
+                icon={<Mail size={28} />}
                 href="/inbox?unread=true"
               />
               <GradientCard
                 label={t.dashboard.highPriority}
                 value={data.overview.high_priority_threads}
                 gradient="from-red-500 to-rose-600"
-                icon="🔥"
+                icon={<AlertTriangle size={28} />}
                 href="/inbox?priority=high"
               />
               <GradientCard
                 label={t.dashboard.pendingDrafts}
                 value={data.overview.pending_drafts}
                 gradient="from-amber-400 to-orange-500"
-                icon="📝"
+                icon={<FileText size={28} />}
                 href="/drafts?status=pending"
               />
               <GradientCard
                 label={t.dashboard.readyToSend}
                 value={data.overview.approved_drafts}
                 gradient="from-emerald-400 to-teal-500"
-                icon="✅"
+                icon={<CheckCircle size={28} />}
                 href="/drafts?status=approved"
               />
             </div>
@@ -219,26 +224,26 @@ export default function DashboardPage() {
             {/* Quick Actions */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
               <QuickActionCard
-                icon="🔄"
+                icon={<RefreshCw size={22} strokeWidth={1.75} />}
                 label={syncing ? t.inbox.syncing : t.inbox.syncAll}
                 onClick={handleQuickSync}
                 disabled={syncing}
                 color="blue"
               />
               <QuickActionCard
-                icon="🤖"
+                icon={<Bot size={22} strokeWidth={1.75} />}
                 label={t.dashboard.analyzeAll}
                 href="/inbox"
                 color="violet"
               />
               <QuickActionCard
-                icon="📬"
+                icon={<Inbox size={22} strokeWidth={1.75} />}
                 label={t.dashboard.goToInbox}
                 href="/inbox"
                 color="emerald"
               />
               <QuickActionCard
-                icon="⚙️"
+                icon={<Settings size={22} strokeWidth={1.75} />}
                 label={t.nav.settings}
                 href="/settings"
                 color="gray"
@@ -250,7 +255,7 @@ export default function DashboardPage() {
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm mb-6">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                    <span>🤖</span>
+                    <Bot size={16} className="text-violet-500" />
                     {t.dashboard.aiSummary}
                   </h2>
                   <button
@@ -276,7 +281,7 @@ export default function DashboardPage() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm mb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                  <span>🧠</span>
+                  <Brain size={16} className="text-brand-500" />
                   {t.brainCore.dailySummary}
                 </h2>
                 <button
@@ -317,8 +322,8 @@ export default function DashboardPage() {
                   {/* Needs Reply */}
                   {Array.isArray(dailySummary.needsReply) && dailySummary.needsReply.length > 0 && (
                     <div>
-                      <div className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-2">
-                        🔴 {t.brainCore.needsReply} ({dailySummary.needsReply.length})
+                      <div className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                        <AlertCircle size={12} /> {t.brainCore.needsReply} ({dailySummary.needsReply.length})
                       </div>
                       <div className="space-y-1.5">
                         {dailySummary.needsReply.slice(0, 5).map((item: any, i: number) => (
@@ -344,8 +349,8 @@ export default function DashboardPage() {
                   {/* Good to Know */}
                   {Array.isArray(dailySummary.goodToKnow) && dailySummary.goodToKnow.length > 0 && (
                     <div>
-                      <div className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">
-                        🟡 {t.brainCore.goodToKnow} ({dailySummary.goodToKnow.length})
+                      <div className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2 flex items-center gap-1">
+                        <Info size={12} /> {t.brainCore.goodToKnow} ({dailySummary.goodToKnow.length})
                       </div>
                       <div className="space-y-1">
                         {dailySummary.goodToKnow.slice(0, 3).map((item: any, i: number) => (
@@ -360,8 +365,8 @@ export default function DashboardPage() {
                   {/* Recommendation */}
                   {dailySummary.recommendation && (
                     <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
-                      <div className="text-xs font-semibold text-brand-600 uppercase tracking-wide mb-1.5">
-                        💡 {t.brainCore.recommendation}
+                      <div className="text-xs font-semibold text-brand-600 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                        <Lightbulb size={12} /> {t.brainCore.recommendation}
                       </div>
                       <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                         {dailySummary.recommendation}
@@ -384,7 +389,7 @@ export default function DashboardPage() {
                 </div>
                 {data.drafts_preview.length === 0 ? (
                   <div className="text-center py-6">
-                    <div className="text-3xl mb-2">✨</div>
+                    <div className="flex justify-center mb-2"><Sparkles size={28} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" /></div>
                     <p className="text-gray-400 text-sm">{t.dashboard.noPendingDrafts}</p>
                   </div>
                 ) : (
@@ -458,7 +463,7 @@ export default function DashboardPage() {
                 <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.dashboard.recentActivity}</h2>
                 {data.recent_actions.length === 0 ? (
                   <div className="text-center py-6">
-                    <div className="text-3xl mb-2">📭</div>
+                    <div className="flex justify-center mb-2"><MailOpen size={28} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" /></div>
                     <p className="text-gray-400 text-sm">{t.dashboard.noRecentActivity}</p>
                   </div>
                 ) : (
@@ -547,14 +552,14 @@ export default function DashboardPage() {
 function GradientCard({
   label, value, gradient, icon, href
 }: {
-  label: string; value: number; gradient: string; icon: string; href: string;
+  label: string; value: number; gradient: string; icon: React.ReactNode; href: string;
 }) {
   return (
     <Link
       href={href}
       className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${gradient} p-5 text-white shadow-sm hover:shadow-lg transition-shadow`}
     >
-      <div className="absolute top-3 right-4 text-2xl opacity-30">{icon}</div>
+      <div className="absolute top-3 right-4 opacity-30">{icon}</div>
       <div className="text-4xl font-bold">{value}</div>
       <div className="text-sm mt-1 opacity-85">{label}</div>
     </Link>
@@ -564,7 +569,7 @@ function GradientCard({
 function QuickActionCard({
   icon, label, href, onClick, disabled, color
 }: {
-  icon: string; label: string; href?: string; onClick?: () => void; disabled?: boolean; color: string;
+  icon: React.ReactNode; label: string; href?: string; onClick?: () => void; disabled?: boolean; color: string;
 }) {
   const colorMap: Record<string, string> = {
     blue: 'hover:bg-blue-50 hover:border-blue-200 text-blue-700',
@@ -577,14 +582,14 @@ function QuickActionCard({
   if (href) {
     return (
       <Link href={href} className={base}>
-        <span className="text-2xl">{icon}</span>
+        {icon}
         <span className="text-xs font-medium text-center leading-tight">{label}</span>
       </Link>
     );
   }
   return (
     <button onClick={onClick} disabled={disabled} className={base}>
-      <span className="text-2xl">{icon}</span>
+      {icon}
       <span className="text-xs font-medium text-center leading-tight">{label}</span>
     </button>
   );
@@ -640,14 +645,13 @@ function AccountSyncCard({
 }
 
 function ActionIcon({ type }: { type: string }) {
-  const icons: Record<string, string> = {
-    draft_created: '📝',
-    draft_approved: '✅',
-    draft_sent: '📤',
-    draft_discarded: '🗑️',
-    analysis_run: '🤖',
-    account_connected: '🔗',
-    rule_created: '🏷️',
-  };
-  return <span className="text-base shrink-0">{icons[type] || '📋'}</span>;
+  const p = { size: 16, strokeWidth: 1.75 };
+  if (type === 'draft_created') return <FileText {...p} className="text-blue-500 shrink-0" />;
+  if (type === 'draft_approved') return <CheckCircle {...p} className="text-emerald-500 shrink-0" />;
+  if (type === 'draft_sent') return <Send {...p} className="text-teal-500 shrink-0" />;
+  if (type === 'draft_discarded') return <Trash2 {...p} className="text-gray-400 shrink-0" />;
+  if (type === 'analysis_run') return <Bot {...p} className="text-violet-500 shrink-0" />;
+  if (type === 'account_connected') return <Link2 {...p} className="text-brand-500 shrink-0" />;
+  if (type === 'rule_created') return <Tag {...p} className="text-orange-400 shrink-0" />;
+  return <FileText {...p} className="text-gray-400 shrink-0" />;
 }

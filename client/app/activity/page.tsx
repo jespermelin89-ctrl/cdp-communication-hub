@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { PenLine, CheckCircle, Send, XCircle, Trash2, Bot, Link2, Unplug, Tag, FileText } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -16,16 +17,18 @@ interface ActionLog {
   user: { email: string; name: string | null };
 }
 
-const ACTION_ICONS: Record<string, string> = {
-  draft_created: '✏️',
-  draft_approved: '✅',
-  draft_sent: '📤',
-  draft_send_failed: '❌',
-  draft_discarded: '🗑️',
-  analysis_run: '🤖',
-  account_connected: '🔗',
-  account_disconnected: '🔌',
-};
+function ActionIcon({ type, size = 18 }: { type: string; size?: number }) {
+  const p = { size, strokeWidth: 1.75 };
+  if (type === 'draft_created') return <PenLine {...p} className="text-blue-500" />;
+  if (type === 'draft_approved') return <CheckCircle {...p} className="text-emerald-500" />;
+  if (type === 'draft_sent') return <Send {...p} className="text-teal-500" />;
+  if (type === 'draft_send_failed') return <XCircle {...p} className="text-red-500" />;
+  if (type === 'draft_discarded') return <Trash2 {...p} className="text-gray-400" />;
+  if (type === 'analysis_run') return <Bot {...p} className="text-violet-500" />;
+  if (type === 'account_connected') return <Link2 {...p} className="text-brand-500" />;
+  if (type === 'account_disconnected') return <Unplug {...p} className="text-orange-500" />;
+  return <FileText {...p} className="text-gray-400" />;
+}
 
 const ACTION_COLORS: Record<string, string> = {
   draft_created: 'bg-blue-50 border-blue-200 text-blue-700',
@@ -141,7 +144,7 @@ export default function ActivityPage() {
                     : 'bg-white border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="text-2xl mb-1">{ACTION_ICONS[type]}</div>
+                <div className="mb-1"><ActionIcon type={type} size={22} /></div>
                 <div className="text-lg font-bold text-gray-900">{count}</div>
                 <div className="text-xs text-gray-500 leading-tight">{actionLabel(type)}</div>
               </button>
@@ -170,7 +173,7 @@ export default function ActivityPage() {
                   : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
               }`}
             >
-              {ACTION_ICONS[type]} {actionLabel(type)}
+              <ActionIcon type={type} size={12} /> {actionLabel(type)}
             </button>
           ))}
         </div>
@@ -185,7 +188,7 @@ export default function ActivityPage() {
           </div>
         ) : logs.length === 0 ? (
           <div className="bg-white rounded-2xl border border-dashed border-gray-300 text-center py-16">
-            <div className="text-4xl mb-3">📋</div>
+            <div className="flex justify-center mb-3"><FileText size={40} strokeWidth={1.5} className="text-gray-300" /></div>
             <p className="text-gray-400 text-sm">{t.activity.noLogs}</p>
           </div>
         ) : (
@@ -201,8 +204,8 @@ export default function ActivityPage() {
                   className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm px-5 py-3.5 flex items-center gap-4"
                 >
                   {/* Icon */}
-                  <span className="text-xl shrink-0 w-8 text-center">
-                    {ACTION_ICONS[log.actionType] || '📌'}
+                  <span className="shrink-0 w-8 flex justify-center">
+                    <ActionIcon type={log.actionType} size={18} />
                   </span>
 
                   {/* Content */}

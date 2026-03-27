@@ -19,8 +19,8 @@ const CLASSIFICATION_COLORS: Record<string, string> = {
 };
 
 const CLASSIFICATION_LABELS: Record<string, string> = {
-  lead: '🎯 Lead', partner: '🤝 Partner', personal: '👤 Personal',
-  spam: '🚫 Spam', operational: '⚙️ Operational', founder: '🚀 Founder', outreach: '📣 Outreach',
+  lead: 'Lead', partner: 'Partner', personal: 'Personal',
+  spam: 'Spam', operational: 'Operational', founder: 'Founder', outreach: 'Outreach',
 };
 
 function initials(email: string): string {

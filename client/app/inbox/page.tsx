@@ -27,13 +27,13 @@ const PRIORITY_FILTER_COLORS: Record<string, string> = {
 };
 
 const CLASSIFICATION_LABELS: Record<string, string> = {
-  lead: '🎯 Lead',
-  partner: '🤝 Partner',
-  personal: '👤 Personal',
-  spam: '🚫 Spam',
-  operational: '⚙️ Operational',
-  founder: '🚀 Founder',
-  outreach: '📣 Outreach',
+  lead: 'Lead',
+  partner: 'Partner',
+  personal: 'Personal',
+  spam: 'Spam',
+  operational: 'Operational',
+  founder: 'Founder',
+  outreach: 'Outreach',
 };
 
 function formatRelativeTime(dateStr: string | null | undefined): string {

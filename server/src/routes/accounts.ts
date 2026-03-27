@@ -33,6 +33,9 @@ const UpdateAccountSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   is_active: z.boolean().optional(),
   signature: z.string().max(2000).nullable().optional(),
+  account_type: z.enum(['personal', 'team', 'shared']).optional(),
+  team_members: z.array(z.string().email()).optional(),
+  ai_handling: z.enum(['normal', 'separate', 'notify_only']).optional(),
 });
 
 export async function accountRoutes(fastify: FastifyInstance) {
@@ -55,6 +58,9 @@ export async function accountRoutes(fastify: FastifyInstance) {
         color: true,
         badges: true,
         signature: true,
+        accountType: true,
+        teamMembers: true,
+        aiHandling: true,
         lastSyncAt: true,
         syncError: true,
         createdAt: true,
@@ -195,6 +201,9 @@ export async function accountRoutes(fastify: FastifyInstance) {
         ...(parsed.data.color !== undefined && { color: parsed.data.color }),
         ...(parsed.data.is_active !== undefined && { isActive: parsed.data.is_active }),
         ...(parsed.data.signature !== undefined && { signature: parsed.data.signature }),
+        ...(parsed.data.account_type !== undefined && { accountType: parsed.data.account_type }),
+        ...(parsed.data.team_members !== undefined && { teamMembers: parsed.data.team_members }),
+        ...(parsed.data.ai_handling !== undefined && { aiHandling: parsed.data.ai_handling }),
       },
       select: {
         id: true,
@@ -206,6 +215,9 @@ export async function accountRoutes(fastify: FastifyInstance) {
         label: true,
         color: true,
         signature: true,
+        accountType: true,
+        teamMembers: true,
+        aiHandling: true,
       },
     });
 

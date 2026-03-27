@@ -21,6 +21,9 @@ export interface Account {
   color: string | null;
   badges: string[];
   signature: string | null;
+  accountType: 'personal' | 'team' | 'shared';
+  teamMembers: string[];
+  aiHandling: 'normal' | 'separate' | 'notify_only';
   lastSyncAt: string | null;
   syncError: string | null;
   createdAt: string;

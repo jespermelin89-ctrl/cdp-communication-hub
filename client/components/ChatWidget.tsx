@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { MessageCircle, X, Send } from 'lucide-react';
+import { MessageCircle, X, Send, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useChatContext } from '@/lib/chat-context';
@@ -75,12 +75,16 @@ export default function ChatWidget() {
 
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
+      const rawMsg: string = err?.message || '';
+      const friendlyMsg = /prisma|database|500|connection/i.test(rawMsg)
+        ? 'Något gick fel. Testa igen om en stund.'
+        : rawMsg || 'Något gick fel. Testa igen.';
       setMessages((prev) => [
         ...prev,
         {
           id: `e-${Date.now()}`,
           role: 'assistant',
-          content: `${t.chat.error}: ${err.message}`,
+          content: friendlyMsg,
           type: 'error',
           timestamp: new Date(),
         },
@@ -88,6 +92,16 @@ export default function ChatWidget() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function resetChat() {
+    setMessages([{
+      id: `w-${Date.now()}`,
+      role: 'assistant',
+      content: t.chat.welcome,
+      timestamp: new Date(),
+    }]);
+    setInput('');
   }
 
   async function applyAnalyze(messageId: string, threadIds: string[]) {
@@ -174,10 +188,17 @@ export default function ChatWidget() {
             <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
               <span className="font-bold text-sm">C</span>
             </div>
-            <div>
+            <div className="flex-1">
               <div className="font-semibold text-sm">{t.chat.title}</div>
               <div className="text-xs text-brand-100">{t.chat.subtitle}</div>
             </div>
+            <button
+              onClick={resetChat}
+              title="Starta om chatten"
+              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <RefreshCw size={14} />
+            </button>
           </div>
 
           {/* Selected threads banner */}

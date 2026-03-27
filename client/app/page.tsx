@@ -71,7 +71,7 @@ export default function DashboardPage() {
       setAiSummary(summary);
       sessionStorage.setItem(`ai_summary_${accountId}`, summary);
     } catch {
-      // Non-critical — fail silently
+      setAiSummary('Kunde inte ladda sammanfattning. Tryck Uppdatera för att försöka igen.');
     } finally {
       setSummaryLoading(false);
     }
@@ -90,7 +90,7 @@ export default function DashboardPage() {
       const result = await api.getDailySummary();
       setDailySummary(result.summary);
     } catch {
-      // Non-critical
+      setDailySummary({ _error: true });
     } finally {
       setDailySummaryLoading(false);
     }
@@ -398,7 +398,19 @@ export default function DashboardPage() {
                 </button>
               )}
 
-              {dailySummary && (
+              {!dailySummaryLoading && dailySummary?._error && (
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-gray-400 flex-1">Kunde inte ladda daglig sammanfattning.</span>
+                  <button
+                    onClick={regenerateDailySummary}
+                    className="text-brand-500 hover:text-brand-600 font-medium whitespace-nowrap"
+                  >
+                    Generera ny
+                  </button>
+                </div>
+              )}
+
+              {dailySummary && !dailySummary._error && (
                 <div className="space-y-4">
                   {/* Stats row */}
                   <div className="flex gap-4 text-sm flex-wrap">

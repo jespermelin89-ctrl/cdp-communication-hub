@@ -230,17 +230,38 @@ Provide a concise daily briefing summary.`;
   }
 
   /**
-   * Core chat method - routes to the configured AI provider.
+   * Core chat method - tries providers in fallback order: Groq → Anthropic → OpenAI.
+   * Always attempts Groq first regardless of AI_PROVIDER setting if a key is present.
+   * Logs which provider succeeded or failed.
    */
   private async chat(systemPrompt: string, userMessage: string): Promise<string> {
-    if (env.AI_PROVIDER === 'groq' && this.groq) {
-      return this.chatGroq(systemPrompt, userMessage);
-    } else if (env.AI_PROVIDER === 'anthropic' && this.anthropic) {
-      return this.chatAnthropic(systemPrompt, userMessage);
-    } else if (env.AI_PROVIDER === 'openai' && this.openai) {
-      return this.chatOpenAI(systemPrompt, userMessage);
+    const providers: Array<{ name: string; fn: () => Promise<string> }> = [];
+
+    if (this.groq) providers.push({ name: 'groq', fn: () => this.chatGroq(systemPrompt, userMessage) });
+    if (this.anthropic) providers.push({ name: 'anthropic', fn: () => this.chatAnthropic(systemPrompt, userMessage) });
+    if (this.openai) providers.push({ name: 'openai', fn: () => this.chatOpenAI(systemPrompt, userMessage) });
+
+    if (providers.length === 0) {
+      throw new Error('No AI provider configured. Set GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.');
     }
-    throw new Error('No AI provider configured. Set GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.');
+
+    let lastError: Error | null = null;
+    for (const provider of providers) {
+      try {
+        const result = await provider.fn();
+        if (lastError) {
+          console.log(`[AI] Fallback succeeded via ${provider.name} (previous provider failed)`);
+        } else {
+          console.log(`[AI] Request handled by ${provider.name}`);
+        }
+        return result;
+      } catch (err: any) {
+        console.warn(`[AI] Provider ${provider.name} failed: ${err?.message}`);
+        lastError = err;
+      }
+    }
+
+    throw new Error(`All AI providers failed. Last error: ${lastError?.message}`);
   }
 
   private async chatGroq(systemPrompt: string, userMessage: string): Promise<string> {

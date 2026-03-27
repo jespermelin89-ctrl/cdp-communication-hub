@@ -102,20 +102,26 @@ export async function aiRoutes(fastify: FastifyInstance) {
       // If last message is FROM someone else → reply to them
       // If last message is FROM us → reply to the original TO recipients (excluding ourselves)
       const lastMessage = thread.messages[thread.messages.length - 1];
-      const replyTo = lastMessage.fromAddress !== thread.account.emailAddress
+      const rawReplyTo = lastMessage.fromAddress !== thread.account.emailAddress
         ? [lastMessage.fromAddress]
-        : lastMessage.toAddresses.filter(addr => addr !== thread.account.emailAddress);
+        : lastMessage.toAddresses.filter((addr: string) => addr !== thread.account.emailAddress);
 
-      draft = await draftService.create(request.userId, {
-        account_id: thread.account.id,
-        thread_id: thread_id,
-        to_addresses: replyTo,
-        cc_addresses: [],
-        subject: thread.subject?.startsWith('Re:')
-          ? thread.subject
-          : `Re: ${thread.subject || '(No Subject)'}`,
-        body_text: analysis.draft_text,
-      });
+      // Skip draft if recipient is an automated address (mailer-daemon, noreply, bounces, etc.)
+      const NO_REPLY_PATTERN = /^(mailer-daemon|noreply|no-reply|do-not-reply|donotreply|bounces?)\+?@/i;
+      const replyTo = rawReplyTo.filter((addr: string) => !NO_REPLY_PATTERN.test(addr));
+
+      if (replyTo.length > 0) {
+        draft = await draftService.create(request.userId, {
+          account_id: thread.account.id,
+          thread_id: thread_id,
+          to_addresses: replyTo,
+          cc_addresses: [],
+          subject: thread.subject?.startsWith('Re:')
+            ? thread.subject
+            : `Re: ${thread.subject || '(No Subject)'}`,
+          body_text: analysis.draft_text,
+        });
+      }
     }
 
     return {

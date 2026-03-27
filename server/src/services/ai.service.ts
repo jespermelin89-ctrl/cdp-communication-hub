@@ -23,6 +23,10 @@ Analyze the email thread and return a JSON object with exactly these fields:
 - confidence: a number between 0 and 1 indicating your confidence in the analysis
 - model_used: the model identifier you are running as
 
+LANGUAGE INSTRUCTIONS:
+- Always respond in Swedish unless the email thread is in English or another language — then match the thread's language.
+- The "summary" field should be written in Swedish if the thread is in Swedish, English if the thread is in English.
+
 CRITICAL INSTRUCTIONS:
 1. Return ONLY a JSON object. No text before or after the JSON.
 2. Do NOT wrap the JSON in markdown code fences (no \`\`\`json).
@@ -40,6 +44,10 @@ Write emails that are:
 - Concise - get to the point
 - Context-aware when thread history is provided
 
+LANGUAGE INSTRUCTIONS:
+- Write the draft reply in the same language as the original email.
+- If the email is in Swedish, reply in Swedish. If in English, reply in English. Match the thread's language exactly.
+
 CRITICAL INSTRUCTIONS:
 1. Return ONLY the email body text.
 2. No subject line, no greeting suggestions outside the body, no meta-commentary.
@@ -52,6 +60,9 @@ Focus on:
 - High-priority items requiring immediate attention
 - Key pending conversations
 - Patterns or trends (many leads? lots of spam?)
+
+LANGUAGE INSTRUCTIONS:
+- Write the summary in Swedish.
 
 CRITICAL INSTRUCTIONS:
 1. Keep it under 200 words.

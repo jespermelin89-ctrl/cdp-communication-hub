@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
+import { Archive, Trash2, Bot, MailOpen } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import type { EmailThread, AIAnalysis } from '@/lib/types';
@@ -47,6 +48,8 @@ export default function ThreadDetailPage() {
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [draftInstruction, setDraftInstruction] = useState('');
   const [syncingMessages, setSyncingMessages] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [trashConfirm, setTrashConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -89,6 +92,27 @@ export default function ThreadDetailPage() {
       setError(`Analysis failed: ${err.message}`);
     } finally {
       setAnalyzing(false);
+    }
+  }
+
+  async function handleArchive() {
+    setArchiving(true);
+    try {
+      await api.archiveThread(threadId);
+      router.push('/inbox');
+    } catch (err: any) {
+      setError(`Arkivering misslyckades: ${err.message}`);
+      setArchiving(false);
+    }
+  }
+
+  async function handleTrash() {
+    try {
+      await api.trashThread(threadId);
+      router.push('/inbox');
+    } catch (err: any) {
+      setError(`Flytt till papperskorgen misslyckades: ${err.message}`);
+      setTrashConfirm(false);
     }
   }
 
@@ -177,6 +201,32 @@ export default function ThreadDetailPage() {
               )}
             </div>
           </div>
+          {/* Header actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              className="btn-secondary text-sm flex items-center gap-1.5"
+            >
+              {analyzing ? <span className="w-3.5 h-3.5 border border-gray-400 border-t-brand-500 rounded-full animate-spin" /> : <Bot size={14} />}
+              {analyzing ? t.thread.analyzing : t.thread.runAnalysis}
+            </button>
+            <button
+              onClick={handleArchive}
+              disabled={archiving}
+              className="btn-secondary text-sm flex items-center gap-1.5"
+            >
+              {archiving ? <span className="w-3.5 h-3.5 border border-gray-400 border-t-brand-500 rounded-full animate-spin" /> : <Archive size={14} />}
+              Arkivera
+            </button>
+            <button
+              onClick={() => setTrashConfirm(true)}
+              className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <Trash2 size={14} />
+              Radera
+            </button>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -208,7 +258,7 @@ export default function ThreadDetailPage() {
               ))
             ) : (
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm text-center py-12">
-                <div className="text-3xl mb-2">📭</div>
+                <div className="flex justify-center mb-2 text-gray-300 dark:text-gray-600"><MailOpen size={36} /></div>
                 <p className="text-gray-400 text-sm mb-4">{t.thread.noMessages}</p>
                 <button
                   onClick={handleSyncMessages}
@@ -290,7 +340,7 @@ export default function ThreadDetailPage() {
               </div>
             ) : (
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 text-center">
-                <div className="text-3xl mb-2">🤖</div>
+                <div className="flex justify-center mb-2 text-gray-300 dark:text-gray-600"><Bot size={36} /></div>
                 <p className="text-sm text-gray-400 mb-4">{t.thread.noAnalysis}</p>
                 <button
                   onClick={handleAnalyze}
@@ -339,6 +389,34 @@ export default function ThreadDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* Trash confirmation dialog */}
+      {trashConfirm && (
+        <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 max-w-sm w-full">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+                <Trash2 size={18} className="text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Flytta till papperskorgen?</h3>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+              Mejlet flyttas till papperskorgen i Gmail och kan återställas inom 30 dagar.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setTrashConfirm(false)} className="btn-secondary text-sm">
+                Avbryt
+              </button>
+              <button
+                onClick={handleTrash}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition-colors"
+              >
+                Flytta till papperskorgen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { Archive, Trash2, AlertCircle, Bot, RefreshCw } from 'lucide-react';
 import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
+import { useChatContext } from '@/lib/chat-context';
 import type { EmailThread, Account } from '@/lib/types';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
@@ -72,6 +73,7 @@ export default function InboxPage() {
   const [archivingIds, setArchivingIds] = useState<Set<string>>(new Set());
   const [trashConfirmId, setTrashConfirmId] = useState<string | null>(null);
   const { t } = useI18n();
+  const { setSelectedThreadIds } = useChatContext();
 
   useEffect(() => {
     loadAccounts();
@@ -80,6 +82,11 @@ export default function InboxPage() {
   useEffect(() => {
     loadThreads();
   }, [selectedAccountId, priorityFilter, search]);
+
+  // Sync inbox selection → global ChatContext so the chat widget knows which threads are selected
+  useEffect(() => {
+    setSelectedThreadIds(Array.from(selectedIds));
+  }, [selectedIds]);
 
   async function loadAccounts() {
     try {

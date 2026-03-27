@@ -352,8 +352,11 @@ class ApiClient {
     return this.request<{ type: string; message: string; data?: any }>('POST', '/chat/command', { command, params });
   }
 
-  async chatAsk(message: string) {
-    return this.request<{ type: string; message: string; data?: any }>('POST', '/chat/ask', { message });
+  async chatAsk(message: string, threadIds?: string[]) {
+    return this.request<{ type: string; message: string; data?: any }>('POST', '/chat/ask', {
+      message,
+      ...(threadIds && threadIds.length > 0 ? { thread_ids: threadIds } : {}),
+    });
   }
 
   // Brain Summary (BRAIN-OS / external consumer endpoint)

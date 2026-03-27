@@ -166,6 +166,7 @@ export const chatCommandService = {
     priority?: string;
     unreadOnly?: boolean;
     limit?: number;
+    threadIds?: string[];
   }): Promise<ChatCommandResult> {
     const accounts = await prisma.emailAccount.findMany({
       where: { userId, isActive: true },
@@ -174,6 +175,10 @@ export const chatCommandService = {
     const where: any = {
       accountId: { in: accounts.map((a) => a.id) },
     };
+
+    if (filter.threadIds && filter.threadIds.length > 0) {
+      where.id = { in: filter.threadIds };
+    }
 
     if (filter.unreadOnly) where.isRead = false;
 

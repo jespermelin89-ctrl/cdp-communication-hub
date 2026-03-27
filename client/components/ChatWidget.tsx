@@ -2,8 +2,10 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { MessageCircle, X, Send } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
+import { useChatContext } from '@/lib/chat-context';
 
 interface ChatMessage {
   id: string;
@@ -16,10 +18,12 @@ interface ChatMessage {
 
 export default function ChatWidget() {
   const { t } = useI18n();
+  const { selectedThreadIds } = useChatContext();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -58,7 +62,7 @@ export default function ChatWidget() {
     setLoading(true);
 
     try {
-      const result = await api.chatAsk(text);
+      const result = await api.chatAsk(text, selectedThreadIds.length > 0 ? selectedThreadIds : undefined);
 
       const assistantMsg: ChatMessage = {
         id: `a-${Date.now()}`,
@@ -84,6 +88,25 @@ export default function ChatWidget() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function applyAnalyze(messageId: string, threadIds: string[]) {
+    setApplyingId(messageId);
+    let succeeded = 0;
+    for (const id of threadIds) {
+      try { await api.analyzeThread(id); succeeded++; } catch { /* skip */ }
+    }
+    setApplyingId(null);
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        content: `Klart! ${succeeded} av ${threadIds.length} trådar analyserade.`,
+        type: 'action_done',
+        timestamp: new Date(),
+      },
+    ]);
   }
 
   // Quick action buttons based on last response
@@ -129,15 +152,17 @@ export default function ChatWidget() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
+        title="Öppna chatt"
       >
-        {isOpen ? (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        ) : (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
+        {isOpen ? <X size={22} /> : (
+          <div className="relative">
+            <MessageCircle size={22} />
+            {selectedThreadIds.length > 0 && (
+              <span className="absolute -top-2 -right-2 w-4 h-4 bg-amber-400 text-gray-900 text-[10px] font-bold rounded-full flex items-center justify-center">
+                {selectedThreadIds.length}
+              </span>
+            )}
+          </div>
         )}
       </button>
 
@@ -154,6 +179,14 @@ export default function ChatWidget() {
               <div className="text-xs text-brand-100">{t.chat.subtitle}</div>
             </div>
           </div>
+
+          {/* Selected threads banner */}
+          {selectedThreadIds.length > 0 && (
+            <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 flex items-center gap-1.5">
+              <span className="font-medium">{selectedThreadIds.length} trådar markerade</span>
+              <span className="text-amber-500">— skickas med nästa meddelande</span>
+            </div>
+          )}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -200,6 +233,14 @@ export default function ChatWidget() {
                       {msg.data.length > 8 && (
                         <div className="text-xs text-gray-400 text-center pt-1">{t.chat.more.replace('{n}', String(msg.data.length - 8))}</div>
                       )}
+                      {/* Tillämpa: analyze all listed threads */}
+                      <button
+                        onClick={() => applyAnalyze(msg.id, msg.data.map((t: any) => t.id))}
+                        disabled={applyingId === msg.id}
+                        className="w-full mt-1 px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white text-xs font-medium rounded-xl transition-colors disabled:opacity-60"
+                      >
+                        {applyingId === msg.id ? 'Analyserar…' : 'Tillämpa — analysera alla'}
+                      </button>
                     </div>
                   )}
 

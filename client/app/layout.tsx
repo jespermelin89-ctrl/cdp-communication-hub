@@ -4,6 +4,7 @@ import ChatWidget from '@/components/ChatWidget';
 import I18nProvider from '@/components/I18nProvider';
 import PwaRegistrar from '@/components/PwaRegistrar';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { ChatProvider } from '@/lib/chat-context';
 
 export const metadata: Metadata = {
   title: 'CDP Communication Hub',
@@ -33,8 +34,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen" suppressHydrationWarning>
         <ThemeProvider>
           <I18nProvider>
-            {children}
-            <ChatWidget />
+            <ChatProvider>
+              {children}
+              <ChatWidget />
+            </ChatProvider>
           </I18nProvider>
         </ThemeProvider>
         <PwaRegistrar />

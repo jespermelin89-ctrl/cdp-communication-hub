@@ -8,10 +8,12 @@
  * let the user interact with their mail via conversation.
  */
 
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { chatCommandService } from '../services/chat-command.service';
 import { categoryService } from '../services/category.service';
+import { env } from '../config/env';
+import { prisma } from '../config/database';
 
 type CommandType =
   | 'inbox_summary'
@@ -23,8 +25,27 @@ type CommandType =
   | 'create_category'
   | 'remove_rule';
 
+/**
+ * Auth hook that accepts either JWT (Bearer) or COMMAND_API_KEY (X-API-Key).
+ * When X-API-Key is used, userId is set to the first active user that owns accounts.
+ */
+async function chatAuthMiddleware(request: FastifyRequest, reply: FastifyReply) {
+  const apiKey = request.headers['x-api-key'];
+  if (apiKey && env.COMMAND_API_KEY && apiKey === env.COMMAND_API_KEY) {
+    // Find first user (single-user setup for Siri/Apple Shortcuts integration)
+    const account = await prisma.emailAccount.findFirst({ where: { isActive: true } });
+    if (!account) {
+      return reply.code(403).send({ error: 'No active accounts found' });
+    }
+    request.userId = account.userId;
+    request.userEmail = '';
+    return;
+  }
+  return authMiddleware(request, reply);
+}
+
 export default async function chatRoutes(app: FastifyInstance) {
-  app.addHook('onRequest', authMiddleware);
+  app.addHook('onRequest', chatAuthMiddleware);
 
   /**
    * POST /chat/command
@@ -105,16 +126,26 @@ export default async function chatRoutes(app: FastifyInstance) {
   /**
    * POST /chat/ask
    * Natural language — AI parses the intent and calls the right command.
-   * This is the "just write to me" endpoint.
-   *
-   * Body: { message: string }
+   * Body: { message: string, thread_ids?: string[] }
    */
   app.post('/chat/ask', async (req) => {
-    const { message } = req.body as { message: string };
+    const { message, thread_ids } = req.body as { message: string; thread_ids?: string[] };
     if (!message?.trim()) throw new Error('message required');
 
     // Simple intent detection patterns (works in both Swedish and English)
     const msg = message.toLowerCase();
+
+    // If thread_ids provided, handle thread-specific intents first
+    if (thread_ids && thread_ids.length > 0) {
+      // Summarize / analyze selected threads
+      if (msg.includes('sammanfatt') || msg.includes('analysera') || msg.includes('summary') ||
+          msg.includes('analyze') || msg.includes('vad handlar')) {
+        return chatCommandService.getFilteredThreads(req.userId!, {
+          threadIds: thread_ids,
+          limit: thread_ids.length,
+        });
+      }
+    }
 
     // Inbox summary
     if (msg.includes('sammanfatt') || msg.includes('summary') || msg.includes('överblick') ||

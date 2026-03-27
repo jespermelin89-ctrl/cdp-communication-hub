@@ -25,6 +25,9 @@ const envSchema = z.object({
   AI_PROVIDER: z.enum(['anthropic', 'openai', 'groq']).default('groq'),
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
+
+  // External API key for Apple Shortcuts / Siri integration
+  COMMAND_API_KEY: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

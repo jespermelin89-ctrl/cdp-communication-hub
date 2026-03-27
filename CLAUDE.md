@@ -60,71 +60,90 @@ Tables: users, email_accounts, email_threads, email_messages, ai_analyses, draft
 - **GitHub**: github.com/jespermelin89-ctrl/cdp-communication-hub (private)
   - Default branch: main (remote) / master (local — needs alignment)
 
-## Current Git Status (2026-03-26)
+## Current Git Status (2026-03-27)
 
-### Unpushed commits (3, on master ahead of origin/master):
-1. `564f7a8` feat: smart email import with auto-provider detection
-2. `8f6057c` feat: email badge system - multi-person, AI-managed, shared inbox badges
-3. `aae0a24` feat: add-account OAuth flow — link new emails to existing user
+All work is committed and pushed to `origin/main`. Local branch `master` tracks `origin/main`.
+Latest commit: `a85544f` feat: email signatures per account
 
-### Staged but NOT committed (14 files — i18n system):
-- `client/components/I18nProvider.tsx` — React Context-based language provider
-- `client/components/LanguageSwitcher.tsx` — Dropdown language switcher
-- `client/lib/i18n/sv.ts` — Swedish translations (default, defines Translations type)
-- `client/lib/i18n/en.ts` — English translations
-- `client/lib/i18n/es.ts` — Spanish translations
-- `client/lib/i18n/ru.ts` — Russian translations
-- `client/lib/i18n/index.ts` — i18n exports
-- `client/app/layout.tsx` — Updated with I18nProvider wrapper
-- `client/components/TopBar.tsx` — Updated with LanguageSwitcher
-- `client/app/page.tsx` — Updated with translations
-- `client/app/inbox/page.tsx` — Updated with translations
-- `client/app/drafts/page.tsx` — Updated with translations
-- `client/app/settings/page.tsx` — Updated with translations
-- `client/app/auth/callback/page.tsx` — Updated with translations
-
-### Unstaged change:
-- `server/src/prisma/schema.prisma` — Modified (review before committing)
-
-## Completed Work (2026-03-26)
+## Completed Work (2026-03-27)
 
 ### ✅ i18n System
 React Context-based with useI18n() hook, 4 languages (sv default, en, es, ru), localStorage persistence, LanguageSwitcher in TopBar.
 
 ### ✅ Dashboard Redesign (client/app/page.tsx)
-Gradient stat cards, quick action buttons, priority distribution bars, account sync status panel (with per-account errors), activity feed, categories grid.
+Gradient stat cards, quick action buttons, priority distribution bars, account sync status panel, activity feed, categories grid, AI inbox summary widget (auto-fetches on load, sessionStorage cache, refresh button).
 
 ### ✅ Inbox Redesign (client/app/inbox/page.tsx)
-Color-coded AI classification badges, priority filter pills, classification filter tabs (dynamically generated from data), checkbox multi-select + bulk analyze, click-to-expand (full AI summary, confidence bar, model, draft suggestion), per-thread spinner during analysis.
+Color-coded AI classification badges, priority filter pills, classification filter tabs, checkbox multi-select + bulk analyze, click-to-expand, per-thread spinner, inline error display (no more alert() dialogs).
 
 ### ✅ Sync Scheduler (server/src/services/sync-scheduler.service.ts)
-Email sync every 5 min, AI classification every 10 min, backoff after 3 failures/account, graceful start/stop, wired into index.ts.
-
-### ✅ Cleanup
-- Removed `POST /auth/admin/merge-accounts` temporary endpoint from auth.ts
-- Local `master` branch now tracks `origin/main`
+Email sync every 5 min, AI classification every 10 min, backoff after 3 failures/account.
 
 ### ✅ Auto-Updating Styrdokument
-- `STYRDOKUMENT.md` — auto-genererat governance-dokument
-- `scripts/update-styrdokument.js` — scanner rutter, tjänster, DB-tabeller, sidor, beroenden
-- `npm run styrdokument` — kör manuellt
-- `.git/hooks/post-commit` — uppdaterar automatiskt och amends commiten vid varje push
+`STYRDOKUMENT.md`, `scripts/update-styrdokument.js`, `.git/hooks/post-commit`.
 
-## Allt genomfört ✓
+### ✅ PWA Support
+manifest.json, sw.js (network-first/cache-first), offline.html, SVG icons, PwaRegistrar.tsx.
 
-Inga kvarstående uppgifter.
+### ✅ Dark Mode (client/components/ThemeProvider.tsx)
+Tailwind `darkMode: 'class'`, ThemeProvider context, 🌙/☀️ toggle in TopBar, localStorage persistence. Dark variants on all pages and shared CSS classes.
 
-## i18n System (Already Implemented)
-- React Context-based with useI18n() hook
-- 4 languages: sv (default), en, ru, es
-- localStorage persistence with hydration-safe loading
-- LanguageSwitcher in TopBar
+### ✅ AI Analyze Button Fix
+- `sync-messages` route: try/catch with 401 on expired Gmail token, 502 on provider error, 400 if no messages
+- Frontend: per-thread inline error state (Map), no more alert() dialogs
+
+### ✅ Priority Overview Fix
+Command-center returns `unanalyzed_threads` count. Dashboard shows unanalyzed with link to inbox.
+
+### ✅ Add Account Button
+Brand-colored "+ Lägg till konto" button in TopBar (all pages).
+
+### ✅ Email Signatures
+- `EmailAccount.signature` field (TEXT, nullable) in schema.prisma
+- `PATCH /accounts/:id` accepts and saves signature
+- DraftService.create() auto-appends `\n\n--\n{signature}` to body
+- Signature editor (textarea + live preview) in /settings/accounts
+
+### ✅ TypeScript fixes
+- sv.ts: removed `as const` so Translations uses string types
+- AddEmailAccount: DetectedProvider aligned with API response
+- types.ts: `Message = EmailMessage` alias
+
+### ✅ Cleanup
+- Removed `POST /auth/admin/merge-accounts` temporary endpoint
+- Local `master` tracks `origin/main`
+
+## Kända Buggar / TODO (2026-03-27)
+
+### 🟡 Drafts-sidan tom
+- Inga utkast visas — kan bero på att inga drafts skapats än (kör Analysera i inbox för att skapa)
+
+### 🟡 Dubbla konton (legacy)
+- Eventuella duplikat skapade INNAN `@@unique([userId, emailAddress])` lades till i schema
+- Fix: ta bort manuellt via Prisma Studio eller SQL: DELETE FROM email_accounts WHERE id NOT IN (SELECT MIN(id) FROM email_accounts GROUP BY user_id, email_address)
+
+### ⏳ Framtida (bygg inte nu)
+- n8n workflow automation (ersätt setInterval-cronjobs)
+- Microsoft OAuth
+- E-postsignaturer: visa i draft-editorn (frontend preview redan finns via draft body)
+
+## TODO (prio-ordning)
+
+1. ✅ **Fix AI analyze flow** — inline errors, sync-messages try/catch, proper error codes
+2. ✅ **Fix dubbla konton** — `@@unique([userId, emailAddress])` finns i schema
+3. ✅ **Fix priority overview** — visar oanalyserade + länk till inbox
+4. ✅ **Dark mode** — ThemeProvider, Tailwind `darkMode: 'class'`, toggle i TopBar
+5. ✅ **Synligare "Lägg till konto"-knapp** — brand-färgad knapp i TopBar
+6. ✅ **AI inbox-sammanfattning** — dashboard-widget med sessionStorage-cache
+7. ✅ **E-postsignaturer per konto** — signature-fält, editor, auto-append i DraftService
+8. **Fix drafts-sidan** — kontrollera om utkast skapas korrekt, empty state
+9. **n8n integration** (framtida — planera bara, bygg inte)
 
 ## Key API Patterns
 - All API calls go through `client/lib/api.ts` which handles auth headers + base URL
 - Backend base URL: `NEXT_PUBLIC_API_URL` env var on Vercel
 - JWT token stored in localStorage
-- 401 responses trigger redirect to /auth/callback
+- 401 responses trigger redirect to `/` (root/dashboard)
 
 ## Owner
 Jesper Melin (jesper.melin89@gmail.com)

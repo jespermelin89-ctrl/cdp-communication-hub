@@ -10,11 +10,11 @@ import { useI18n } from '@/lib/i18n';
 import type { Draft } from '@/lib/types';
 
 const STATUS_BANNERS: Record<string, string> = {
-  pending: 'bg-amber-50 border-amber-200',
-  approved: 'bg-emerald-50 border-emerald-200',
-  sent: 'bg-blue-50 border-blue-200',
-  failed: 'bg-red-50 border-red-200',
-  discarded: 'bg-gray-50 border-gray-200',
+  pending: 'border-amber-200 dark:border-amber-800',
+  approved: 'border-emerald-200 dark:border-emerald-800',
+  sent: 'border-blue-200 dark:border-blue-800',
+  failed: 'border-red-200 dark:border-red-800',
+  discarded: 'border-gray-200 dark:border-gray-700',
 };
 
 export default function DraftDetailPage() {
@@ -28,6 +28,7 @@ export default function DraftDetailPage() {
   const [saving, setSaving] = useState(false);
   const [actioning, setActioning] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [subject, setSubject] = useState('');
   const [bodyText, setBodyText] = useState('');
@@ -53,6 +54,7 @@ export default function DraftDetailPage() {
   }
 
   async function handleSave() {
+    setError(null);
     setSaving(true);
     try {
       await api.updateDraft(draftId, {
@@ -63,19 +65,20 @@ export default function DraftDetailPage() {
       setEditMode(false);
       await loadDraft();
     } catch (err: any) {
-      alert(`Save failed: ${err.message}`);
+      setError(`Save failed: ${err.message}`);
     } finally {
       setSaving(false);
     }
   }
 
   async function handleApprove() {
+    setError(null);
     setActioning(true);
     try {
       await api.approveDraft(draftId);
       await loadDraft();
     } catch (err: any) {
-      alert(`Approve failed: ${err.message}`);
+      setError(`Approve failed: ${err.message}`);
     } finally {
       setActioning(false);
     }
@@ -83,12 +86,13 @@ export default function DraftDetailPage() {
 
   async function handleSend() {
     if (!confirm(t.draftDetail.sendConfirm)) return;
+    setError(null);
     setActioning(true);
     try {
       await api.sendDraft(draftId);
       await loadDraft();
     } catch (err: any) {
-      alert(`Send failed: ${err.message}`);
+      setError(`Send failed: ${err.message}`);
     } finally {
       setActioning(false);
     }
@@ -96,19 +100,20 @@ export default function DraftDetailPage() {
 
   async function handleDiscard() {
     if (!confirm(t.draftDetail.discardConfirm)) return;
+    setError(null);
     setActioning(true);
     try {
       await api.discardDraft(draftId);
       router.push('/drafts');
     } catch (err: any) {
-      alert(`Discard failed: ${err.message}`);
+      setError(`Discard failed: ${err.message}`);
       setActioning(false);
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <TopBar />
         <div className="flex items-center justify-center py-24">
           <div className="flex flex-col items-center gap-3 text-gray-400">
@@ -122,7 +127,7 @@ export default function DraftDetailPage() {
 
   if (!draft) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <TopBar />
         <div className="text-center py-24 text-gray-400">{t.draftDetail.notFound}</div>
       </div>
@@ -130,7 +135,7 @@ export default function DraftDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
@@ -138,13 +143,13 @@ export default function DraftDetailPage() {
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => router.back()}
-            className="text-sm text-gray-400 hover:text-gray-700"
+            className="text-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
           >
             {t.draftDetail.back}
           </button>
           <div className="flex items-center gap-3">
             {editMode && (
-              <span className="text-xs text-brand-600 font-medium bg-brand-50 px-2 py-0.5 rounded-full border border-brand-200">
+              <span className="text-xs text-brand-600 font-medium bg-brand-50 dark:bg-brand-900/20 px-2 py-0.5 rounded-full border border-brand-200 dark:border-brand-800">
                 {t.draftDetail.editMode}
               </span>
             )}
@@ -152,13 +157,21 @@ export default function DraftDetailPage() {
           </div>
         </div>
 
+        {/* Inline error */}
+        {error && (
+          <div className="mb-4 flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
+            <span className="flex-1">{error}</span>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
+          </div>
+        )}
+
         {/* Main card */}
-        <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${STATUS_BANNERS[draft.status] || 'border-gray-200'}`}>
+        <div className={`bg-white dark:bg-gray-800 rounded-2xl border shadow-sm overflow-hidden ${STATUS_BANNERS[draft.status] || 'border-gray-200 dark:border-gray-700'}`}>
           {/* Metadata strip */}
-          <div className="px-6 py-4 border-b border-gray-100 space-y-2 text-sm">
+          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 space-y-2 text-sm">
             <div className="flex items-baseline gap-2">
               <span className="text-xs font-medium text-gray-400 w-12 shrink-0">{t.common.from}</span>
-              <span className="text-gray-700">{draft.account.emailAddress}</span>
+              <span className="text-gray-700 dark:text-gray-300">{draft.account.emailAddress}</span>
             </div>
 
             <div className="flex items-baseline gap-2">
@@ -168,11 +181,11 @@ export default function DraftDetailPage() {
                   type="text"
                   value={toAddresses}
                   onChange={(e) => setToAddresses(e.target.value)}
-                  className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                  className="flex-1 px-3 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
                   placeholder="email@example.com, ..."
                 />
               ) : (
-                <span className="text-gray-700">{draft.toAddresses.join(', ')}</span>
+                <span className="text-gray-700 dark:text-gray-300">{draft.toAddresses.join(', ')}</span>
               )}
             </div>
 
@@ -184,7 +197,7 @@ export default function DraftDetailPage() {
                     {draft.thread.subject || '(No Subject)'}
                   </Link>
                 ) : (
-                  <span className="text-gray-600 truncate">{draft.thread.subject}</span>
+                  <span className="text-gray-600 dark:text-gray-400 truncate">{draft.thread.subject}</span>
                 )}
               </div>
             )}
@@ -197,10 +210,10 @@ export default function DraftDetailPage() {
                 type="text"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-xl font-semibold text-gray-900 text-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl font-semibold text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 text-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
               />
             ) : (
-              <h2 className="text-lg font-semibold text-gray-900">{draft.subject}</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{draft.subject}</h2>
             )}
           </div>
 
@@ -211,25 +224,25 @@ export default function DraftDetailPage() {
                 value={bodyText}
                 onChange={(e) => setBodyText(e.target.value)}
                 rows={14}
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 font-mono resize-y focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 font-mono resize-y focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
               />
             ) : (
-              <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
                 {draft.bodyText}
               </div>
             )}
           </div>
 
-          {/* Error */}
+          {/* Send error */}
           {draft.status === 'failed' && draft.errorMessage && (
-            <div className="mx-6 mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+            <div className="mx-6 mb-4 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
               {draft.errorMessage}
             </div>
           )}
 
           {/* Sent confirmation */}
           {draft.status === 'sent' && draft.sentAt && (
-            <div className="mx-6 mb-4 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+            <div className="mx-6 mb-4 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-sm text-emerald-700 dark:text-emerald-300">
               {t.draftDetail.sentAt}: {new Date(draft.sentAt).toLocaleString()}
               {draft.gmailMessageId && (
                 <span className="text-emerald-500 ml-2 text-xs">· {draft.gmailMessageId}</span>
@@ -238,15 +251,11 @@ export default function DraftDetailPage() {
           )}
 
           {/* Actions */}
-          <div className="px-6 pb-6 pt-2 border-t border-gray-100 flex flex-wrap items-center gap-3">
+          <div className="px-6 pb-6 pt-2 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-3">
             {draft.status === 'pending' && (
               editMode ? (
                 <>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="btn-primary text-sm"
-                  >
+                  <button onClick={handleSave} disabled={saving} className="btn-primary text-sm">
                     {saving ? t.draftDetail.saving : t.draftDetail.saveChanges}
                   </button>
                   <button
@@ -258,23 +267,16 @@ export default function DraftDetailPage() {
                 </>
               ) : (
                 <>
-                  <button
-                    onClick={() => setEditMode(true)}
-                    className="btn-secondary text-sm"
-                  >
+                  <button onClick={() => setEditMode(true)} className="btn-secondary text-sm">
                     {t.drafts.edit}
                   </button>
-                  <button
-                    onClick={handleApprove}
-                    disabled={actioning}
-                    className="btn-primary text-sm"
-                  >
+                  <button onClick={handleApprove} disabled={actioning} className="btn-primary text-sm">
                     {t.drafts.approve}
                   </button>
                   <button
                     onClick={handleDiscard}
                     disabled={actioning}
-                    className="ml-auto text-sm text-gray-400 hover:text-red-500"
+                    className="ml-auto text-sm text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400"
                   >
                     {t.drafts.discard}
                   </button>
@@ -283,11 +285,7 @@ export default function DraftDetailPage() {
             )}
 
             {draft.status === 'approved' && (
-              <button
-                onClick={handleSend}
-                disabled={actioning}
-                className="btn-success text-sm"
-              >
+              <button onClick={handleSend} disabled={actioning} className="btn-success text-sm">
                 {t.drafts.sendNow}
               </button>
             )}

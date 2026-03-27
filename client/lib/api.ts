@@ -344,6 +344,11 @@ class ApiClient {
     return this.request<{ type: string; message: string; data?: any }>('POST', '/chat/ask', { message });
   }
 
+  // Brain Summary (BRAIN-OS / external consumer endpoint)
+  async getBrainSummary() {
+    return this.request<any>('GET', '/brain-summary');
+  }
+
   // Brain Core
   async getDailySummary() {
     return this.request<{ summary: any }>('GET', '/brain-core/daily-summary');

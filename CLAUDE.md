@@ -25,7 +25,7 @@ Gmail API ← Backend (Fastify :3001) ← AI Layer (Claude API) ← Frontend (Ne
 ## Tech Stack
 - Backend: Node.js + Fastify + TypeScript + Prisma + PostgreSQL (Supabase)
 - Frontend: Next.js 15 + Tailwind CSS + TypeScript
-- AI: Anthropic Claude API (claude-sonnet-4-20250514 primary), OpenAI as fallback
+- AI: Anthropic Claude API (claude-sonnet-4-5 primary), OpenAI as fallback
 - Auth: Google OAuth 2.0 + JWT sessions
 - Encryption: AES-256-GCM for OAuth tokens at rest
 - Hosting: Vercel (frontend), Render (backend)
@@ -34,9 +34,11 @@ Gmail API ← Backend (Fastify :3001) ← AI Layer (Claude API) ← Frontend (Ne
 ```
 server/src/
   config/       env.ts, database.ts, oauth.ts
-  routes/       auth, accounts, threads, drafts, ai, command-center, action-logs
+  routes/       auth, accounts, threads, drafts, ai, command-center, action-logs, brain-core
   services/     gmail.service, ai.service, draft.service, auth.service, action-log.service,
-                category.service, chat-command.service, email-provider.factory, imap.service, smtp.service
+                category.service, chat-command.service, email-provider.factory, imap.service, smtp.service,
+                brain-core.service
+  scripts/      seed-brain-core.ts (run: npm run seed:brain-core)
   middleware/   auth.middleware, error.middleware
   utils/        encryption, email-parser, validators
   prisma/       schema.prisma
@@ -48,7 +50,7 @@ client/
 ```
 
 ## Database (Supabase PostgreSQL)
-Tables: users, email_accounts, email_threads, email_messages, ai_analyses, drafts (CRITICAL - status gate), action_logs, user_settings, categories, sender_rules
+Tables: users, email_accounts, email_threads, email_messages, ai_analyses, drafts (CRITICAL - status gate), action_logs, user_settings, categories, sender_rules, writing_modes, voice_attributes, contact_profiles, classification_rules, learning_events, daily_summaries
 
 ## Deployment
 - **Frontend**: Vercel — auto-deploys from GitHub main branch
@@ -63,7 +65,7 @@ Tables: users, email_accounts, email_threads, email_messages, ai_analyses, draft
 ## Current Git Status (2026-03-27)
 
 All work is committed and pushed to `origin/main`. Local branch `master` tracks `origin/main`.
-Latest commit: `a85544f` feat: email signatures per account
+Latest commit: `e970605` feat: Brain Core data layer — writing profile, contacts, daily summary
 
 ## Completed Work (2026-03-27)
 
@@ -113,6 +115,19 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 - Removed `POST /auth/admin/merge-accounts` temporary endpoint
 - Local `master` tracks `origin/main`
 
+### ✅ AI Endpoint Fix (Sprint 2)
+- Fixed wrong model name: `claude-sonnet-4-20250514` → `claude-sonnet-4-5`
+- Added try/catch in all 3 AI routes returning 503 with `{ error, message, code: 'AI_ERROR' }`
+- Added AI key startup logging in index.ts
+
+### ✅ Brain Core Data Layer (Sprint 2)
+- 6 new Prisma models: WritingMode, VoiceAttribute, ContactProfile, ClassificationRule, LearningEvent, DailySummary
+- `brain-core.service.ts`: writing profile, contacts, classification rules, daily summary (AI-powered), learning events
+- `brain-core.ts`: 9 REST endpoints under `/api/v1/brain-core/*`
+- `seed-brain-core.ts`: seeds writing profile from JESPER-WRITING-PROFILE.md (run `npm run seed:brain-core`)
+- Dashboard: Brain Core daily summary widget with needs-reply, good-to-know, AI recommendation, regenerate
+- i18n: brainCore keys in all 4 languages
+
 ## Kända Buggar / TODO (2026-03-27)
 
 ### 🟡 Drafts-sidan tom
@@ -136,7 +151,8 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 5. ✅ **Synligare "Lägg till konto"-knapp** — brand-färgad knapp i TopBar
 6. ✅ **AI inbox-sammanfattning** — dashboard-widget med sessionStorage-cache
 7. ✅ **E-postsignaturer per konto** — signature-fält, editor, auto-append i DraftService
-8. **Fix drafts-sidan** — kontrollera om utkast skapas korrekt, empty state
+8. ✅ **Fix drafts-sidan** — empty state med hint och länk till inbox
+9. **Seed Brain Core** — kör `npm run seed:brain-core` i server-katalogen en gång för att populera writing profile i databasen
 9. **n8n integration** (framtida — planera bara, bygg inte)
 
 ## Key API Patterns

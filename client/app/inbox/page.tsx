@@ -11,6 +11,7 @@ import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useChatContext } from '@/lib/chat-context';
+import { useNotifications } from '@/lib/use-notifications';
 import type { EmailThread, Account } from '@/lib/types';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
@@ -74,6 +75,7 @@ export default function InboxPage() {
   const [trashConfirmId, setTrashConfirmId] = useState<string | null>(null);
   const { t } = useI18n();
   const { setSelectedThreadIds } = useChatContext();
+  const { notifyNewHighPriority } = useNotifications();
 
   useEffect(() => {
     loadAccounts();
@@ -106,6 +108,7 @@ export default function InboxPage() {
       if (search) params.search = search;
       const result = await api.getThreads(params);
       setThreads(result.threads);
+      notifyNewHighPriority(result.threads);
       setSelectedIds(new Set());
     } catch (err: any) {
       console.error('Failed to load threads:', err);

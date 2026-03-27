@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Bell, BellOff } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
+import { useNotifications } from '@/lib/use-notifications';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useTheme } from './ThemeProvider';
 
@@ -18,6 +20,7 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
   const pathname = usePathname();
   const { t } = useI18n();
   const { theme, toggleTheme } = useTheme();
+  const { permission, requestPermission } = useNotifications();
   const [fetchedCount, setFetchedCount] = useState(0);
 
   // Self-fetch pending draft count so every page gets the badge without passing props.
@@ -88,6 +91,25 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
 
           {/* User Info + Language + Theme */}
           <div className="flex items-center gap-2">
+            {/* Notification bell */}
+            <button
+              onClick={requestPermission}
+              disabled={permission === 'denied'}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              title={
+                permission === 'granted'
+                  ? 'Notifieringar aktiverade'
+                  : permission === 'denied'
+                  ? 'Notifieringar blockerade i webbläsaren'
+                  : 'Aktivera notifieringar'
+              }
+            >
+              {permission === 'granted' ? (
+                <Bell className="w-4 h-4 text-brand-500" />
+              ) : (
+                <BellOff className="w-4 h-4" />
+              )}
+            </button>
             {/* Dark mode toggle */}
             <button
               onClick={toggleTheme}

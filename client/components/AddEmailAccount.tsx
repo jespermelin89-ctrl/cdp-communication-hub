@@ -11,21 +11,14 @@ const PROVIDER_PRESETS: Record<string, { imap_host: string; imap_port: number; i
   icloud: { imap_host: 'imap.mail.me.com', imap_port: 993, imap_use_ssl: true, smtp_host: 'smtp.mail.me.com', smtp_port: 587, smtp_use_ssl: true },
 };
 
-interface ProviderInfo {
-  id: string;
-  name: string;
-  type: string;
-  icon: string;
-  authMethod: string;
-  domains: string[];
-  imapDefaults?: { host: string; port: number; secure: boolean };
-  smtpDefaults?: { host: string; port: number; secure: boolean };
-}
-
 interface DetectedProvider {
-  provider: ProviderInfo;
+  provider: string;
+  imap_host?: string;
+  imap_port?: number;
+  smtp_host?: string;
+  smtp_port?: number;
+  oauth_available?: boolean;
   authUrl?: string;
-  requiresImap?: boolean;
 }
 
 interface AddEmailAccountProps {
@@ -168,19 +161,16 @@ export default function AddEmailAccount({ onSuccess, onCancel, defaultEmail = ''
 
   // Helper to switch to manual IMAP mode with presets
   function switchToManualImap() {
-    // Use API-returned defaults first, fall back to local presets
-    const apiImap = detectedProvider?.provider?.imapDefaults;
-    const apiSmtp = detectedProvider?.provider?.smtpDefaults;
-    const providerKey = detectedProvider?.provider?.id?.toLowerCase() || 'custom';
+    const providerKey = detectedProvider?.provider?.toLowerCase() || 'custom';
     const preset = PROVIDER_PRESETS[providerKey];
     setImapForm((f) => ({
       ...f,
-      imap_host: apiImap?.host || preset?.imap_host || '',
-      imap_port: apiImap?.port || preset?.imap_port || 993,
-      imap_use_ssl: apiImap?.secure ?? preset?.imap_use_ssl ?? true,
-      smtp_host: apiSmtp?.host || preset?.smtp_host || '',
-      smtp_port: apiSmtp?.port || preset?.smtp_port || 587,
-      smtp_use_ssl: preset.smtp_use_ssl,
+      imap_host: detectedProvider?.imap_host || preset?.imap_host || '',
+      imap_port: detectedProvider?.imap_port || preset?.imap_port || 993,
+      imap_use_ssl: preset?.imap_use_ssl ?? true,
+      smtp_host: detectedProvider?.smtp_host || preset?.smtp_host || '',
+      smtp_port: detectedProvider?.smtp_port || preset?.smtp_port || 587,
+      smtp_use_ssl: preset?.smtp_use_ssl ?? true,
     }));
     setStep('imap');
   }
@@ -243,10 +233,9 @@ export default function AddEmailAccount({ onSuccess, onCancel, defaultEmail = ''
   // Step 2: Provider Detected
   // ============================================================
   if (step === 'provider' && detectedProvider) {
-    const providerId = detectedProvider.provider?.id?.toLowerCase() || '';
-    const providerType = detectedProvider.provider?.type?.toLowerCase() || '';
-    const isGoogle = providerId === 'google' || providerType === 'google';
-    const isMicrosoft = providerId === 'microsoft' || providerType === 'microsoft';
+    const providerId = detectedProvider.provider?.toLowerCase() || '';
+    const isGoogle = providerId === 'google';
+    const isMicrosoft = providerId === 'microsoft';
     const hasOAuth = detectedProvider.authUrl || isGoogle;
 
     return (

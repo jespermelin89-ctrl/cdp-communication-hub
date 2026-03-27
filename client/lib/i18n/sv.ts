@@ -279,7 +279,7 @@ const sv = {
     ru: 'Русский',
     es: 'Español',
   },
-} as const;
+};
 
 export default sv;
 export type Translations = typeof sv;

@@ -62,6 +62,8 @@ export interface EmailMessage {
   receivedAt: string;
 }
 
+export type Message = EmailMessage;
+
 export interface AIAnalysis {
   id: string;
   threadId: string;

@@ -163,6 +163,30 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
   - `draft-approval.test.ts` (20 tests): state machine — pending→approved→sent safety gate
   - `brain-summary.test.ts` (13 tests): response shape, SAFETY body_text never leaks (×2), counts, daily_summary, empty inbox
 
+### ✅ DB Migration Fix + Render Config (Sprint 3)
+- `server/src/prisma/migrations/20260327000000_add_account_fields/migration.sql`: ALTER TABLE adds `account_type`, `team_members`, `ai_handling` (IF NOT EXISTS — safe re-run)
+- `render.yaml`: added `GROQ_API_KEY` (sync: false) and `AI_PROVIDER=groq`
+- Build script (`prisma migrate deploy`) auto-applies migration on next Render deploy
+- Brain Core tables already in `0_init` baseline — not missing
+
+### ✅ Archive/Trash Actions (Sprint 3)
+- `POST /threads/:id/archive` — removes INBOX label via `gmail.users.threads.modify`
+- `POST /threads/:id/trash` — moves to trash via `gmail.users.threads.trash` (never delete)
+- `POST /threads/batch` — batch archive or trash with `Promise.allSettled`
+- Inbox: Archive/Trash icon buttons per row + batch action bar with confirmation modal
+- Thread view: Archive/Trash/Analyze buttons in header
+- `client/lib/api.ts`: `archiveThread`, `trashThread`, `batchThreadAction`
+
+### ✅ AI Fallback Chain (Sprint 3)
+- `ai.service.ts`: `chat()` iterates providers — Groq → Anthropic → OpenAI
+- Logs warning per failed provider, throws only when all fail
+- `env.ts`: `COMMAND_API_KEY` added for Apple Shortcuts / Siri integration
+
+### ✅ Chat Improvements (Sprint 3)
+- `chat-context.tsx`: React context sharing selected inbox thread IDs with ChatWidget
+- ChatWidget: reset button, selected-threads amber banner, badge on FAB, apply-analyze button on thread_list responses
+- `chat.ts` backend: `chatAuthMiddleware` (X-API-Key OR JWT), Prisma errors sanitized
+
 ## Kända Buggar / TODO (2026-03-27)
 
 ### 🟡 Drafts-sidan tom
@@ -187,8 +211,11 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 6. ✅ **AI inbox-sammanfattning** — dashboard-widget med sessionStorage-cache
 7. ✅ **E-postsignaturer per konto** — signature-fält, editor, auto-append i DraftService
 8. ✅ **Fix drafts-sidan** — empty state med hint och länk till inbox
-9. **Seed Brain Core** — kör `npm run seed:brain-core` i server-katalogen en gång för att populera writing profile i databasen
-9. **n8n integration** (framtida — planera bara, bygg inte)
+9. ✅ **DB-migration** — `20260327000000_add_account_fields` för account_type/team_members/ai_handling; render.yaml har GROQ_API_KEY
+10. ✅ **Arkivera/radera** — `/threads/:id/archive`, `/threads/:id/trash`, `/threads/batch`; Archive/Trash knappar i Inbox + tråd-vy
+11. ✅ **AI fallback-kedja** — Groq → Anthropic → OpenAI med logging
+12. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell efter deploy
+13. **n8n integration** (framtida — planera bara, bygg inte)
 
 ## Key API Patterns
 - All API calls go through `client/lib/api.ts` which handles auth headers + base URL

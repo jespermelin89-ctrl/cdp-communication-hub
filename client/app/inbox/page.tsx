@@ -5,6 +5,7 @@ import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
+import AccountDropdown from '@/components/AccountDropdown';
 import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -233,20 +234,24 @@ export default function InboxPage() {
 
         {/* Account Tabs */}
         {accounts.length > 1 && (
-          <div className="flex gap-2 mb-4 flex-wrap">
-            <AccountFilterTab
-              active={!selectedAccountId}
+          <div className="flex gap-2 mb-4 flex-wrap items-center">
+            <button
               onClick={() => setSelectedAccountId('')}
-              label={t.inbox.allAccounts}
-            />
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                !selectedAccountId
+                  ? 'bg-brand-500 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              {t.inbox.allAccounts}
+            </button>
             {accounts.map((acc) => (
-              <AccountFilterTab
+              <AccountDropdown
                 key={acc.id}
-                active={selectedAccountId === acc.id}
-                onClick={() => setSelectedAccountId(acc.id)}
-                label={acc.label || acc.emailAddress.split('@')[0]}
-                color={acc.color || (acc.provider === 'gmail' ? '#EA4335' : '#6366F1')}
-                badges={acc.badges}
+                account={acc}
+                selected={selectedAccountId === acc.id}
+                onSelect={() => setSelectedAccountId(acc.id)}
+                onSync={async () => { await api.syncThreads(acc.id, 30); loadThreads(); }}
               />
             ))}
           </div>

@@ -18,6 +18,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [dailySummary, setDailySummary] = useState<any | null>(null);
+  const [dailySummaryLoading, setDailySummaryLoading] = useState(false);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -43,6 +45,8 @@ export default function DashboardPage() {
           fetchAiSummary(defaultAcc.id);
         }
       }
+      // Load Brain Core daily summary
+      fetchDailySummary();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -69,6 +73,30 @@ export default function DashboardPage() {
     if (!defaultAcc) return;
     sessionStorage.removeItem(`ai_summary_${defaultAcc.id}`);
     fetchAiSummary(defaultAcc.id);
+  }
+
+  async function fetchDailySummary() {
+    setDailySummaryLoading(true);
+    try {
+      const result = await api.getDailySummary();
+      setDailySummary(result.summary);
+    } catch {
+      // Non-critical
+    } finally {
+      setDailySummaryLoading(false);
+    }
+  }
+
+  async function regenerateDailySummary() {
+    setDailySummaryLoading(true);
+    try {
+      const result = await api.regenerateDailySummary();
+      setDailySummary(result.summary);
+    } catch {
+      // Non-critical
+    } finally {
+      setDailySummaryLoading(false);
+    }
   }
 
   async function handleQuickSync() {
@@ -243,6 +271,106 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+
+            {/* Brain Core Daily Summary */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                  <span>🧠</span>
+                  {t.brainCore.dailySummary}
+                </h2>
+                <button
+                  onClick={regenerateDailySummary}
+                  disabled={dailySummaryLoading}
+                  className="text-xs text-brand-500 hover:text-brand-600 font-medium disabled:opacity-50"
+                >
+                  {dailySummaryLoading ? t.brainCore.generating : t.brainCore.regenerate}
+                </button>
+              </div>
+
+              {dailySummaryLoading && !dailySummary && (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-4 bg-gray-100 dark:bg-gray-700 rounded animate-pulse" />
+                  ))}
+                </div>
+              )}
+
+              {!dailySummaryLoading && !dailySummary && (
+                <button
+                  onClick={fetchDailySummary}
+                  className="text-sm text-gray-400 hover:text-brand-500 transition-colors"
+                >
+                  {t.brainCore.noSummary}
+                </button>
+              )}
+
+              {dailySummary && (
+                <div className="space-y-4">
+                  {/* Stats row */}
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-blue-600 font-medium">{dailySummary.totalNew} {t.brainCore.totalNew}</span>
+                    <span className="text-amber-600 font-medium">{dailySummary.totalUnread} {t.brainCore.totalUnread}</span>
+                    <span className="text-gray-400">{dailySummary.totalAutoSorted} {t.brainCore.totalAutoSorted}</span>
+                  </div>
+
+                  {/* Needs Reply */}
+                  {Array.isArray(dailySummary.needsReply) && dailySummary.needsReply.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-2">
+                        🔴 {t.brainCore.needsReply} ({dailySummary.needsReply.length})
+                      </div>
+                      <div className="space-y-1.5">
+                        {dailySummary.needsReply.slice(0, 5).map((item: any, i: number) => (
+                          <div key={i} className="flex items-center justify-between text-sm">
+                            <span className="text-gray-700 dark:text-gray-300 truncate flex-1 mr-2">
+                              {item.subject || '(No subject)'}
+                            </span>
+                            {item.priority && (
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                                item.priority === 'high' ? 'bg-red-100 text-red-700' :
+                                item.priority === 'medium' ? 'bg-amber-100 text-amber-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {item.priority}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Good to Know */}
+                  {Array.isArray(dailySummary.goodToKnow) && dailySummary.goodToKnow.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">
+                        🟡 {t.brainCore.goodToKnow} ({dailySummary.goodToKnow.length})
+                      </div>
+                      <div className="space-y-1">
+                        {dailySummary.goodToKnow.slice(0, 3).map((item: any, i: number) => (
+                          <div key={i} className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                            {item.subject || '(No subject)'}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recommendation */}
+                  {dailySummary.recommendation && (
+                    <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                      <div className="text-xs font-semibold text-brand-600 uppercase tracking-wide mb-1.5">
+                        💡 {t.brainCore.recommendation}
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                        {dailySummary.recommendation}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Main Grid */}
             <div className="grid lg:grid-cols-3 gap-6 mb-6">

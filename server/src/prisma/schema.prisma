@@ -237,6 +237,134 @@ model SenderRule {
 }
 
 // ============================================================
+// BRAIN CORE — Writing Profile
+// ============================================================
+model WritingMode {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  modeKey     String   @map("mode_key")
+  name        String
+  description String
+
+  characteristics Json     @default("{}")
+  examplePhrases  String[] @map("example_phrases")
+  signOff         String?  @map("sign_off")
+  openerStyle     String?  @map("opener_style")
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, modeKey])
+  @@map("writing_modes")
+}
+
+// ============================================================
+// BRAIN CORE — Voice Attributes
+// ============================================================
+model VoiceAttribute {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  attribute   String
+  score       Float
+  description String?
+  examples    String[] @default([])
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, attribute])
+  @@map("voice_attributes")
+}
+
+// ============================================================
+// BRAIN CORE — Contact Profiles
+// ============================================================
+model ContactProfile {
+  id              String    @id @default(uuid())
+  userId          String    @map("user_id")
+  emailAddress    String    @map("email_address")
+  displayName     String?   @map("display_name")
+  relationship    String?
+  preferredMode   String?   @map("preferred_mode")
+  language        String?
+  notes           String?
+  lastContactAt   DateTime? @map("last_contact_at")
+  totalEmails     Int       @default(0) @map("total_emails")
+  responseRate    Float?    @map("response_rate")
+  avgResponseTime Int?      @map("avg_response_time")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, emailAddress])
+  @@map("contact_profiles")
+}
+
+// ============================================================
+// BRAIN CORE — Classification Rules
+// ============================================================
+model ClassificationRule {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  categoryKey     String   @map("category_key")
+  categoryName    String   @map("category_name")
+  description     String?
+  priority        String   @default("medium")
+  action          String
+
+  senderPatterns  String[] @map("sender_patterns")
+  subjectPatterns String[] @map("subject_patterns")
+  bodyPatterns    String[] @map("body_patterns")
+
+  isActive     Boolean  @default(true) @map("is_active")
+  timesMatched Int      @default(0) @map("times_matched")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, categoryKey])
+  @@map("classification_rules")
+}
+
+// ============================================================
+// BRAIN CORE — Learning Events
+// ============================================================
+model LearningEvent {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  eventType  String   @map("event_type")
+  sourceType String?  @map("source_type")
+  sourceId   String?  @map("source_id")
+  data       Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId, eventType, createdAt(sort: Desc)], name: "idx_learning_events")
+  @@map("learning_events")
+}
+
+// ============================================================
+// BRAIN CORE — Daily Summaries
+// ============================================================
+model DailySummary {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  date        DateTime @db.Date
+
+  needsReply      Json @default("[]") @map("needs_reply")
+  goodToKnow      Json @default("[]") @map("good_to_know")
+  autoArchived    Json @default("[]") @map("auto_archived")
+  awaitingReply   Json @default("[]") @map("awaiting_reply")
+  recommendation  String?
+
+  totalNew        Int @default(0) @map("total_new")
+  totalUnread     Int @default(0) @map("total_unread")
+  totalAutoSorted Int @default(0) @map("total_auto_sorted")
+
+  modelUsed String?  @map("model_used")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, date])
+  @@map("daily_summaries")
+}
+
+// ============================================================
 // USER SETTINGS
 // ============================================================
 model UserSettings {

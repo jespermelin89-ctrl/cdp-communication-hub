@@ -268,6 +268,23 @@ const en: Translations = {
     from: 'From',
   },
 
+  brainCore: {
+    title: 'Brain Core',
+    dailySummary: 'Daily Summary',
+    needsReply: 'Needs Reply',
+    goodToKnow: 'Good to Know',
+    autoArchived: 'Auto-archived',
+    awaitingReply: 'Awaiting Reply',
+    recommendation: 'Recommendation',
+    regenerate: 'Regenerate',
+    generating: 'Generating...',
+    noSummary: "No summary for today. Click to generate.",
+    totalNew: 'new',
+    totalUnread: 'unread',
+    totalAutoSorted: 'auto-sorted',
+    viewThread: 'Open thread →',
+  },
+
   languages: {
     sv: 'Svenska',
     en: 'English',

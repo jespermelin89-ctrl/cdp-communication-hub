@@ -344,6 +344,28 @@ class ApiClient {
     return this.request<{ type: string; message: string; data?: any }>('POST', '/chat/ask', { message });
   }
 
+  // Brain Core
+  async getDailySummary() {
+    return this.request<{ summary: any }>('GET', '/brain-core/daily-summary');
+  }
+
+  async regenerateDailySummary() {
+    return this.request<{ summary: any }>('POST', '/brain-core/daily-summary');
+  }
+
+  async getWritingProfile() {
+    return this.request<{ profile: { modes: any[]; attributes: any[] } }>('GET', '/brain-core/writing-profile');
+  }
+
+  async recordLearning(eventType: string, data?: object, sourceType?: string, sourceId?: string) {
+    return this.request<{ event: any }>('POST', '/brain-core/learn', {
+      event_type: eventType,
+      data,
+      source_type: sourceType,
+      source_id: sourceId,
+    });
+  }
+
   // Action Logs
   async getActionLogs(params?: { page?: number; limit?: number }) {
     const query: Record<string, string> = {};

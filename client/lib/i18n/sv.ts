@@ -281,6 +281,24 @@ const sv = {
     from: 'Från',
   },
 
+  // Brain Core
+  brainCore: {
+    title: 'Brain Core',
+    dailySummary: 'Daglig sammanfattning',
+    needsReply: 'Kräver svar',
+    goodToKnow: 'Bra att veta',
+    autoArchived: 'Auto-arkiverat',
+    awaitingReply: 'Väntar på svar',
+    recommendation: 'Rekommendation',
+    regenerate: 'Generera ny',
+    generating: 'Genererar...',
+    noSummary: 'Ingen sammanfattning för idag. Klicka för att generera.',
+    totalNew: 'nya',
+    totalUnread: 'olästa',
+    totalAutoSorted: 'auto-sorterade',
+    viewThread: 'Öppna tråd →',
+  },
+
   // Languages
   languages: {
     sv: 'Svenska',

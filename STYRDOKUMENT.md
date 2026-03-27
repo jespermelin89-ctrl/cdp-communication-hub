@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-27 12:08:35 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-27 12:15:17 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -78,6 +78,15 @@ Prefix: `/api/v1`
 | `GET     /auth/google/callback` | `auth` |
 | `POST    /auth/connect` | `auth` |
 | `GET     /auth/me` | `auth` |
+| `GET     /brain-core/writing-profile` | `brain-core` |
+| `PATCH   /brain-core/writing-mode/:key` | `brain-core` |
+| `GET     /brain-core/contacts` | `brain-core` |
+| `PATCH   /brain-core/contact/:email` | `brain-core` |
+| `GET     /brain-core/classification` | `brain-core` |
+| `GET     /brain-core/daily-summary` | `brain-core` |
+| `POST    /brain-core/daily-summary` | `brain-core` |
+| `POST    /brain-core/learn` | `brain-core` |
+| `GET     /brain-core/learning-stats` | `brain-core` |
 | `GET     /command-center` | `command-center` |
 | `POST    /drafts` | `drafts` |
 | `GET     /drafts` | `drafts` |
@@ -100,6 +109,7 @@ Prefix: `/api/v1`
 - `action-log.service.ts`
 - `ai.service.ts`
 - `auth.service.ts`
+- `brain-core.service.ts`
 - `category.service.ts`
 - `chat-command.service.ts`
 - `draft.service.ts`
@@ -111,7 +121,7 @@ Prefix: `/api/v1`
 
 ---
 
-## Databas — Tabeller (10 st)
+## Databas — Tabeller (16 st)
 
 - `User`
 - `EmailAccount`
@@ -122,6 +132,12 @@ Prefix: `/api/v1`
 - `ActionLog`
 - `Category`
 - `SenderRule`
+- `WritingMode`
+- `VoiceAttribute`
+- `ContactProfile`
+- `ClassificationRule`
+- `LearningEvent`
+- `DailySummary`
 - `UserSettings`
 
 ### Kritisk tabell: `Draft`

@@ -268,6 +268,23 @@ const ru: Translations = {
     from: 'От',
   },
 
+  brainCore: {
+    title: 'Brain Core',
+    dailySummary: 'Ежедневная сводка',
+    needsReply: 'Требует ответа',
+    goodToKnow: 'Полезно знать',
+    autoArchived: 'Авто-архив',
+    awaitingReply: 'Ожидает ответа',
+    recommendation: 'Рекомендация',
+    regenerate: 'Обновить',
+    generating: 'Генерация...',
+    noSummary: 'Нет сводки на сегодня. Нажмите для генерации.',
+    totalNew: 'новых',
+    totalUnread: 'непрочитанных',
+    totalAutoSorted: 'авто-сортировано',
+    viewThread: 'Открыть ветку →',
+  },
+
   languages: {
     sv: 'Svenska',
     en: 'English',

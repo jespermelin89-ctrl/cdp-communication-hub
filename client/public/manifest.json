@@ -1,0 +1,41 @@
+{
+  "name": "CDP Communication Hub",
+  "short_name": "CDP Hub",
+  "description": "AI-powered email communication overlay",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366F1",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Inkorg",
+      "short_name": "Inkorg",
+      "description": "Gå till inkorgen",
+      "url": "/inbox",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Utkast",
+      "short_name": "Utkast",
+      "description": "Hantera utkast",
+      "url": "/drafts",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    }
+  ]
+}

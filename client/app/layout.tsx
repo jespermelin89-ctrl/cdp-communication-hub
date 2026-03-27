@@ -1,11 +1,29 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import ChatWidget from '@/components/ChatWidget';
 import I18nProvider from '@/components/I18nProvider';
+import PwaRegistrar from '@/components/PwaRegistrar';
 
 export const metadata: Metadata = {
   title: 'CDP Communication Hub',
   description: 'AI-powered email communication hub with draft approval workflow',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'CDP Hub',
+  },
+  icons: {
+    icon: '/icons/icon-192.svg',
+    apple: '/icons/icon-192.svg',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#6366F1',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           <ChatWidget />
         </I18nProvider>
+        <PwaRegistrar />
       </body>
     </html>
   );

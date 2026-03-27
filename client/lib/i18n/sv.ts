@@ -206,6 +206,8 @@ const sv = {
     page: 'Sida',
     of: 'av',
     filterLabel: 'Filtrera',
+    openDraft: 'Öppna utkast',
+    openThread: 'Öppna tråd',
     actionTypes: {
       draft_created: 'Utkast skapat',
       draft_approved: 'Utkast godkänt',
@@ -227,6 +229,22 @@ const sv = {
     analysis_run: 'AI-analys körd',
     account_connected: 'Konto kopplat',
     rule_created: 'Regel skapad',
+  },
+
+  // Chat widget
+  chat: {
+    title: 'Mail-assistent',
+    subtitle: 'Skriv vad du vill göra med din mail',
+    placeholder: 'Skriv ett kommando...',
+    welcome: 'Hej! Jag kan hjälpa dig med din mail. Prova:\n\n• "sammanfatta inkorgen"\n• "visa viktiga mail"\n• "markera X som skräp"\n• "visa regler"',
+    error: 'Fel',
+    showImportant: 'Visa viktiga',
+    showRules: 'Visa regler',
+    showUnread: 'Visa olästa',
+    showAllRules: 'Visa alla regler',
+    summarize: 'Sammanfatta inbox',
+    noSubject: '(Ingen ämnesrad)',
+    more: '+{n} till',
   },
 
   // Time

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 
 interface ChatMessage {
   id: string;
@@ -14,19 +15,24 @@ interface ChatMessage {
 }
 
 export default function ChatWidget() {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content: 'Hej Jesper! Jag kan hjälpa dig med din mail. Prova:\n\n• "sammanfatta inkorgen"\n• "visa viktiga mail"\n• "markera X som skräp"\n• "visa regler"',
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Lazy welcome message — avoids hydration mismatch from new Date()
+  useEffect(() => {
+    setMessages([{
+      id: 'welcome',
+      role: 'assistant',
+      content: t.chat.welcome,
+      timestamp: new Date(),
+    }]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -70,7 +76,7 @@ export default function ChatWidget() {
         {
           id: `e-${Date.now()}`,
           role: 'assistant',
-          content: `Fel: ${err.message}`,
+          content: `${t.chat.error}: ${err.message}`,
           type: 'error',
           timestamp: new Date(),
         },
@@ -87,14 +93,14 @@ export default function ChatWidget() {
     const actions: Array<{ label: string; command: string }> = [];
 
     if (message.type === 'summary') {
-      actions.push({ label: 'Visa viktiga', command: 'visa viktiga mail' });
-      actions.push({ label: 'Visa regler', command: 'visa regler' });
-      actions.push({ label: 'Visa olästa', command: 'visa olästa' });
+      actions.push({ label: t.chat.showImportant, command: 'visa viktiga mail' });
+      actions.push({ label: t.chat.showRules, command: 'visa regler' });
+      actions.push({ label: t.chat.showUnread, command: 'visa olästa' });
     } else if (message.type === 'rule_created') {
-      actions.push({ label: 'Visa alla regler', command: 'visa regler' });
-      actions.push({ label: 'Sammanfatta inbox', command: 'sammanfatta inkorgen' });
+      actions.push({ label: t.chat.showAllRules, command: 'visa regler' });
+      actions.push({ label: t.chat.summarize, command: 'sammanfatta inkorgen' });
     } else if (message.type === 'thread_list') {
-      actions.push({ label: 'Sammanfatta', command: 'sammanfatta inkorgen' });
+      actions.push({ label: t.chat.summarize, command: 'sammanfatta inkorgen' });
     }
 
     if (actions.length === 0) return null;
@@ -144,8 +150,8 @@ export default function ChatWidget() {
               <span className="font-bold text-sm">C</span>
             </div>
             <div>
-              <div className="font-semibold text-sm">CDP Mail Assistant</div>
-              <div className="text-xs text-brand-100">Skriv vad du vill göra med din mail</div>
+              <div className="font-semibold text-sm">{t.chat.title}</div>
+              <div className="text-xs text-brand-100">{t.chat.subtitle}</div>
             </div>
           </div>
 
@@ -179,7 +185,7 @@ export default function ChatWidget() {
                         >
                           <div className="flex-1 min-w-0">
                             <div className="text-xs font-medium text-gray-800 truncate group-hover:text-brand-700">
-                              {thread.subject || '(Ingen ämnesrad)'}
+                              {thread.subject || t.chat.noSubject}
                             </div>
                             <div className="text-xs text-gray-400 truncate">{thread.sender}</div>
                           </div>
@@ -192,7 +198,7 @@ export default function ChatWidget() {
                         </Link>
                       ))}
                       {msg.data.length > 8 && (
-                        <div className="text-xs text-gray-400 text-center pt-1">+{msg.data.length - 8} till</div>
+                        <div className="text-xs text-gray-400 text-center pt-1">{t.chat.more.replace('{n}', String(msg.data.length - 8))}</div>
                       )}
                     </div>
                   )}
@@ -226,7 +232,7 @@ export default function ChatWidget() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder="Skriv ett kommando..."
+                placeholder={t.chat.placeholder}
                 disabled={loading}
                 className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none disabled:opacity-50"
               />

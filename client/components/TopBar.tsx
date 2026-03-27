@@ -1,18 +1,45 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useI18n } from '@/lib/i18n';
+import { api } from '@/lib/api';
 import LanguageSwitcher from './LanguageSwitcher';
 
 interface TopBarProps {
+  /** Override the pending draft count (e.g. from a parent that already has it). */
   pendingCount?: number;
   userEmail?: string;
 }
 
-export default function TopBar({ pendingCount = 0, userEmail }: TopBarProps) {
+export default function TopBar({ pendingCount: pendingCountProp, userEmail }: TopBarProps) {
   const pathname = usePathname();
   const { t } = useI18n();
+  const [fetchedCount, setFetchedCount] = useState(0);
+
+  // Self-fetch pending draft count so every page gets the badge without passing props.
+  useEffect(() => {
+    if (pendingCountProp !== undefined) return; // caller supplied it, skip fetch
+    if (!api.isAuthenticated()) return;
+
+    let cancelled = false;
+
+    async function fetchPending() {
+      try {
+        const result = await api.getDrafts({ status: 'pending' });
+        if (!cancelled) setFetchedCount(result.drafts?.length ?? 0);
+      } catch {
+        // unauthenticated or backend down — ignore silently
+      }
+    }
+
+    fetchPending();
+    const id = setInterval(fetchPending, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [pendingCountProp]);
+
+  const pendingCount = pendingCountProp ?? fetchedCount;
 
   const navItems = [
     { href: '/', label: t.nav.commandCenter, icon: '⚡' },
@@ -49,8 +76,8 @@ export default function TopBar({ pendingCount = 0, userEmail }: TopBarProps) {
                 <span>{item.icon}</span>
                 <span className="hidden sm:inline">{item.label}</span>
                 {item.href === '/drafts' && pendingCount > 0 && (
-                  <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {pendingCount}
+                  <span className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {pendingCount > 9 ? '9+' : pendingCount}
                   </span>
                 )}
               </Link>

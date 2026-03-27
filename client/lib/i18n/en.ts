@@ -122,6 +122,8 @@ const en: Translations = {
     page: 'Page',
     of: 'of',
     filterLabel: 'Filter',
+    openDraft: 'Open draft',
+    openThread: 'Open thread',
     actionTypes: {
       draft_created: 'Draft Created',
       draft_approved: 'Draft Approved',
@@ -218,6 +220,21 @@ const en: Translations = {
     analysis_run: 'AI analysis run',
     account_connected: 'Account connected',
     rule_created: 'Rule created',
+  },
+
+  chat: {
+    title: 'Mail Assistant',
+    subtitle: 'Tell me what you want to do with your email',
+    placeholder: 'Type a command...',
+    welcome: 'Hi! I can help you with your email. Try:\n\n• "summarize inbox"\n• "show important emails"\n• "mark X as spam"\n• "show rules"',
+    error: 'Error',
+    showImportant: 'Show important',
+    showRules: 'Show rules',
+    showUnread: 'Show unread',
+    showAllRules: 'Show all rules',
+    summarize: 'Summarize inbox',
+    noSubject: '(No subject)',
+    more: '+{n} more',
   },
 
   time: {

@@ -122,6 +122,8 @@ const es: Translations = {
     page: 'Página',
     of: 'de',
     filterLabel: 'Filtrar',
+    openDraft: 'Abrir borrador',
+    openThread: 'Abrir hilo',
     actionTypes: {
       draft_created: 'Borrador creado',
       draft_approved: 'Borrador aprobado',
@@ -218,6 +220,21 @@ const es: Translations = {
     analysis_run: 'Análisis IA ejecutado',
     account_connected: 'Cuenta conectada',
     rule_created: 'Regla creada',
+  },
+
+  chat: {
+    title: 'Asistente de correo',
+    subtitle: 'Dime qué quieres hacer con tu correo',
+    placeholder: 'Escribe un comando...',
+    welcome: '¡Hola! Puedo ayudarte con tu correo. Prueba:\n\n• "resumir bandeja"\n• "mostrar correos importantes"\n• "marcar X como spam"\n• "mostrar reglas"',
+    error: 'Error',
+    showImportant: 'Mostrar importantes',
+    showRules: 'Mostrar reglas',
+    showUnread: 'Mostrar no leídos',
+    showAllRules: 'Mostrar todas las reglas',
+    summarize: 'Resumir bandeja',
+    noSubject: '(Sin asunto)',
+    more: '+{n} más',
   },
 
   time: {

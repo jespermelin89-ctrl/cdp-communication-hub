@@ -122,6 +122,8 @@ const ru: Translations = {
     page: 'Страница',
     of: 'из',
     filterLabel: 'Фильтр',
+    openDraft: 'Открыть черновик',
+    openThread: 'Открыть цепочку',
     actionTypes: {
       draft_created: 'Черновик создан',
       draft_approved: 'Черновик одобрен',
@@ -218,6 +220,21 @@ const ru: Translations = {
     analysis_run: 'AI-анализ выполнен',
     account_connected: 'Аккаунт подключён',
     rule_created: 'Правило создано',
+  },
+
+  chat: {
+    title: 'Почтовый ассистент',
+    subtitle: 'Скажите, что вы хотите сделать с почтой',
+    placeholder: 'Введите команду...',
+    welcome: 'Привет! Я могу помочь с почтой. Попробуйте:\n\n• "резюмировать входящие"\n• "показать важные письма"\n• "пометить X как спам"\n• "показать правила"',
+    error: 'Ошибка',
+    showImportant: 'Важные',
+    showRules: 'Правила',
+    showUnread: 'Непрочитанные',
+    showAllRules: 'Все правила',
+    summarize: 'Входящие',
+    noSubject: '(Без темы)',
+    more: '+{n} ещё',
   },
 
   time: {

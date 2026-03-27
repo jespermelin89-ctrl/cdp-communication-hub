@@ -43,14 +43,14 @@ const ALL_ACTION_TYPES = [
   'draft_discarded', 'analysis_run', 'account_connected', 'account_disconnected',
 ] as const;
 
-function relativeTime(dateStr: string): string {
+function relativeTime(dateStr: string, t: any): string {
   const diff = Date.now() - new Date(dateStr).getTime();
   const s = Math.floor(diff / 1000);
-  if (s < 60) return `${s}s sedan`;
+  if (s < 60) return t.time.justNow;
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m sedan`;
+  if (m < 60) return t.time.minutesAgo.replace('{n}', String(m));
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h sedan`;
+  if (h < 24) return t.time.hoursAgo.replace('{n}', String(h));
   return new Date(dateStr).toLocaleDateString();
 }
 
@@ -66,10 +66,10 @@ function metaSummary(log: ActionLog): string | null {
   return null;
 }
 
-function targetLink(log: ActionLog): { href: string; label: string } | null {
+function targetLink(log: ActionLog, t: any): { href: string; label: string } | null {
   if (!log.targetId) return null;
-  if (log.targetType === 'draft') return { href: `/drafts/${log.targetId}`, label: 'Öppna utkast' };
-  if (log.targetType === 'thread') return { href: `/threads/${log.targetId}`, label: 'Öppna tråd' };
+  if (log.targetType === 'draft') return { href: `/drafts/${log.targetId}`, label: t.activity.openDraft };
+  if (log.targetType === 'thread') return { href: `/threads/${log.targetId}`, label: t.activity.openThread };
   return null;
 }
 
@@ -87,11 +87,12 @@ export default function ActivityPage() {
   const loadLogs = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await api.getActionLogs({ page, limit: LIMIT });
-      // client-side filter if needed (API doesn't support action_type filter yet in the route params)
-      const allLogs = result.logs as ActionLog[];
-      const filtered = filter ? allLogs.filter((l) => l.actionType === filter) : allLogs;
-      setLogs(filtered);
+      const result = await api.getActionLogs({
+        page,
+        limit: LIMIT,
+        ...(filter ? { action_type: filter } : {}),
+      });
+      setLogs(result.logs as ActionLog[]);
       setTotalPages(result.pagination.totalPages);
       setTotal(result.pagination.total);
     } catch (err) {
@@ -191,7 +192,7 @@ export default function ActivityPage() {
           <div className="space-y-2">
             {logs.map((log) => {
               const meta = metaSummary(log);
-              const link = targetLink(log);
+              const link = targetLink(log, t);
               const colorClass = ACTION_COLORS[log.actionType] || 'bg-gray-50 border-gray-200 text-gray-600';
 
               return (
@@ -226,7 +227,7 @@ export default function ActivityPage() {
 
                   {/* Timestamp */}
                   <div className="shrink-0 text-right">
-                    <div className="text-xs text-gray-400">{relativeTime(log.createdAt)}</div>
+                    <div className="text-xs text-gray-400">{relativeTime(log.createdAt, t)}</div>
                     <div className="text-xs text-gray-300">{new Date(log.createdAt).toLocaleTimeString()}</div>
                   </div>
                 </div>

@@ -53,15 +53,25 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     // Run AI analysis
-    const analysis = await aiService.analyzeThread({
-      subject: thread.subject || '(No Subject)',
-      messages: thread.messages.map((m) => ({
-        from: m.fromAddress,
-        to: m.toAddresses,
-        body: m.bodyText || '(No text content)',
-        date: m.receivedAt.toISOString(),
-      })),
-    });
+    let analysis;
+    try {
+      analysis = await aiService.analyzeThread({
+        subject: thread.subject || '(No Subject)',
+        messages: thread.messages.map((m) => ({
+          from: m.fromAddress,
+          to: m.toAddresses,
+          body: m.bodyText || '(No text content)',
+          date: m.receivedAt.toISOString(),
+        })),
+      });
+    } catch (aiErr: any) {
+      request.log.error(aiErr, 'AI analysis failed');
+      return reply.code(503).send({
+        error: 'AI analysis failed',
+        message: aiErr?.message || 'AI service unavailable',
+        code: 'AI_ERROR',
+      });
+    }
 
     // Store analysis in database
     const stored = await prisma.aIAnalysis.create({
@@ -158,10 +168,20 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     // Generate draft text via AI
-    const draftText = await aiService.generateDraft({
-      instruction,
-      threadContext,
-    });
+    let draftText: string;
+    try {
+      draftText = await aiService.generateDraft({
+        instruction,
+        threadContext,
+      });
+    } catch (aiErr: any) {
+      request.log.error(aiErr, 'AI draft generation failed');
+      return reply.code(503).send({
+        error: 'Draft generation failed',
+        message: aiErr?.message || 'AI service unavailable',
+        code: 'AI_ERROR',
+      });
+    }
 
     // Determine recipients and subject
     const finalTo = to_addresses || (threadContext
@@ -226,17 +246,27 @@ export async function aiRoutes(fastify: FastifyInstance) {
       take: 30,
     });
 
-    const summary = await aiService.summarizeInbox(
-      threads.map((t) => ({
-        subject: t.subject || '(No Subject)',
-        snippet: t.snippet || '',
-        priority: t.analyses[0]?.priority,
-        classification: t.analyses[0]?.classification,
-        messageCount: t.messageCount,
-        lastMessageAt: t.lastMessageAt || new Date(),
-        isRead: t.isRead,
-      }))
-    );
+    let summary: string;
+    try {
+      summary = await aiService.summarizeInbox(
+        threads.map((t) => ({
+          subject: t.subject || '(No Subject)',
+          snippet: t.snippet || '',
+          priority: t.analyses[0]?.priority,
+          classification: t.analyses[0]?.classification,
+          messageCount: t.messageCount,
+          lastMessageAt: t.lastMessageAt || new Date(),
+          isRead: t.isRead,
+        }))
+      );
+    } catch (aiErr: any) {
+      request.log.error(aiErr, 'AI inbox summary failed');
+      return reply.code(503).send({
+        error: 'Inbox summary failed',
+        message: aiErr?.message || 'AI service unavailable',
+        code: 'AI_ERROR',
+      });
+    }
 
     return { summary };
   });

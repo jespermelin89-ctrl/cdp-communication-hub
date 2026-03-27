@@ -196,7 +196,7 @@ Provide a concise daily briefing summary.`;
 
   private async chatAnthropic(systemPrompt: string, userMessage: string): Promise<string> {
     const response = await this.anthropic!.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 2048,
       system: systemPrompt,
       messages: [{ role: 'user', content: userMessage }],

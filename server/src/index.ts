@@ -91,6 +91,9 @@ async function main() {
     process.exit(1);
   }
 
+  // Log AI provider status
+  console.log(`[AI] Provider: ${env.AI_PROVIDER} | Anthropic key: ${env.ANTHROPIC_API_KEY ? `SET (${env.ANTHROPIC_API_KEY.slice(0, 8)}…)` : 'MISSING'} | OpenAI key: ${env.OPENAI_API_KEY ? 'SET' : 'MISSING'}`);
+
   // Connect database AFTER server is listening
   const dbConnected = await connectDatabase();
   if (!dbConnected) {

@@ -6,6 +6,7 @@ import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
+import { Archive, Trash2, AlertCircle, Bot, RefreshCw } from 'lucide-react';
 import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -68,6 +69,8 @@ export default function InboxPage() {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [archivingIds, setArchivingIds] = useState<Set<string>>(new Set());
+  const [trashConfirmId, setTrashConfirmId] = useState<string | null>(null);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -139,6 +142,38 @@ export default function InboxPage() {
         return next;
       });
     }
+  }
+
+  async function handleArchive(threadId: string) {
+    setArchivingIds((prev) => new Set(prev).add(threadId));
+    try {
+      await api.archiveThread(threadId);
+      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+    } catch (err: any) {
+      console.error('Archive failed:', err);
+    } finally {
+      setArchivingIds((prev) => { const next = new Set(prev); next.delete(threadId); return next; });
+    }
+  }
+
+  async function handleTrash(threadId: string) {
+    try {
+      await api.trashThread(threadId);
+      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+    } catch (err: any) {
+      console.error('Trash failed:', err);
+    } finally {
+      setTrashConfirmId(null);
+    }
+  }
+
+  async function handleBatchAction(action: 'archive' | 'trash') {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (action === 'trash' && !window.confirm(`Flytta ${ids.length} trådar till papperskorgen?`)) return;
+    await api.batchThreadAction(ids, action);
+    setSelectedIds(new Set());
+    await loadThreads();
   }
 
   async function handleBulkAnalyze() {
@@ -318,15 +353,27 @@ export default function InboxPage() {
 
         {/* Bulk Actions Bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl">
+          <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl flex-wrap">
             <span className="text-sm font-medium text-brand-700 dark:text-brand-300">
               {selectedIds.size} {t.inbox.selected}
             </span>
             <button
               onClick={handleBulkAnalyze}
-              className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 underline"
+              className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 underline flex items-center gap-1"
             >
-              🤖 {t.inbox.analyzeSelected}
+              <Bot size={14} /> {t.inbox.analyzeSelected}
+            </button>
+            <button
+              onClick={() => handleBatchAction('archive')}
+              className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 underline flex items-center gap-1"
+            >
+              <Archive size={14} /> Arkivera valda
+            </button>
+            <button
+              onClick={() => handleBatchAction('trash')}
+              className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline flex items-center gap-1"
+            >
+              <Trash2 size={14} /> Radera valda
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
@@ -490,7 +537,7 @@ export default function InboxPage() {
                           >
                             {isAnalyzing ? (
                               <span className="w-3 h-3 border border-gray-400 border-t-brand-500 rounded-full animate-spin" />
-                            ) : '🤖'}
+                            ) : <Bot size={13} />}
                             {isAnalyzing ? '…' : t.inbox.analyze}
                           </button>
                         )}
@@ -503,9 +550,24 @@ export default function InboxPage() {
                           >
                             {isAnalyzing ? (
                               <span className="w-3 h-3 border border-gray-400 border-t-brand-500 rounded-full animate-spin inline-block" />
-                            ) : '🔄'}
+                            ) : <RefreshCw size={13} />}
                           </button>
                         )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleArchive(thread.id); }}
+                          disabled={archivingIds.has(thread.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-40"
+                          title="Arkivera"
+                        >
+                          {archivingIds.has(thread.id) ? <span className="w-3 h-3 border border-gray-300 border-t-gray-500 rounded-full animate-spin inline-block" /> : <Archive size={13} />}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setTrashConfirmId(thread.id); }}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          title="Flytta till papperskorgen"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                         <Link
                           href={`/threads/${thread.id}`}
                           className="btn-secondary text-xs"
@@ -570,6 +632,37 @@ export default function InboxPage() {
           </>
         )}
       </main>
+
+      {/* Trash Confirmation Dialog */}
+      {trashConfirmId && (
+        <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 max-w-sm w-full">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+                <Trash2 size={18} className="text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Flytta till papperskorgen?</h3>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+              Mejlet flyttas till papperskorgen i Gmail och kan återställas inom 30 dagar.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setTrashConfirmId(null)}
+                className="btn-secondary text-sm"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={() => handleTrash(trashConfirmId)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition-colors"
+              >
+                Flytta till papperskorgen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

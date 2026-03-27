@@ -304,6 +304,31 @@ export class GmailService {
     const headers = lastMessage?.payload?.headers || [];
     return getHeader(headers, 'Message-ID') || null;
   }
+  /**
+   * Archive a Gmail thread (remove INBOX label).
+   * SAFETY: Does NOT delete. Thread remains in All Mail.
+   */
+  async archiveThread(accountId: string, gmailThreadId: string): Promise<void> {
+    const gmail = await this.getClient(accountId);
+    await gmail.users.threads.modify({
+      userId: 'me',
+      id: gmailThreadId,
+      requestBody: { removeLabelIds: ['INBOX'] },
+    });
+  }
+
+  /**
+   * Move a Gmail thread to Trash.
+   * SAFETY: Uses threads.trash — reversible within 30 days.
+   * NEVER calls threads.delete (permanent — forbidden).
+   */
+  async trashThread(accountId: string, gmailThreadId: string): Promise<void> {
+    const gmail = await this.getClient(accountId);
+    await gmail.users.threads.trash({
+      userId: 'me',
+      id: gmailThreadId,
+    });
+  }
 }
 
 // Singleton instance

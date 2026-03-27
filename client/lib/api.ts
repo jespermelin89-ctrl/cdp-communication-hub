@@ -212,6 +212,18 @@ class ApiClient {
     return this.request('POST', `/threads/${threadId}/sync-messages`);
   }
 
+  async archiveThread(threadId: string) {
+    return this.request('POST', `/threads/${threadId}/archive`);
+  }
+
+  async trashThread(threadId: string) {
+    return this.request('POST', `/threads/${threadId}/trash`);
+  }
+
+  async batchThreadAction(threadIds: string[], action: 'archive' | 'trash') {
+    return this.request('POST', '/threads/batch', { threadIds, action });
+  }
+
   // Drafts
   async getDrafts(params?: { status?: string; account_id?: string; page?: number }) {
     const query: Record<string, string> = {};

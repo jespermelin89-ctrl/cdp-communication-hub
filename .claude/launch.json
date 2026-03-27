@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cdp-frontend",
+      "runtimeExecutable": "/Users/lekintejeppe/Desktop/AI/MAIL-SYS/cdp-communication-hub/client/node_modules/.bin/next",
+      "runtimeArgs": ["dev", "--turbo"],
+      "port": 3000,
+      "autoPort": true,
+      "cwd": "/Users/lekintejeppe/Desktop/AI/MAIL-SYS/cdp-communication-hub/client"
+    }
+  ]
+}

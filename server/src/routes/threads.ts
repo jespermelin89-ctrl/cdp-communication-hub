@@ -5,6 +5,7 @@
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../config/database';
 import { emailProviderFactory } from '../services/email-provider.factory';
+import { gmailService } from '../services/gmail.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { ThreadQuerySchema } from '../utils/validators';
 
@@ -200,6 +201,115 @@ export async function threadRoutes(fastify: FastifyInstance) {
     return {
       message: `Synced ${messages.length} messages`,
       count: messages.length,
+    };
+  });
+
+  /**
+   * POST /threads/:id/archive — Remove thread from inbox (remove INBOX label).
+   * SAFETY: Non-destructive. Thread remains in All Mail and can be restored.
+   */
+  fastify.post('/threads/:id/archive', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    if (thread.account.provider === 'gmail') {
+      try {
+        await gmailService.archiveThread(thread.account.id, thread.gmailThreadId);
+      } catch (err: any) {
+        return reply.code(502).send({ error: `Gmail archive failed: ${err.message}` });
+      }
+    }
+
+    // Update cached labels
+    await prisma.emailThread.update({
+      where: { id },
+      data: { labels: thread.labels.filter((l: string) => l !== 'INBOX') },
+    });
+
+    return { message: 'Thread archived (removed from inbox).' };
+  });
+
+  /**
+   * POST /threads/:id/trash — Move thread to Gmail Trash (reversible, 30 days).
+   * SAFETY: Uses threads.trash — NEVER threads.delete.
+   */
+  fastify.post('/threads/:id/trash', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    if (thread.account.provider === 'gmail') {
+      try {
+        await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
+      } catch (err: any) {
+        return reply.code(502).send({ error: `Gmail trash failed: ${err.message}` });
+      }
+    }
+
+    // Update cached labels
+    await prisma.emailThread.update({
+      where: { id },
+      data: { labels: [...thread.labels.filter((l: string) => l !== 'INBOX'), 'TRASH'] },
+    });
+
+    return { message: 'Thread moved to trash (can be restored within 30 days).' };
+  });
+
+  /**
+   * POST /threads/batch — Batch archive or trash multiple threads.
+   * Body: { threadIds: string[], action: 'archive' | 'trash' }
+   */
+  fastify.post('/threads/batch', async (request, reply) => {
+    const { threadIds, action } = request.body as { threadIds: string[]; action: 'archive' | 'trash' };
+
+    if (!Array.isArray(threadIds) || threadIds.length === 0) {
+      return reply.code(400).send({ error: 'threadIds must be a non-empty array' });
+    }
+    if (action !== 'archive' && action !== 'trash') {
+      return reply.code(400).send({ error: 'action must be "archive" or "trash"' });
+    }
+
+    const threads = await prisma.emailThread.findMany({
+      where: { id: { in: threadIds }, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+
+    const results = await Promise.allSettled(
+      threads.map(async (thread) => {
+        if (thread.account.provider === 'gmail') {
+          if (action === 'archive') {
+            await gmailService.archiveThread(thread.account.id, thread.gmailThreadId);
+          } else {
+            await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
+          }
+        }
+        await prisma.emailThread.update({
+          where: { id: thread.id },
+          data: {
+            labels: action === 'archive'
+              ? thread.labels.filter((l: string) => l !== 'INBOX')
+              : [...thread.labels.filter((l: string) => l !== 'INBOX'), 'TRASH'],
+          },
+        });
+      })
+    );
+
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
+
+    return {
+      message: `Batch ${action}: ${succeeded} succeeded, ${failed} failed.`,
+      succeeded,
+      failed,
     };
   });
 }

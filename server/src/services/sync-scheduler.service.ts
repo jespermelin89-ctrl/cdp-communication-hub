@@ -124,7 +124,6 @@ async function classifyUnanalyzedThreads(): Promise<void> {
   for (const thread of threads) {
     try {
       const analysis = await aiService.analyzeThread({
-        threadId: thread.id,
         subject: thread.subject ?? '(No subject)',
         messages: thread.messages.map((m) => ({
           from: m.fromAddress,

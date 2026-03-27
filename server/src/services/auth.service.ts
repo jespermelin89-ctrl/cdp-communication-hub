@@ -214,7 +214,8 @@ export class AuthService {
     return jwt.sign(
       { userId, email } as JwtPayload,
       env.JWT_SECRET,
-      { expiresIn: env.JWT_EXPIRES_IN }
+      // expiresIn cast needed due to @types/jsonwebtoken StringValue constraint
+      { expiresIn: env.JWT_EXPIRES_IN as any }
     );
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
@@ -11,13 +11,13 @@ import { useI18n } from '@/lib/i18n';
 import type { EmailThread, Account } from '@/lib/types';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
-  lead: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  partner: 'bg-blue-100 text-blue-700 border-blue-200',
-  personal: 'bg-purple-100 text-purple-700 border-purple-200',
-  spam: 'bg-red-100 text-red-600 border-red-200',
-  operational: 'bg-gray-100 text-gray-600 border-gray-200',
-  founder: 'bg-indigo-100 text-indigo-700 border-indigo-200',
-  outreach: 'bg-orange-100 text-orange-700 border-orange-200',
+  lead: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
+  partner: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+  personal: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
+  spam: 'bg-red-100 text-red-600 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
+  operational: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600',
+  founder: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800',
+  outreach: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800',
 };
 
 const PRIORITY_FILTER_COLORS: Record<string, string> = {
@@ -35,6 +35,23 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
   founder: '🚀 Founder',
   outreach: '📣 Outreach',
 };
+
+function formatRelativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'nu';
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays === 1) return 'igår';
+  if (diffDays < 7) return date.toLocaleDateString('sv-SE', { weekday: 'short' });
+  return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+}
 
 export default function InboxPage() {
   const [threads, setThreads] = useState<EmailThread[]>([]);
@@ -72,7 +89,7 @@ export default function InboxPage() {
   async function loadThreads() {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (selectedAccountId) params.account_id = selectedAccountId;
       if (priorityFilter) params.priority = priorityFilter;
       if (search) params.search = search;
@@ -130,6 +147,13 @@ export default function InboxPage() {
     }
   }
 
+  async function handleAnalyzeAllUnanalyzed() {
+    const unanalyzed = threads.filter((t) => !t.latestAnalysis).map((t) => t.id);
+    for (const id of unanalyzed) {
+      await handleAnalyze(id);
+    }
+  }
+
   function toggleSelect(id: string, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -145,23 +169,22 @@ export default function InboxPage() {
     if (selectedIds.size === threads.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(threads.map((t) => t.id)));
+      setSelectedIds(new Set(threads.map((th) => th.id)));
     }
   }
 
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
 
-  // Client-side classification filter (server doesn't always support this param)
   const visibleThreads = classificationFilter
     ? threads.filter((th) => th.latestAnalysis?.classification === classificationFilter)
     : threads;
 
-  // Compute available classifications from loaded threads
   const availableClassifications = Array.from(
-    new Set(threads.map((t) => t.latestAnalysis?.classification).filter(Boolean))
+    new Set(threads.map((th) => th.latestAnalysis?.classification).filter(Boolean))
   ) as string[];
 
-  const unanalyzedCount = threads.filter((t) => !t.latestAnalysis).length;
+  const unanalyzedCount = threads.filter((th) => !th.latestAnalysis).length;
+  const analyzingAny = analyzingIds.size > 0;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -169,7 +192,7 @@ export default function InboxPage() {
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.inbox.title}</h1>
             {!loading && (
@@ -183,14 +206,29 @@ export default function InboxPage() {
               </p>
             )}
           </div>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="btn-primary text-sm flex items-center gap-2"
-          >
-            <span className={syncing ? 'animate-spin' : ''}>🔄</span>
-            {syncing ? t.inbox.syncing : t.inbox.syncAll}
-          </button>
+          <div className="flex items-center gap-2">
+            {!loading && unanalyzedCount > 0 && (
+              <button
+                onClick={handleAnalyzeAllUnanalyzed}
+                disabled={analyzingAny}
+                className="btn-secondary text-sm flex items-center gap-1.5"
+                title={`Analysera ${unanalyzedCount} ej analyserade`}
+              >
+                {analyzingAny ? (
+                  <span className="w-3.5 h-3.5 border border-gray-400 border-t-brand-500 rounded-full animate-spin" />
+                ) : '🤖'}
+                {t.inbox.analyze} ({unanalyzedCount})
+              </button>
+            )}
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="btn-primary text-sm flex items-center gap-2"
+            >
+              <span className={syncing ? 'animate-spin' : ''}>🔄</span>
+              {syncing ? t.inbox.syncing : t.inbox.syncAll}
+            </button>
+          </div>
         </div>
 
         {/* Account Tabs */}
@@ -223,13 +261,10 @@ export default function InboxPage() {
               placeholder={t.inbox.searchPlaceholder}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') setSearch(searchInput);
-              }}
-              className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+              onKeyDown={(e) => { if (e.key === 'Enter') setSearch(searchInput); }}
+              className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
             />
           </div>
-          {/* Priority filter pills */}
           <div className="flex gap-2 items-center shrink-0">
             {(['high', 'medium', 'low'] as const).map((p) => (
               <button
@@ -238,7 +273,7 @@ export default function InboxPage() {
                 className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
                   priorityFilter === p
                     ? PRIORITY_FILTER_COLORS[p]
-                    : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
                 {p === 'high' ? '🔥' : p === 'medium' ? '🟡' : '🟢'} {t.dashboard[p]}
@@ -253,7 +288,9 @@ export default function InboxPage() {
             <button
               onClick={() => setClassificationFilter('')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                !classificationFilter ? 'bg-gray-800 text-white border-gray-800' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                !classificationFilter
+                  ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-800 dark:border-gray-200'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {t.inbox.allAccounts}
@@ -265,7 +302,7 @@ export default function InboxPage() {
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                   classificationFilter === cls
                     ? (CLASSIFICATION_COLORS[cls] || 'bg-gray-100 text-gray-700 border-gray-200')
-                    : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
                 }`}
               >
                 {CLASSIFICATION_LABELS[cls] || cls}
@@ -276,19 +313,19 @@ export default function InboxPage() {
 
         {/* Bulk Actions Bar */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl">
-            <span className="text-sm font-medium text-brand-700">
+          <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl">
+            <span className="text-sm font-medium text-brand-700 dark:text-brand-300">
               {selectedIds.size} {t.inbox.selected}
             </span>
             <button
               onClick={handleBulkAnalyze}
-              className="text-sm font-medium text-brand-600 hover:text-brand-700 underline"
+              className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 underline"
             >
               🤖 {t.inbox.analyzeSelected}
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
-              className="ml-auto text-sm text-gray-400 hover:text-gray-600"
+              className="ml-auto text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               ✕
             </button>
@@ -306,18 +343,17 @@ export default function InboxPage() {
         ) : visibleThreads.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 text-center py-16 shadow-sm">
             <div className="text-4xl mb-3">📭</div>
-            <p className="text-gray-500 mb-4">{t.inbox.noThreads}</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">{t.inbox.noThreads}</p>
             <button onClick={handleSync} className="btn-primary">
               {t.inbox.syncNow}
             </button>
           </div>
         ) : (
           <>
-            {/* Select All row */}
             <div className="flex items-center gap-3 mb-2 px-1">
               <button
                 onClick={toggleSelectAll}
-                className="text-xs text-gray-400 hover:text-gray-600"
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
                 {selectedIds.size === threads.length ? t.inbox.deselectAll : t.inbox.selectAll}
               </button>
@@ -330,46 +366,73 @@ export default function InboxPage() {
                 const isSelected = selectedIds.has(thread.id);
                 const isAnalyzing = analyzingIds.has(thread.id);
                 const analyzeError = analyzeErrors.get(thread.id);
+                const isUnread = !thread.isRead;
+
+                // Best sender display: first participant that isn't from the account
+                const accEmail = acc?.emailAddress.toLowerCase();
+                const sender = thread.participantEmails.find(
+                  (e) => e.toLowerCase() !== accEmail
+                ) || thread.participantEmails[0] || '';
+                const senderDisplay = sender.includes('<')
+                  ? sender.match(/^([^<]+)/)?.[1]?.trim() || sender
+                  : sender.split('@')[0];
 
                 return (
                   <div
                     key={thread.id}
                     className={`bg-white dark:bg-gray-800 rounded-2xl border transition-all shadow-sm ${
-                      isSelected ? 'border-brand-300 ring-1 ring-brand-200' : 'border-gray-200'
-                    } ${!thread.isRead ? 'border-l-4 border-l-brand-500' : ''}`}
+                      isSelected
+                        ? 'border-brand-300 dark:border-brand-700 ring-1 ring-brand-200 dark:ring-brand-800'
+                        : isUnread
+                        ? 'border-l-4 border-l-brand-500 border-gray-200 dark:border-gray-700'
+                        : 'border-gray-200 dark:border-gray-700'
+                    }`}
                   >
                     {/* Thread Row */}
                     <div className="flex items-start gap-3 p-4">
                       {/* Checkbox */}
                       <button
                         onClick={(e) => toggleSelect(thread.id, e)}
-                        className={`mt-0.5 w-5 h-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${
+                        className={`mt-1 w-5 h-5 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${
                           isSelected
                             ? 'bg-brand-500 border-brand-500 text-white'
-                            : 'border-gray-300 hover:border-brand-400'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-brand-400'
                         }`}
                       >
                         {isSelected && <span className="text-xs">✓</span>}
                       </button>
 
-                      {/* Main Content — clickable to expand */}
+                      {/* Main Content */}
                       <button
                         onClick={() => setExpandedId(isExpanded ? null : thread.id)}
                         className="flex-1 min-w-0 text-left"
                       >
+                        {/* Sender + time row */}
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {accounts.length > 1 && acc && (
+                              <>
+                                <AccountBadge
+                                  emailAddress={acc.emailAddress}
+                                  provider={acc.provider}
+                                  color={acc.color}
+                                  label={acc.label}
+                                />
+                                <BadgeIcons badges={acc.badges || []} size="sm" />
+                              </>
+                            )}
+                            <span className={`text-sm truncate ${isUnread ? 'font-bold text-gray-900 dark:text-gray-100' : 'font-medium text-gray-700 dark:text-gray-300'}`}>
+                              {senderDisplay}
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                            {formatRelativeTime(thread.lastMessageAt)}
+                          </span>
+                        </div>
+
+                        {/* Subject + badges */}
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          {accounts.length > 1 && acc && (
-                            <>
-                              <AccountBadge
-                                emailAddress={acc.emailAddress}
-                                provider={acc.provider}
-                                color={acc.color}
-                                label={acc.label}
-                              />
-                              <BadgeIcons badges={acc.badges || []} size="sm" />
-                            </>
-                          )}
-                          <span className={`text-sm truncate ${!thread.isRead ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                          <span className={`text-sm truncate ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
                             {thread.subject || t.inbox.noSubject}
                           </span>
                           {thread.latestAnalysis && (
@@ -385,23 +448,19 @@ export default function InboxPage() {
                             </>
                           )}
                           {!thread.latestAnalysis && (
-                            <span className="text-xs text-gray-400 border border-dashed border-gray-300 px-2 py-0.5 rounded-full">
+                            <span className="text-xs text-gray-400 dark:text-gray-500 border border-dashed border-gray-300 dark:border-gray-600 px-2 py-0.5 rounded-full">
                               {t.inbox.notAnalyzed}
                             </span>
                           )}
                         </div>
 
-                        <div className="text-xs text-gray-400 truncate mb-1">
-                          {thread.participantEmails.slice(0, 3).join(', ')}
-                          {thread.participantEmails.length > 3 && ` +${thread.participantEmails.length - 3}`}
-                          <span className="mx-1.5">·</span>
+                        {/* Message count + snippet */}
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">
                           {thread.messageCount} {t.inbox.messages}
-                          <span className="mx-1.5">·</span>
-                          {thread.lastMessageAt && new Date(thread.lastMessageAt).toLocaleString()}
                         </div>
 
                         {thread.latestAnalysis ? (
-                          <div className="text-xs text-gray-500 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-1.5 mt-1 flex items-start gap-2">
+                          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-1.5 mt-1 flex items-start gap-2">
                             <span className="text-gray-400 shrink-0">🤖</span>
                             <span className="line-clamp-2">
                               {isExpanded
@@ -410,7 +469,7 @@ export default function InboxPage() {
                             </span>
                           </div>
                         ) : (
-                          <div className="text-xs text-gray-400 truncate mt-1">
+                          <div className="text-xs text-gray-400 dark:text-gray-500 truncate mt-1">
                             {thread.snippet}
                           </div>
                         )}
@@ -430,6 +489,18 @@ export default function InboxPage() {
                             {isAnalyzing ? '…' : t.inbox.analyze}
                           </button>
                         )}
+                        {thread.latestAnalysis && (
+                          <button
+                            onClick={() => handleAnalyze(thread.id)}
+                            disabled={isAnalyzing}
+                            className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            title={t.inbox.analyze}
+                          >
+                            {isAnalyzing ? (
+                              <span className="w-3 h-3 border border-gray-400 border-t-brand-500 rounded-full animate-spin inline-block" />
+                            ) : '🔄'}
+                          </button>
+                        )}
                         <Link
                           href={`/threads/${thread.id}`}
                           className="btn-secondary text-xs"
@@ -442,7 +513,7 @@ export default function InboxPage() {
 
                     {/* Inline analyze error */}
                     {analyzeError && (
-                      <div className="mx-4 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-start gap-2">
+                      <div className="mx-4 mb-3 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
                         <span className="shrink-0">⚠️</span>
                         <span>{analyzeError}</span>
                         <button
@@ -457,30 +528,30 @@ export default function InboxPage() {
                       <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-4 bg-gray-50 dark:bg-gray-800/50 rounded-b-2xl">
                         <div className="grid sm:grid-cols-3 gap-4 text-xs">
                           <div>
-                            <div className="font-medium text-gray-500 mb-1">{t.inbox.suggestedAction}</div>
-                            <div className="text-gray-700 font-medium">{thread.latestAnalysis.suggestedAction.replace(/_/g, ' ')}</div>
+                            <div className="font-medium text-gray-500 dark:text-gray-400 mb-1">{t.inbox.suggestedAction}</div>
+                            <div className="text-gray-700 dark:text-gray-200 font-medium">{thread.latestAnalysis.suggestedAction.replace(/_/g, ' ')}</div>
                           </div>
                           <div>
-                            <div className="font-medium text-gray-500 mb-1">{t.inbox.confidence}</div>
+                            <div className="font-medium text-gray-500 dark:text-gray-400 mb-1">{t.inbox.confidence}</div>
                             <div className="flex items-center gap-2">
-                              <div className="h-1.5 flex-1 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="h-1.5 flex-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
                                 <div
                                   className="h-full bg-brand-500 rounded-full"
                                   style={{ width: `${Math.round(thread.latestAnalysis.confidence * 100)}%` }}
                                 />
                               </div>
-                              <span className="text-gray-600">{Math.round(thread.latestAnalysis.confidence * 100)}%</span>
+                              <span className="text-gray-600 dark:text-gray-300">{Math.round(thread.latestAnalysis.confidence * 100)}%</span>
                             </div>
                           </div>
                           <div>
-                            <div className="font-medium text-gray-500 mb-1">{t.inbox.model}</div>
-                            <div className="text-gray-600">{thread.latestAnalysis.modelUsed}</div>
+                            <div className="font-medium text-gray-500 dark:text-gray-400 mb-1">{t.inbox.model}</div>
+                            <div className="text-gray-600 dark:text-gray-300">{thread.latestAnalysis.modelUsed}</div>
                           </div>
                         </div>
                         {thread.latestAnalysis.draftText && (
                           <div className="mt-3">
-                            <div className="font-medium text-gray-500 text-xs mb-1">{t.inbox.draftSuggestion}</div>
-                            <div className="text-xs text-gray-600 bg-white rounded-lg px-3 py-2 border border-gray-200 line-clamp-4">
+                            <div className="font-medium text-gray-500 dark:text-gray-400 text-xs mb-1">{t.inbox.draftSuggestion}</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700 line-clamp-4">
                               {thread.latestAnalysis.draftText}
                             </div>
                           </div>
@@ -508,8 +579,8 @@ function AccountFilterTab({
       onClick={onClick}
       className={`px-3 py-1.5 rounded-xl text-sm font-medium border transition-all inline-flex items-center gap-1.5 ${
         active
-          ? 'bg-gray-900 text-white border-gray-900'
-          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+          ? 'bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-900 dark:border-gray-100'
+          : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
       }`}
     >
       {color && (

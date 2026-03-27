@@ -13,8 +13,8 @@ const en: Translations = {
 
   dashboard: {
     title: 'Command Center',
-    pendingDrafts: 'Pending Drafts',
-    readyToSend: 'Ready to Send',
+    pendingDrafts: 'Drafts to Review',
+    readyToSend: 'Approved to Send',
     highPriority: 'High Priority',
     unread: 'Unread',
     draftsAwaitingAction: 'Drafts Awaiting Action',

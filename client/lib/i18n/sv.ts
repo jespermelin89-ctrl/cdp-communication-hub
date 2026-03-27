@@ -13,11 +13,11 @@ const sv = {
   // Command Center
   dashboard: {
     title: 'Kontrollcenter',
-    pendingDrafts: 'Väntande utkast',
-    readyToSend: 'Redo att skicka',
+    pendingDrafts: 'Utkast att granska',
+    readyToSend: 'Godkända att skicka',
     highPriority: 'Hög prioritet',
     unread: 'Olästa',
-    draftsAwaitingAction: 'Utkast som väntar',
+    draftsAwaitingAction: 'Utkast att granska',
     noPendingDrafts: 'Inga väntande utkast. Allt klart!',
     categories: 'Kategorier',
     manage: 'Hantera',

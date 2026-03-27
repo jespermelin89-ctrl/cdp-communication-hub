@@ -99,6 +99,23 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
       }),
     ]);
 
+    // Get top high-priority thread senders for stat card subtitle
+    const highPriorityThreadList = await prisma.emailThread.findMany({
+      where: {
+        accountId: { in: accountIds },
+        analyses: { some: { priority: 'high' } },
+        lastMessageAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      },
+      select: { participantEmails: true, subject: true },
+      orderBy: { lastMessageAt: 'desc' },
+      take: 3,
+    });
+    const highPrioritySenders = highPriorityThreadList.map((t) => {
+      const ext = t.participantEmails.find((e: string) => !accountIds.some((id) => id === e))
+        || t.participantEmails[0];
+      return ext ? ext.split('@')[0] : t.subject?.split(' ')[0] || '—';
+    });
+
     // Get pending drafts for quick preview
     const pendingDraftsList = await prisma.draft.findMany({
       where: { userId, status: { in: ['pending', 'approved'] } },
@@ -119,6 +136,7 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
         unread_threads: unreadThreads,
         total_threads: totalThreads,
         unanalyzed_threads: totalThreads - analyzedThreads,
+        high_priority_senders: highPrioritySenders,
       },
       drafts_preview: pendingDraftsList,
       recent_actions: recentActions,

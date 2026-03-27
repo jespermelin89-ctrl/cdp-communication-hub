@@ -113,6 +113,7 @@ export interface CommandCenterData {
     unread_threads: number;
     total_threads: number;
     unanalyzed_threads: number;
+    high_priority_senders: string[];
   };
   drafts_preview: Draft[];
   recent_actions: Array<{

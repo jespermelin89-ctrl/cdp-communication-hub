@@ -204,6 +204,7 @@ export default function DashboardPage() {
                 gradient="from-red-500 to-rose-600"
                 icon={<AlertTriangle size={28} />}
                 href="/inbox?priority=high"
+                subtitle={data.overview.high_priority_senders?.length ? data.overview.high_priority_senders.join(', ') : undefined}
               />
               <GradientCard
                 label={t.dashboard.pendingDrafts}
@@ -550,9 +551,9 @@ export default function DashboardPage() {
 // ——— Sub-components ———
 
 function GradientCard({
-  label, value, gradient, icon, href
+  label, value, gradient, icon, href, subtitle
 }: {
-  label: string; value: number; gradient: string; icon: React.ReactNode; href: string;
+  label: string; value: number; gradient: string; icon: React.ReactNode; href: string; subtitle?: string;
 }) {
   return (
     <Link
@@ -562,6 +563,7 @@ function GradientCard({
       <div className="absolute top-3 right-4 opacity-30">{icon}</div>
       <div className="text-4xl font-bold">{value}</div>
       <div className="text-sm mt-1 opacity-85">{label}</div>
+      {subtitle && <div className="text-[10px] mt-1 opacity-70 truncate">{subtitle}</div>}
     </Link>
   );
 }

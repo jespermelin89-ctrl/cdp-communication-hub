@@ -25,6 +25,8 @@ export default function DashboardPage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [dailySummary, setDailySummary] = useState<any | null>(null);
   const [dailySummaryLoading, setDailySummaryLoading] = useState(false);
+  const [sortingGroups, setSortingGroups] = useState<Array<{ label: string; threadIds: string[]; action: 'archive' | 'trash'; dismissed: boolean }>>([]);
+  const [applyingGroup, setApplyingGroup] = useState<string | null>(null);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -52,6 +54,8 @@ export default function DashboardPage() {
       }
       // Load Brain Core daily summary
       fetchDailySummary();
+      // Build AI sorting suggestions
+      buildSortingGroups();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -102,6 +106,56 @@ export default function DashboardPage() {
     } finally {
       setDailySummaryLoading(false);
     }
+  }
+
+  async function buildSortingGroups() {
+    try {
+      const result = await api.getThreads({ limit: 50 });
+      const threads: any[] = result.threads || [];
+      const analyzed = threads.filter((t) => t.latestAnalysis);
+      const groups: Array<{ label: string; threadIds: string[]; action: 'archive' | 'trash'; dismissed: boolean }> = [];
+
+      const spam = analyzed.filter((t) => t.latestAnalysis.classification === 'spam');
+      if (spam.length > 0) {
+        groups.push({ label: `${spam.length} spam-mejl`, threadIds: spam.map((t) => t.id), action: 'trash', dismissed: false });
+      }
+
+      const operational = analyzed.filter((t) =>
+        t.latestAnalysis.classification === 'operational' && t.latestAnalysis.suggestedAction === 'archive_suggestion'
+      );
+      if (operational.length > 0) {
+        groups.push({ label: `${operational.length} operationella notifieringar`, threadIds: operational.map((t) => t.id), action: 'archive', dismissed: false });
+      }
+
+      const outreach = analyzed.filter((t) =>
+        t.latestAnalysis.classification === 'outreach' && t.latestAnalysis.priority !== 'high'
+      );
+      if (outreach.length > 0) {
+        groups.push({ label: `${outreach.length} outreach-mejl med låg prio`, threadIds: outreach.map((t) => t.id), action: 'archive', dismissed: false });
+      }
+
+      setSortingGroups(groups);
+    } catch {
+      // Non-critical
+    }
+  }
+
+  async function applySortingGroup(index: number) {
+    const group = sortingGroups[index];
+    if (!group) return;
+    setApplyingGroup(String(index));
+    try {
+      await api.batchThreadAction(group.threadIds, group.action);
+      setSortingGroups((prev) => prev.filter((_, i) => i !== index));
+    } catch {
+      // Non-critical
+    } finally {
+      setApplyingGroup(null);
+    }
+  }
+
+  function dismissSortingGroup(index: number) {
+    setSortingGroups((prev) => prev.map((g, i) => i === index ? { ...g, dismissed: true } : g));
   }
 
   async function handleQuickSync() {
@@ -222,6 +276,39 @@ export default function DashboardPage() {
               />
             </div>
 
+            {/* AI Sorting Suggestions */}
+            {sortingGroups.filter((g) => !g.dismissed).length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 mb-5">
+                <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Lightbulb size={13} /> AI-sorteringsförslag
+                </div>
+                <div className="space-y-2">
+                  {sortingGroups.map((group, i) => group.dismissed ? null : (
+                    <div key={i} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="text-gray-700 dark:text-gray-300 flex-1">
+                        {group.label} — föreslår <span className="font-medium">{group.action === 'archive' ? 'Arkivera' : 'Radera'}</span>
+                      </span>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={() => applySortingGroup(i)}
+                          disabled={applyingGroup === String(i)}
+                          className="px-3 py-1 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors disabled:opacity-60"
+                        >
+                          {applyingGroup === String(i) ? '...' : 'Tillämpa'}
+                        </button>
+                        <button
+                          onClick={() => dismissSortingGroup(i)}
+                          className="px-3 py-1 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 rounded-lg transition-colors"
+                        >
+                          Ignorera
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Quick Actions */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
               <QuickActionCard
@@ -314,11 +401,25 @@ export default function DashboardPage() {
               {dailySummary && (
                 <div className="space-y-4">
                   {/* Stats row */}
-                  <div className="flex gap-4 text-sm">
+                  <div className="flex gap-4 text-sm flex-wrap">
                     <span className="text-blue-600 font-medium">{dailySummary.totalNew} {t.brainCore.totalNew}</span>
                     <span className="text-amber-600 font-medium">{dailySummary.totalUnread} {t.brainCore.totalUnread}</span>
                     <span className="text-gray-400">{dailySummary.totalAutoSorted} {t.brainCore.totalAutoSorted}</span>
                   </div>
+
+                  {/* If no text content yet, prompt to regenerate */}
+                  {(!dailySummary.needsReply?.length && !dailySummary.recommendation) && (
+                    <div className="flex items-center gap-3 py-2 border-t border-gray-100 dark:border-gray-700">
+                      <p className="text-sm text-gray-400 flex-1">Detaljerad sammanfattning saknas — generera för att se vad som behöver svar.</p>
+                      <button
+                        onClick={regenerateDailySummary}
+                        disabled={dailySummaryLoading}
+                        className="text-xs font-medium text-brand-500 hover:text-brand-600 whitespace-nowrap disabled:opacity-50"
+                      >
+                        Generera nu
+                      </button>
+                    </div>
+                  )}
 
                   {/* Needs Reply */}
                   {Array.isArray(dailySummary.needsReply) && dailySummary.needsReply.length > 0 && (

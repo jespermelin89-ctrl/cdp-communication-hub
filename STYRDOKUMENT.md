@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-28 19:55:14 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-28 19:56:42 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -171,6 +171,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `/drafts`
 - `/drafts/[id]`
 - `/inbox`
+- `/notifications`
 - `/search`
 - `/settings`
 - `/settings/accounts`

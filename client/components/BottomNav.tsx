@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Inbox, FileText, Brain, Settings } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Inbox, FileText, Bell, Settings } from 'lucide-react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
+
+const LAST_SEEN_KEY = 'notifications_last_seen';
 
 interface NavItemProps {
   href: string;
@@ -44,6 +47,7 @@ function NavItem({ href, icon, label, badge, active }: NavItemProps) {
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
 
   // Fetch command-center counts — silently fails if not authenticated
   const { data: cmdData } = useSWR(
@@ -55,6 +59,31 @@ export default function BottomNav() {
       revalidateOnFocus: false,
     }
   );
+
+  // Fetch action logs to count unseen notifications
+  const { data: logsData } = useSWR(
+    'action-logs-nav',
+    () => api.getActionLogs({ limit: 50 }),
+    { refreshInterval: 120_000, shouldRetryOnError: false, revalidateOnFocus: false }
+  );
+
+  useEffect(() => {
+    if (!logsData?.logs) return;
+    const lastSeen = localStorage.getItem(LAST_SEEN_KEY);
+    if (!lastSeen) {
+      // First visit — treat all as new (cap at 9)
+      setUnreadAlerts(Math.min(logsData.logs.length, 9));
+      return;
+    }
+    const lastSeenDate = new Date(lastSeen);
+    const unseen = logsData.logs.filter((l: any) => new Date(l.createdAt) > lastSeenDate).length;
+    setUnreadAlerts(Math.min(unseen, 99));
+  }, [logsData]);
+
+  // Reset badge when notifications page is active
+  useEffect(() => {
+    if (pathname === '/notifications') setUnreadAlerts(0);
+  }, [pathname]);
 
   // Extract counts from command-center response
   const unreadCount: number = (cmdData as any)?.overview?.unread_threads ?? 0;
@@ -82,10 +111,11 @@ export default function BottomNav() {
         active={pathname === '/drafts' || pathname.startsWith('/drafts/')}
       />
       <NavItem
-        href="/settings/brain-core"
-        icon={<Brain size={20} />}
-        label="Brain"
-        active={pathname.startsWith('/settings/brain-core')}
+        href="/notifications"
+        icon={<Bell size={20} />}
+        label="Notiser"
+        badge={unreadAlerts}
+        active={pathname === '/notifications'}
       />
       <NavItem
         href="/settings"

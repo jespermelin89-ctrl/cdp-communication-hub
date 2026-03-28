@@ -1,264 +1,144 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import Link from 'next/link';
-import { PenLine, CheckCircle, Send, XCircle, Trash2, Bot, Link2, Unplug, Tag, FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
-import { useI18n } from '@/lib/i18n';
+import { Bot, Mail, CheckCircle, Archive, Brain, RefreshCw, AlertCircle } from 'lucide-react';
 
-interface ActionLog {
-  id: string;
-  actionType: string;
-  targetType: string | null;
-  targetId: string | null;
-  metadata: Record<string, any>;
-  createdAt: string;
-  user: { email: string; name: string | null };
+function EventIcon({ type }: { type: string }) {
+  if (type.includes('draft')) return <CheckCircle size={14} className="text-emerald-500" />;
+  if (type.includes('archive') || type.includes('trash')) return <Archive size={14} className="text-amber-500" />;
+  if (type.includes('analysis') || type.includes('classify')) return <Bot size={14} className="text-brand-500" />;
+  if (type.includes('override') || type.includes('learning')) return <Brain size={14} className="text-violet-500" />;
+  if (type.includes('sync')) return <RefreshCw size={14} className="text-blue-500" />;
+  if (type.includes('high_priority') || type.includes('alert')) return <AlertCircle size={14} className="text-red-500" />;
+  return <Mail size={14} className="text-gray-400" />;
 }
 
-function ActionIcon({ type, size = 18 }: { type: string; size?: number }) {
-  const p = { size, strokeWidth: 1.75 };
-  if (type === 'draft_created') return <PenLine {...p} className="text-blue-500" />;
-  if (type === 'draft_approved') return <CheckCircle {...p} className="text-emerald-500" />;
-  if (type === 'draft_sent') return <Send {...p} className="text-teal-500" />;
-  if (type === 'draft_send_failed') return <XCircle {...p} className="text-red-500" />;
-  if (type === 'draft_discarded') return <Trash2 {...p} className="text-gray-400" />;
-  if (type === 'analysis_run') return <Bot {...p} className="text-violet-500" />;
-  if (type === 'account_connected') return <Link2 {...p} className="text-brand-500" />;
-  if (type === 'account_disconnected') return <Unplug {...p} className="text-orange-500" />;
-  return <FileText {...p} className="text-gray-400" />;
+function formatEventType(type: string): string {
+  const labels: Record<string, string> = {
+    'draft_approved': 'Utkast godkänt',
+    'draft:approved': 'Utkast godkänt',
+    'thread_archived': 'Tråd arkiverad',
+    'thread_trashed': 'Tråd till papperskorgen',
+    'analysis_run': 'AI-analys körd',
+    'classification:override': 'Klassificering korrigerad',
+    'alert:high_priority': 'Högt prioriterat mejl',
+    'sync': 'Mail syncat',
+  };
+  return labels[type] || type.replace(/[_:]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-const ACTION_COLORS: Record<string, string> = {
-  draft_created: 'bg-blue-50 border-blue-200 text-blue-700',
-  draft_approved: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-  draft_sent: 'bg-teal-50 border-teal-200 text-teal-700',
-  draft_send_failed: 'bg-red-50 border-red-200 text-red-700',
-  draft_discarded: 'bg-gray-50 border-gray-200 text-gray-500',
-  analysis_run: 'bg-violet-50 border-violet-200 text-violet-700',
-  account_connected: 'bg-brand-50 border-brand-200 text-brand-700',
-  account_disconnected: 'bg-orange-50 border-orange-200 text-orange-700',
-};
-
-const ALL_ACTION_TYPES = [
-  'draft_created', 'draft_approved', 'draft_sent', 'draft_send_failed',
-  'draft_discarded', 'analysis_run', 'account_connected', 'account_disconnected',
-] as const;
-
-function relativeTime(dateStr: string, t: any): string {
+function formatRelative(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
-  const s = Math.floor(diff / 1000);
-  if (s < 60) return t.time.justNow;
-  const m = Math.floor(s / 60);
-  if (m < 60) return t.time.minutesAgo.replace('{n}', String(m));
-  const h = Math.floor(m / 60);
-  if (h < 24) return t.time.hoursAgo.replace('{n}', String(h));
-  return new Date(dateStr).toLocaleDateString();
-}
-
-function metaSummary(log: ActionLog): string | null {
-  const m = log.metadata || {};
-  if (log.actionType === 'draft_sent' && m.subject) return `"${m.subject}"`;
-  if (log.actionType === 'draft_created' && m.subject) return `"${m.subject}"`;
-  if (log.actionType === 'draft_approved' && m.subject) return `"${m.subject}"`;
-  if (log.actionType === 'draft_send_failed' && m.error) return m.error;
-  if (log.actionType === 'analysis_run' && m.classification) return m.classification;
-  if (log.actionType === 'account_connected' && m.email) return m.email;
-  if (log.actionType === 'account_disconnected' && m.email) return m.email;
-  return null;
-}
-
-function targetLink(log: ActionLog, t: any): { href: string; label: string } | null {
-  if (!log.targetId) return null;
-  if (log.targetType === 'draft') return { href: `/drafts/${log.targetId}`, label: t.activity.openDraft };
-  if (log.targetType === 'thread') return { href: `/threads/${log.targetId}`, label: t.activity.openThread };
-  return null;
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'nyss';
+  if (mins < 60) return `${mins}m sedan`;
+  if (hours < 24) return `${hours}h sedan`;
+  if (days === 1) return 'igår';
+  return new Date(dateStr).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
 }
 
 export default function ActivityPage() {
-  const { t } = useI18n();
-  const [logs, setLogs] = useState<ActionLog[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [filter, setFilter] = useState<string>('');
+  const [hasMore, setHasMore] = useState(true);
 
-  const LIMIT = 30;
+  useEffect(() => {
+    loadLogs(1);
+  }, []);
 
-  const loadLogs = useCallback(async () => {
+  async function loadLogs(p: number) {
     try {
-      setLoading(true);
-      const result = await api.getActionLogs({
-        page,
-        limit: LIMIT,
-        ...(filter ? { action_type: filter } : {}),
-      });
-      setLogs(result.logs as ActionLog[]);
-      setTotalPages(result.pagination.totalPages);
-      setTotal(result.pagination.total);
+      const res = await api.getActionLogs({ page: p, limit: 30 });
+      const newLogs = res.logs ?? [];
+      setLogs(prev => p === 1 ? newLogs : [...prev, ...newLogs]);
+      setHasMore(newLogs.length === 30);
+      setPage(p);
     } catch (err) {
-      console.error('Failed to load logs:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [page, filter]);
-
-  useEffect(() => {
-    loadLogs();
-  }, [loadLogs]);
-
-  // Reset to page 1 on filter change
-  function handleFilter(type: string) {
-    setFilter(type);
-    setPage(1);
   }
 
-  const actionLabel = (type: string): string => {
-    return (t.activity.actionTypes as Record<string, string>)[type] || type;
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 sm:pb-0">
       <TopBar />
-
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.activity.title}</h1>
-          <p className="text-sm text-gray-400 mt-1">{t.activity.subtitle}</p>
-        </div>
-
-        {/* Stats row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-          {(['draft_sent', 'draft_approved', 'analysis_run', 'draft_send_failed'] as const).map((type) => {
-            const count = logs.filter((l) => l.actionType === type).length;
-            return (
-              <button
-                key={type}
-                onClick={() => handleFilter(filter === type ? '' : type)}
-                className={`rounded-2xl border px-4 py-3 text-left transition-all ${
-                  filter === type
-                    ? ACTION_COLORS[type] + ' shadow-sm'
-                    : 'bg-white border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="mb-1"><ActionIcon type={type} size={22} /></div>
-                <div className="text-lg font-bold text-gray-900">{count}</div>
-                <div className="text-xs text-gray-500 leading-tight">{actionLabel(type)}</div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Filter pills */}
-        <div className="flex items-center gap-2 flex-wrap mb-5">
-          <span className="text-xs text-gray-400 font-medium">{t.activity.filterLabel}:</span>
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Aktivitetslogg</h1>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Alla åtgärder av dig och AI</p>
+          </div>
           <button
-            onClick={() => handleFilter('')}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filter === '' ? 'bg-brand-500 text-white border-brand-500' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-            }`}
+            onClick={() => { setLoading(true); loadLogs(1); }}
+            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-colors"
           >
-            {t.activity.all}
+            <RefreshCw size={16} />
           </button>
-          {ALL_ACTION_TYPES.map((type) => (
-            <button
-              key={type}
-              onClick={() => handleFilter(filter === type ? '' : type)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                filter === type
-                  ? 'bg-brand-500 text-white border-brand-500'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <ActionIcon type={type} size={12} /> {actionLabel(type)}
-            </button>
-          ))}
         </div>
 
-        {/* Log list */}
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-              <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
-              <span className="text-sm">{t.activity.loading}</span>
-            </div>
+        {loading && page === 1 ? (
+          <div className="flex justify-center py-20">
+            <div className="w-6 h-6 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
           </div>
         ) : logs.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-dashed border-gray-300 text-center py-16">
-            <div className="flex justify-center mb-3"><FileText size={40} strokeWidth={1.5} className="text-gray-300" /></div>
-            <p className="text-gray-400 text-sm">{t.activity.noLogs}</p>
+          <div className="text-center py-16 text-gray-400 dark:text-gray-500">
+            <Brain size={40} className="mx-auto mb-3 opacity-30" />
+            <p>Ingen aktivitet loggad ännu</p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {logs.map((log) => {
-              const meta = metaSummary(log);
-              const link = targetLink(log, t);
-              const colorClass = ACTION_COLORS[log.actionType] || 'bg-gray-50 border-gray-200 text-gray-600';
+          <div className="relative">
+            {/* Timeline line */}
+            <div className="absolute left-5 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700" />
 
-              return (
-                <div
-                  key={log.id}
-                  className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm px-5 py-3.5 flex items-center gap-4"
-                >
-                  {/* Icon */}
-                  <span className="shrink-0 w-8 flex justify-center">
-                    <ActionIcon type={log.actionType} size={18} />
-                  </span>
-
+            <div className="space-y-1">
+              {logs.map((log, i) => (
+                <div key={log.id ?? i} className="relative flex items-start gap-4 pl-12 py-3">
+                  {/* Icon bubble */}
+                  <div className="absolute left-3 top-3.5 w-5 h-5 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-full flex items-center justify-center">
+                    <EventIcon type={log.actionType ?? log.eventType ?? ''} />
+                  </div>
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${colorClass}`}>
-                        {actionLabel(log.actionType)}
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-sm text-gray-800 dark:text-gray-200 font-medium">
+                        {formatEventType(log.actionType ?? log.eventType ?? '')}
                       </span>
-                      {meta && (
-                        <span className="text-sm text-gray-700 truncate">{meta}</span>
-                      )}
+                      <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                        {formatRelative(log.createdAt)}
+                      </span>
                     </div>
-                    {link && (
-                      <Link
-                        href={link.href}
-                        className="text-xs text-brand-600 hover:text-brand-700 mt-0.5 inline-block"
-                      >
-                        {link.label} →
-                      </Link>
+                    {log.resourceId && (
+                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">
+                        {log.resourceType}: {log.resourceId.slice(0, 12)}…
+                      </div>
+                    )}
+                    {log.metadata && Object.keys(log.metadata).length > 0 && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-mono bg-gray-50 dark:bg-gray-700/50 rounded-lg px-2.5 py-1.5 border border-gray-100 dark:border-gray-700 line-clamp-2">
+                        {JSON.stringify(log.metadata).slice(0, 120)}
+                      </div>
                     )}
                   </div>
-
-                  {/* Timestamp */}
-                  <div className="shrink-0 text-right">
-                    <div className="text-xs text-gray-400">{relativeTime(log.createdAt, t)}</div>
-                    <div className="text-xs text-gray-300">{new Date(log.createdAt).toLocaleTimeString()}</div>
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-3 mt-6">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="btn-secondary text-sm disabled:opacity-40"
-            >
-              ←
-            </button>
-            <span className="text-sm text-gray-500">
-              {t.activity.page} {page} {t.activity.of} {totalPages}
-            </span>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="btn-secondary text-sm disabled:opacity-40"
-            >
-              →
-            </button>
+            {hasMore && (
+              <div className="flex justify-center mt-6">
+                <button
+                  onClick={() => loadLogs(page + 1)}
+                  disabled={loading}
+                  className="btn-secondary text-sm"
+                >
+                  {loading ? '…' : 'Ladda fler'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </main>

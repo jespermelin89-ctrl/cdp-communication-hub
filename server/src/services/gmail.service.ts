@@ -318,6 +318,30 @@ export class GmailService {
   }
 
   /**
+   * Mark a Gmail thread as read (remove UNREAD label).
+   */
+  async markAsRead(accountId: string, gmailThreadId: string): Promise<void> {
+    const gmail = await this.getClient(accountId);
+    await gmail.users.threads.modify({
+      userId: 'me',
+      id: gmailThreadId,
+      requestBody: { removeLabelIds: ['UNREAD'] },
+    });
+  }
+
+  /**
+   * Mark a Gmail thread as unread (add UNREAD label).
+   */
+  async markAsUnread(accountId: string, gmailThreadId: string): Promise<void> {
+    const gmail = await this.getClient(accountId);
+    await gmail.users.threads.modify({
+      userId: 'me',
+      id: gmailThreadId,
+      requestBody: { addLabelIds: ['UNREAD'] },
+    });
+  }
+
+  /**
    * Move a Gmail thread to Trash.
    * SAFETY: Uses threads.trash — reversible within 30 days.
    * NEVER calls threads.delete (permanent — forbidden).

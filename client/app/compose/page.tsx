@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { Send, Save, Wand2, X, ChevronDown, PenLine, Loader2 } from 'lucide-react';
+import VoiceButton from '@/components/VoiceButton';
+import { Send, Save, Wand2, X, ChevronDown, PenLine, Loader2, CornerDownLeft } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
@@ -16,8 +17,14 @@ const isDev = process.env.NODE_ENV === 'development';
 
 export default function ComposePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const replyThreadId = searchParams.get('reply');
   const { t } = useI18n();
   const toInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Reply context ─────────────────────────────────────────────────────────
+  const [replySubject, setReplySubject] = useState<string | null>(null);
+  const [replyLoading, setReplyLoading] = useState(false);
 
   // ── Form state ────────────────────────────────────────────────────────────
   const [selectedAccountId, setSelectedAccountId] = useState('');
@@ -66,6 +73,52 @@ export default function ComposePage() {
       setSelectedMode(writingModes[0].name ?? '');
     }
   }, [writingModes, selectedMode]);
+
+  // ── Reply pre-fill — load thread data when ?reply=<id> ────────────────────
+  useEffect(() => {
+    if (!replyThreadId) return;
+    let cancelled = false;
+    setReplyLoading(true);
+    api.getThread(replyThreadId)
+      .then((res) => {
+        if (cancelled) return;
+        const thread = res.thread as any;
+        // Pre-fill subject with "Re: ..." prefix
+        const originalSubject = thread.subject ?? '';
+        const reSubject = originalSubject.toLowerCase().startsWith('re:')
+          ? originalSubject
+          : `Re: ${originalSubject}`;
+        setSubject(reSubject);
+        setReplySubject(originalSubject);
+
+        // Pre-fill To with external participants (not own accounts)
+        const ownEmails = accounts.map((a: Account) => a.emailAddress.toLowerCase());
+        const participants: string[] = (thread.participantEmails ?? []).filter(
+          (e: string) => !ownEmails.includes(e.toLowerCase())
+        );
+        // Fall back to latest message sender
+        const latestSender: string | undefined = thread.messages?.[thread.messages.length - 1]?.fromAddress;
+        const recipients = participants.length > 0
+          ? participants.slice(0, 3)
+          : latestSender ? [latestSender] : [];
+        if (recipients.length > 0) setToAddresses(recipients);
+
+        // Auto-select the account that received the email
+        if (thread.account?.id) setSelectedAccountId(thread.account.id);
+
+        // Append quoted original snippet to body
+        const snippet = thread.snippet ?? thread.messages?.[thread.messages.length - 1]?.bodyText?.slice(0, 300) ?? '';
+        if (snippet) {
+          setBody(`\n\n---\n> ${snippet.replace(/\n/g, '\n> ')}`);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Kunde inte hämta tråd för svar');
+      })
+      .finally(() => { if (!cancelled) setReplyLoading(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [replyThreadId]);
 
   // ── Contact filtering ─────────────────────────────────────────────────────
   const filteredContacts = contactQuery.length >= 1
@@ -199,10 +252,22 @@ export default function ComposePage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-              <PenLine size={22} className="text-brand-500" />
-              Nytt meddelande
+              {replyThreadId ? (
+                <CornerDownLeft size={22} className="text-brand-500" />
+              ) : (
+                <PenLine size={22} className="text-brand-500" />
+              )}
+              {replyLoading ? 'Laddar svar…' : replyThreadId ? 'Svara' : 'Nytt meddelande'}
             </h1>
-            <p className="text-sm text-gray-400 mt-0.5">⌘↩ skicka · ⌘S spara · Esc tillbaka</p>
+            {replySubject && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+                <CornerDownLeft size={13} className="shrink-0 text-brand-400" />
+                Svarar på: <span className="font-medium truncate max-w-[300px]">{replySubject}</span>
+              </p>
+            )}
+            {!replySubject && (
+              <p className="text-sm text-gray-400 mt-0.5">⌘↩ skicka · ⌘S spara · Esc tillbaka</p>
+            )}
           </div>
           <button onClick={() => router.back()} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             <X size={20} />
@@ -400,13 +465,22 @@ export default function ComposePage() {
           )}
 
           {/* Body */}
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Skriv ditt meddelande här…"
-            rows={14}
-            className="w-full px-5 py-4 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none outline-none leading-relaxed"
-          />
+          <div className="relative">
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Skriv ditt meddelande här…"
+              rows={14}
+              className="w-full px-5 py-4 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none outline-none leading-relaxed pr-12"
+            />
+            {/* Voice dictation button — appends transcript to body */}
+            <div className="absolute bottom-3 right-3">
+              <VoiceButton
+                onTranscript={(text) => setBody((prev) => prev + (prev.endsWith(' ') || prev === '' ? '' : ' ') + text)}
+                lang="sv-SE"
+              />
+            </div>
+          </div>
 
           {/* Footer actions */}
           <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">

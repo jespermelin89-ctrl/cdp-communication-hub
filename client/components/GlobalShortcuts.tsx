@@ -19,6 +19,7 @@ export default function GlobalShortcuts() {
     'cmd+shift+d': () => router.push('/drafts'),
     'cmd+shift+b': () => router.push('/settings/brain-core'),
     '/': () => router.push('/search'),
+    '?': () => window.dispatchEvent(new CustomEvent('cdp:shortcuts-help')),
   });
 
   return null;

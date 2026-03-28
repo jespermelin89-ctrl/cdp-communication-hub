@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send, CornerDownLeft, MailX } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -53,6 +53,7 @@ export default function ThreadDetailPage() {
   const thread = threadData?.thread ?? null;
 
   const [analyzing, setAnalyzing] = useState(false);
+  const [markingUnread, setMarkingUnread] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [draftInstruction, setDraftInstruction] = useState('');
   const [syncingMessages, setSyncingMessages] = useState(false);
@@ -146,6 +147,19 @@ export default function ThreadDetailPage() {
     } catch (err: any) {
       setError(`Arkivering misslyckades: ${err.message}`);
       setArchiving(false);
+    }
+  }
+
+  async function handleMarkUnread() {
+    setMarkingUnread(true);
+    try {
+      await api.markThreadAsUnread(threadId);
+      toast.success('Markerad som oläst');
+      router.push('/inbox');
+    } catch {
+      toast.error('Kunde inte markera som oläst');
+    } finally {
+      setMarkingUnread(false);
     }
   }
 
@@ -300,7 +314,15 @@ export default function ThreadDetailPage() {
             </div>
           </div>
           {/* Header actions */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            {/* Reply — full compose with context */}
+            <button
+              onClick={() => router.push(`/compose?reply=${threadId}`)}
+              className="btn-primary text-sm flex items-center gap-1.5"
+            >
+              <CornerDownLeft size={14} />
+              Svara
+            </button>
             <button
               onClick={handleAnalyze}
               disabled={analyzing}
@@ -316,6 +338,16 @@ export default function ThreadDetailPage() {
             >
               {archiving ? <span className="w-3.5 h-3.5 border border-gray-400 border-t-brand-500 rounded-full animate-spin" /> : <Archive size={14} />}
               Arkivera
+            </button>
+            {/* Mark as unread — goes back to inbox with thread showing as unread */}
+            <button
+              onClick={handleMarkUnread}
+              disabled={markingUnread}
+              title="Markera som oläst"
+              className="btn-secondary text-sm flex items-center gap-1.5"
+            >
+              {markingUnread ? <span className="w-3.5 h-3.5 border border-gray-400 border-t-brand-500 rounded-full animate-spin" /> : <MailX size={14} />}
+              Oläst
             </button>
             <button
               onClick={handleTrash}

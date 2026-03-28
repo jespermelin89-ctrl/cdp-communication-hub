@@ -9,15 +9,17 @@ import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
 import SwipeableThread from '@/components/SwipeableThread';
-import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon } from 'lucide-react';
+import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon, WifiOff } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import PullToRefresh from '@/components/PullToRefresh';
 import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { useChatContext } from '@/lib/chat-context';
 import { useNotifications } from '@/lib/use-notifications';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { EmailThread, Account } from '@/lib/types';
 
@@ -89,6 +91,7 @@ export default function InboxPage() {
   const { t } = useI18n();
   const { setSelectedThreadIds } = useChatContext();
   const { notifyNewHighPriority } = useNotifications();
+  const { online } = useNetworkStatus();
 
   // Debounce search input — only fire SWR after 400ms idle
   useEffect(() => {
@@ -331,6 +334,14 @@ export default function InboxPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
 
+      {/* Offline banner */}
+      {!online && (
+        <div className="bg-amber-500 text-white text-sm font-medium px-4 py-2 flex items-center justify-center gap-2">
+          <WifiOff size={14} />
+          Du är offline — inkorgen kan vara inaktuell
+        </div>
+      )}
+
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -515,6 +526,7 @@ export default function InboxPage() {
         )}
 
         {/* Thread List */}
+        <PullToRefresh onRefresh={async () => { await mutateThreads(); }}>
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="flex flex-col items-center gap-3 text-gray-400">
@@ -792,6 +804,7 @@ export default function InboxPage() {
             )}
           </>
         )}
+        </PullToRefresh>
       </main>
 
       {/* Sticky batch action bar */}

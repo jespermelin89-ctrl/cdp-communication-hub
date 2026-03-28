@@ -205,6 +205,54 @@ export async function threadRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /threads/:id/read — Mark thread as read in DB and Gmail.
+   */
+  fastify.post('/threads/:id/read', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    if (thread.account.provider === 'gmail' && thread.gmailThreadId) {
+      try {
+        await gmailService.markAsRead(thread.account.id, thread.gmailThreadId);
+      } catch {
+        // Non-fatal — DB update still proceeds if Gmail call fails
+      }
+    }
+
+    await prisma.emailThread.update({ where: { id }, data: { isRead: true } });
+    return { message: 'Thread marked as read.' };
+  });
+
+  /**
+   * POST /threads/:id/unread — Mark thread as unread (add UNREAD label).
+   */
+  fastify.post('/threads/:id/unread', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    if (thread.account.provider === 'gmail' && thread.gmailThreadId) {
+      try {
+        await gmailService.markAsUnread(thread.account.id, thread.gmailThreadId);
+      } catch {
+        // Non-fatal — DB update still proceeds
+      }
+    }
+
+    await prisma.emailThread.update({ where: { id }, data: { isRead: false } });
+    return { message: 'Thread marked as unread.' };
+  });
+
+  /**
    * POST /threads/:id/archive — Remove thread from inbox (remove INBOX label).
    * SAFETY: Non-destructive. Thread remains in All Mail and can be restored.
    */

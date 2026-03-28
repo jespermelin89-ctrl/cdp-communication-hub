@@ -15,6 +15,7 @@ const BottomNav = dynamic(() => import('@/components/BottomNav'), { ssr: false }
 const OnboardingWizard = dynamic(() => import('@/components/OnboardingWizard'), { ssr: false });
 const HighPriorityAlert = dynamic(() => import('@/components/HighPriorityAlert'), { ssr: false });
 const GlobalShortcuts = dynamic(() => import('@/components/GlobalShortcuts'), { ssr: false });
+const ShortcutsHelpModal = dynamic(() => import('@/components/ShortcutsHelpModal'), { ssr: false });
 
 export const metadata: Metadata = {
   title: 'CDP Communication Hub',
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <OnboardingWizard />
               <HighPriorityAlert />
               <GlobalShortcuts />
+              <ShortcutsHelpModal />
             </ChatProvider>
           </I18nProvider>
         </ThemeProvider>

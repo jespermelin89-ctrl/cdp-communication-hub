@@ -267,6 +267,10 @@ class ApiClient {
     return this.request('POST', `/threads/${threadId}/read`);
   }
 
+  async markThreadAsUnread(threadId: string) {
+    return this.request('POST', `/threads/${threadId}/unread`);
+  }
+
   async batchThreadAction(threadIds: string[], action: 'archive' | 'trash') {
     return this.request('POST', '/threads/batch', { threadIds, action });
   }

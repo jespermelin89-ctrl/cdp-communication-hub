@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -59,6 +59,8 @@ export default function ThreadDetailPage() {
   const [archiving, setArchiving] = useState(false);
   const [trashConfirmOpen, setTrashConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quickReply, setQuickReply] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
   const [contact, setContact] = useState<any>(null);
 
   // Writing modes for draft generation
@@ -181,6 +183,26 @@ export default function ThreadDetailPage() {
       toast.error('Kunde inte skapa utkast');
     } finally {
       setGeneratingDraft(false);
+    }
+  }
+
+  async function handleQuickReply() {
+    if (!quickReply.trim() || !thread) return;
+    setSendingReply(true);
+    try {
+      const modePrefix = selectedMode ? `[Skrivsätt: ${selectedMode}] ` : '';
+      const result = await api.generateDraft({
+        account_id: thread.account.id!,
+        thread_id: threadId,
+        instruction: `${modePrefix}Svara kort: ${quickReply}`,
+      });
+      setQuickReply('');
+      toast.success('Utkast skapat — granska innan du skickar');
+      router.push(`/drafts/${result.draft.id}`);
+    } catch {
+      toast.error('Kunde inte skapa svar');
+    } finally {
+      setSendingReply(false);
     }
   }
 
@@ -345,6 +367,39 @@ export default function ThreadDetailPage() {
                 </button>
               </div>
             )}
+
+            {/* Quick inline reply */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Send size={14} className="text-gray-400" />
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Snabbsvar</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={quickReply}
+                  onChange={(e) => setQuickReply(e.target.value)}
+                  placeholder="Skriv ett snabbt svar..."
+                  className="flex-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && quickReply.trim()) {
+                      e.preventDefault();
+                      handleQuickReply();
+                    }
+                  }}
+                />
+                <button
+                  onClick={handleQuickReply}
+                  disabled={!quickReply.trim() || sendingReply}
+                  className="btn-primary text-sm px-4 shrink-0"
+                >
+                  {sendingReply ? '...' : 'Skicka'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
+                Skapar ett utkast — du granskar och godkänner innan det skickas
+              </p>
+            </div>
 
             {/* Generate Reply Draft */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-brand-200 dark:border-brand-800 shadow-sm p-5">

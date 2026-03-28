@@ -9,6 +9,7 @@ import { prisma } from '../config/database';
 import { aiService } from '../services/ai.service';
 import { draftService } from '../services/draft.service';
 import { actionLogService } from '../services/action-log.service';
+import { brainCoreService } from '../services/brain-core.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import {
   AnalyzeThreadRequestSchema,
@@ -52,18 +53,38 @@ export async function aiRoutes(fastify: FastifyInstance) {
       });
     }
 
+    // Fetch learning context (silent — non-blocking)
+    let learningContext: string | undefined;
+    try {
+      const sender = thread.participantEmails[0];
+      const events = await brainCoreService.getRelevantLearning(request.userId!, { sender });
+      if (events.length > 0) {
+        learningContext =
+          'Historik — så har användaren hanterat liknande mail tidigare:\n' +
+          events
+            .slice(0, 5)
+            .map((e) => `- ${e.eventType}: ${JSON.stringify(e.data).substring(0, 200)}`)
+            .join('\n');
+      }
+    } catch {
+      // learning context is non-critical — continue without it
+    }
+
     // Run AI analysis
     let analysis;
     try {
-      analysis = await aiService.analyzeThread({
-        subject: thread.subject || '(No Subject)',
-        messages: thread.messages.map((m) => ({
-          from: m.fromAddress,
-          to: m.toAddresses,
-          body: m.bodyText || '(No text content)',
-          date: m.receivedAt.toISOString(),
-        })),
-      });
+      analysis = await aiService.analyzeThread(
+        {
+          subject: thread.subject || '(No Subject)',
+          messages: thread.messages.map((m) => ({
+            from: m.fromAddress,
+            to: m.toAddresses,
+            body: m.bodyText || '(No text content)',
+            date: m.receivedAt.toISOString(),
+          })),
+        },
+        learningContext
+      );
     } catch (aiErr: any) {
       request.log.error(aiErr, 'AI analysis failed');
       return reply.code(503).send({
@@ -173,12 +194,31 @@ export async function aiRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Fetch draft learning context (voice/style preferences from past approvals)
+    let draftLearningContext: string | undefined;
+    try {
+      const draftEvents = await brainCoreService.getRelevantLearning(request.userId!, {
+        eventType: 'draft:approved',
+      });
+      if (draftEvents.length > 0) {
+        draftLearningContext =
+          'Skrivstilar som användaren har godkänt tidigare:\n' +
+          draftEvents
+            .slice(0, 5)
+            .map((e) => `- ${JSON.stringify(e.data).substring(0, 200)}`)
+            .join('\n');
+      }
+    } catch {
+      // non-critical
+    }
+
     // Generate draft text via AI
     let draftText: string;
     try {
       draftText = await aiService.generateDraft({
         instruction,
         threadContext,
+        learningContext: draftLearningContext,
       });
     } catch (aiErr: any) {
       request.log.error(aiErr, 'AI draft generation failed');

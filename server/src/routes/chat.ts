@@ -12,6 +12,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { chatCommandService } from '../services/chat-command.service';
 import { categoryService } from '../services/category.service';
+import { brainCoreService } from '../services/brain-core.service';
 import { env } from '../config/env';
 import { prisma } from '../config/database';
 
@@ -56,41 +57,48 @@ export default async function chatRoutes(app: FastifyInstance) {
   app.post('/chat/command', async (req, reply) => {
     const { command, params } = req.body as { command: CommandType; params?: any };
 
+    let result: any;
     try {
       switch (command) {
         case 'inbox_summary':
-          return chatCommandService.getInboxSummary(req.userId!);
+          result = await chatCommandService.getInboxSummary(req.userId!);
+          break;
 
         case 'mark_spam':
           if (!params?.sender_pattern) throw new Error('sender_pattern required');
-          return chatCommandService.markAsSpam(
+          result = await chatCommandService.markAsSpam(
             req.userId!,
             params.sender_pattern,
             params.subject_pattern
           );
+          break;
 
         case 'categorize':
           if (!params?.sender_pattern || !params?.category_slug)
             throw new Error('sender_pattern and category_slug required');
-          return chatCommandService.categorizeSender(
+          result = await chatCommandService.categorizeSender(
             req.userId!,
             params.sender_pattern,
             params.category_slug
           );
+          break;
 
         case 'list_rules':
-          return chatCommandService.listRules(req.userId!);
+          result = await chatCommandService.listRules(req.userId!);
+          break;
 
         case 'list_categories':
-          return chatCommandService.getCategories(req.userId!);
+          result = await chatCommandService.getCategories(req.userId!);
+          break;
 
         case 'filter_threads':
-          return chatCommandService.getFilteredThreads(req.userId!, {
+          result = await chatCommandService.getFilteredThreads(req.userId!, {
             category: params?.category,
             priority: params?.priority,
             unreadOnly: params?.unread_only,
             limit: params?.limit,
           });
+          break;
 
         case 'create_category': {
           if (!params?.name) throw new Error('name required');
@@ -100,27 +108,23 @@ export default async function chatRoutes(app: FastifyInstance) {
             icon: params.icon,
             description: params.description,
           });
-          return {
+          result = {
             type: 'action_done',
             message: `Kategori "${params.name}" skapad!`,
             data: cat,
           };
+          break;
         }
 
         case 'remove_rule': {
           if (!params?.rule_id) throw new Error('rule_id required');
           await categoryService.deleteRule(params.rule_id);
-          return {
-            type: 'action_done',
-            message: 'Regel borttagen.',
-          };
+          result = { type: 'action_done', message: 'Regel borttagen.' };
+          break;
         }
 
         default:
-          return {
-            type: 'error',
-            message: `Okänt kommando: ${command}`,
-          };
+          return reply.send({ type: 'error', message: `Okänt kommando: ${command}` });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Okänt fel';
@@ -129,6 +133,16 @@ export default async function chatRoutes(app: FastifyInstance) {
         : message;
       return reply.status(500).send({ type: 'error', message: safeMessage });
     }
+
+    // Record learning event — fire-and-forget, non-critical
+    brainCoreService.recordLearning(
+      req.userId!,
+      `command:${command}`,
+      { command, params: params || {}, timestamp: new Date().toISOString() },
+      'chat_widget'
+    ).catch(() => {});
+
+    return result;
   });
 
   /**

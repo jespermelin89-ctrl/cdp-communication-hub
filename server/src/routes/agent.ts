@@ -25,7 +25,7 @@ import { draftService } from '../services/draft.service';
 import { brainCoreService } from '../services/brain-core.service';
 import { env } from '../config/env';
 
-const ALLOWED_ACTIONS = ['briefing', 'classify', 'draft', 'search', 'brain-status'] as const;
+const ALLOWED_ACTIONS = ['briefing', 'classify', 'draft', 'search', 'brain-status', 'learn'] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
 /** Reject request if X-API-Key header does not match COMMAND_API_KEY */
@@ -332,6 +332,25 @@ export default async function agentRoutes(app: FastifyInstance) {
                 };
               }),
             },
+          };
+        }
+
+        // ── LEARN ─────────────────────────────────────────────────────────────
+        case 'learn': {
+          if (!params.event_type) {
+            return reply.code(400).send({ success: false, error: 'params.event_type krävs.' });
+          }
+          const event = await brainCoreService.recordLearning(
+            userId,
+            params.event_type,
+            params.data || {},
+            params.source_type || 'amanda_agent',
+            params.source_id
+          );
+          return {
+            success: true,
+            action,
+            data: { event_id: event.id, event_type: event.eventType },
           };
         }
 

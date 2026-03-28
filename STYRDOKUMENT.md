@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-28 09:51:48 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-28 10:39:13 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -172,6 +172,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `/settings`
 - `/settings/accounts`
 - `/settings/brain-core`
+- `/setup-siri`
 - `/threads/[id]`
 
 ---

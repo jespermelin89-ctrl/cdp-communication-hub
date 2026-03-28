@@ -217,6 +217,37 @@ export class BrainCoreService {
   }
 
   /**
+   * Get relevant learning events for a user, optionally filtered by sender or event type.
+   * Used to inject historical context into AI prompts.
+   */
+  async getRelevantLearning(
+    userId: string,
+    context: {
+      sender?: string;
+      eventType?: string;
+    } = {}
+  ) {
+    const where: any = { userId };
+    if (context.eventType) where.eventType = context.eventType;
+
+    const events = await prisma.learningEvent.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    // Narrow to sender-specific events if available
+    if (context.sender && events.length > 0) {
+      const senderEvents = events.filter((e) =>
+        JSON.stringify(e.data).includes(context.sender!)
+      );
+      if (senderEvents.length > 0) return senderEvents;
+    }
+
+    return events;
+  }
+
+  /**
    * Get learning event stats for a user.
    */
   async getLearningStats(userId: string) {

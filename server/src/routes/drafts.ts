@@ -7,6 +7,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { draftService } from '../services/draft.service';
+import { brainCoreService } from '../services/brain-core.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { CreateDraftSchema, UpdateDraftSchema, DraftQuerySchema } from '../utils/validators';
 
@@ -83,6 +84,25 @@ export async function draftRoutes(fastify: FastifyInstance) {
 
     try {
       const draft = await draftService.approve(id, request.userId);
+
+      // Record learning event — non-critical, fire-and-forget
+      brainCoreService.recordLearning(
+        request.userId!,
+        'draft:approved',
+        {
+          draft_id: draft.id,
+          thread_id: draft.threadId ?? null,
+          to_addresses: draft.toAddresses,
+          subject: draft.subject,
+          word_count: draft.bodyText
+            ? draft.bodyText.trim().split(/\s+/).filter(Boolean).length
+            : 0,
+          char_count: draft.bodyText?.length ?? 0,
+        },
+        'draft_approve',
+        draft.id
+      ).catch(() => {});
+
       return { draft, message: 'Draft approved. You can now send it.' };
     } catch (error: any) {
       const code = error.message.includes('not found') ? 404 : 400;

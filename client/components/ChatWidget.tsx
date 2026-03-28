@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { MessageCircle, X, Send, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useChatContext } from '@/lib/chat-context';
+import VoiceButton from './VoiceButton';
 
 interface ChatMessage {
   id: string;
@@ -35,6 +36,62 @@ export default function ChatWidget() {
       content: t.chat.welcome,
       timestamp: new Date(),
     }]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle URL params: ?voice=1 opens chat + starts mic, ?cmd=<action> auto-sends a command
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+
+    const cmd = params.get('cmd');
+    if (cmd) {
+      setIsOpen(true);
+      const commandMap: Record<string, string> = {
+        briefing: 'Ge mig en mail briefing',
+        reply: 'Visa mail som behöver svar',
+        compose: 'Jag vill skriva ett nytt mail',
+      };
+      const message = commandMap[cmd];
+      if (message) {
+        // Short delay so welcome message renders first
+        setTimeout(() => {
+          setInput(message);
+          // Use a ref-based send to avoid stale closure
+          setTimeout(() => {
+            setInput('');
+            const userMsg: ChatMessage = {
+              id: `u-${Date.now()}`,
+              role: 'user',
+              content: message,
+              timestamp: new Date(),
+            };
+            setMessages((prev) => [...prev, userMsg]);
+            setLoading(true);
+            api.chatAsk(message).then((result) => {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: `a-${Date.now()}`,
+                  role: 'assistant',
+                  content: result.message,
+                  type: result.type,
+                  data: result.data,
+                  timestamp: new Date(),
+                },
+              ]);
+            }).catch(() => {}).finally(() => setLoading(false));
+          }, 100);
+        }, 600);
+      }
+    }
+
+    if (params.get('voice') === '1') {
+      setIsOpen(true);
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('cdp:start-voice'));
+      }, 800);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -93,6 +150,11 @@ export default function ChatWidget() {
       setLoading(false);
     }
   }
+
+  const handleVoiceTranscript = useCallback((text: string) => {
+    setInput((prev) => (prev ? `${prev} ${text}` : text));
+    inputRef.current?.focus();
+  }, []);
 
   function resetChat() {
     setMessages([{
@@ -286,8 +348,8 @@ export default function ChatWidget() {
           </div>
 
           {/* Input */}
-          <div className="p-3 border-t border-gray-100">
-            <div className="flex gap-2">
+          <div className="p-3 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex gap-2 items-center">
               <input
                 ref={inputRef}
                 type="text"
@@ -296,17 +358,19 @@ export default function ChatWidget() {
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                 placeholder={t.chat.placeholder}
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none disabled:opacity-50"
               />
-              <button
-                onClick={handleSend}
-                disabled={loading || !input.trim()}
-                className="px-4 py-2.5 bg-brand-500 text-white rounded-xl font-medium text-sm hover:bg-brand-600 disabled:opacity-50 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <VoiceButton onTranscript={handleVoiceTranscript} disabled={loading} />
+                <button
+                  onClick={handleSend}
+                  disabled={loading || !input.trim()}
+                  className="p-2.5 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 transition-colors"
+                  title="Skicka"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

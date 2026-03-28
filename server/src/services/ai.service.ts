@@ -165,12 +165,17 @@ export class AIService {
   /**
    * Analyze an email thread. Returns structured analysis.
    * Limits to 10 most recent messages; truncates bodies to 2 000 chars each.
+   * Optionally accepts learningContext (pre-formatted string) to inject into the system prompt.
    */
-  async analyzeThread(threadData: ThreadData): Promise<AIAnalysisOutput> {
+  async analyzeThread(threadData: ThreadData, learningContext?: string): Promise<AIAnalysisOutput> {
     const recentMessages = threadData.messages.slice(-10).map((m) => ({
       ...m,
       body: this.truncateContent(m.body, 2000),
     }));
+
+    const systemPrompt = learningContext
+      ? ANALYSIS_SYSTEM_PROMPT + '\n\n' + learningContext
+      : ANALYSIS_SYSTEM_PROMPT;
 
     const userMessage = `Analyze this email thread:
 
@@ -189,7 +194,7 @@ ${m.body}
   )
   .join('\n')}`;
 
-    const response = await this.chat(ANALYSIS_SYSTEM_PROMPT, userMessage);
+    const response = await this.chat(systemPrompt, userMessage);
 
     // Parse and validate with Zod
     let parsed: any;
@@ -208,7 +213,7 @@ ${m.body}
 Please try again with EXACTLY this format:
 ${userMessage}`;
 
-      const retryResponse = await this.chat(ANALYSIS_SYSTEM_PROMPT, retryMessage);
+      const retryResponse = await this.chat(systemPrompt, retryMessage);
       const retryCleaned = cleanJsonResponse(retryResponse);
       const retryParsed = JSON.parse(retryCleaned);
       const retryValidated = AIAnalysisSchema.parse(retryParsed); // Throws if invalid
@@ -225,6 +230,7 @@ ${userMessage}`;
   async generateDraft(options: {
     instruction: string;
     threadContext?: ThreadData;
+    learningContext?: string;
   }): Promise<string> {
     let userMessage = `Write an email based on this instruction: "${options.instruction}"`;
 
@@ -248,7 +254,11 @@ ${m.body}
   .join('\n')}`;
     }
 
-    return this.chat(DRAFT_SYSTEM_PROMPT, userMessage);
+    const draftSystemPrompt = options.learningContext
+      ? DRAFT_SYSTEM_PROMPT + '\n\n' + options.learningContext
+      : DRAFT_SYSTEM_PROMPT;
+
+    return this.chat(draftSystemPrompt, userMessage);
   }
 
   /**

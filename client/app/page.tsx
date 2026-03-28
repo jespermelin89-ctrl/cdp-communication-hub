@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   Mail, AlertTriangle, FileText, CheckCircle, RefreshCw, Brain, Inbox, Settings,
   AlertCircle, Info, Lightbulb, Sparkles, Send, Trash2, Bot, Link2, Tag,
-  MailOpen, Zap, Users, ChevronRight,
+  MailOpen, Zap, Users, ChevronRight, Bell,
 } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
@@ -15,6 +15,7 @@ import AddEmailAccount from '@/components/AddEmailAccount';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
+import { useNotificationPermission } from '@/hooks/useNotificationPermission';
 import type { CommandCenterData, Account } from '@/lib/types';
 
 export default function DashboardPage() {
@@ -28,7 +29,9 @@ export default function DashboardPage() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [bulkClassifying, setBulkClassifying] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ analyzed: number; ai_calls: number } | null>(null);
+  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
   const { t } = useI18n();
+  const { permission: notifPermission, request: requestNotifPermission } = useNotificationPermission();
 
   const { data: cmdSWR, isLoading: loading, mutate: mutateDashboard } = useSWR(
     'command-center',
@@ -223,6 +226,32 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar pendingCount={data?.overview.pending_drafts} />
+
+      {/* Notification permission banner */}
+      {notifPermission === 'default' && !notifBannerDismissed && (
+        <div className="bg-brand-50 dark:bg-brand-900/20 border-b border-brand-200 dark:border-brand-800 px-4 py-2.5">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5 text-sm text-brand-700 dark:text-brand-300">
+              <Bell size={15} className="shrink-0" />
+              <span>Aktivera webbnotiser för att få larm om högt prioriterade mail</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => requestNotifPermission()}
+                className="text-xs font-medium px-3 py-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-colors"
+              >
+                Aktivera notiser
+              </button>
+              <button
+                onClick={() => setNotifBannerDismissed(true)}
+                className="text-brand-400 hover:text-brand-600 dark:hover:text-brand-200 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}

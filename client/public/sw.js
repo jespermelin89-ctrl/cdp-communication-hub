@@ -117,3 +117,52 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// ── Push notifications ────────────────────────────────────────────────────────
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload;
+  try {
+    payload = event.data.json();
+  } catch {
+    payload = { title: 'CDP Hub', body: event.data.text() };
+  }
+  const { title = 'CDP Hub', body = '', icon = '/icons/icon-192.png', url = '/' } = payload;
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon,
+      badge: '/icons/icon-72.png',
+      data: { url },
+      requireInteraction: false,
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url ?? '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) return clients.openWindow(url);
+    })
+  );
+});
+
+// Allow client pages to trigger a notification via postMessage
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SHOW_NOTIFICATION') {
+    const { title = 'CDP Hub', body = '', url = '/' } = event.data;
+    self.registration.showNotification(title, {
+      body,
+      icon: '/icons/icon-192.png',
+      data: { url },
+    });
+  }
+});

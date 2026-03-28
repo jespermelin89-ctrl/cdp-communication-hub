@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2 } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import type { EmailThread, AIAnalysis } from '@/lib/types';
@@ -53,8 +53,24 @@ export default function ThreadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [contact, setContact] = useState<any>(null);
 
+  // Writing modes for draft generation
+  const [writingModes, setWritingModes] = useState<any[]>([]);
+  const [selectedMode, setSelectedMode] = useState('');
+
+  // Classification override
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overridePriority, setOverridePriority] = useState('');
+  const [overrideClassification, setOverrideClassification] = useState('');
+  const [overriding, setOverriding] = useState(false);
+  const [overrideSaved, setOverrideSaved] = useState(false);
+
   useEffect(() => {
     loadThread();
+    api.getWritingProfile().then((r) => {
+      const modes = r.profile?.modes ?? [];
+      setWritingModes(modes);
+      if (modes.length > 0) setSelectedMode(modes[0].name ?? '');
+    }).catch(() => {});
   }, [threadId]);
 
   async function loadThread() {
@@ -62,6 +78,10 @@ export default function ThreadDetailPage() {
       setLoading(true);
       const result = await api.getThread(threadId);
       setThread(result.thread);
+      // Mark as read silently (non-fatal)
+      if (!result.thread.isRead) {
+        api.markThreadAsRead(threadId).catch(() => {});
+      }
       // Try to load contact profile for the external sender
       loadContactForThread(result.thread);
     } catch (err: any) {
@@ -116,6 +136,7 @@ export default function ThreadDetailPage() {
     setArchiving(true);
     try {
       await api.archiveThread(threadId);
+      api.recordLearning('thread_archived', { thread_id: threadId }, 'thread', threadId).catch(() => {});
       router.push('/inbox');
     } catch (err: any) {
       setError(`Arkivering misslyckades: ${err.message}`);
@@ -126,6 +147,7 @@ export default function ThreadDetailPage() {
   async function handleTrash() {
     try {
       await api.trashThread(threadId);
+      api.recordLearning('thread_trashed', { thread_id: threadId }, 'thread', threadId).catch(() => {});
       router.push('/inbox');
     } catch (err: any) {
       setError(`Flytt till papperskorgen misslyckades: ${err.message}`);
@@ -138,10 +160,11 @@ export default function ThreadDetailPage() {
     setError(null);
     setGeneratingDraft(true);
     try {
+      const modePrefix = selectedMode ? `[Skrivsätt: ${selectedMode}] ` : '';
       const result = await api.generateDraft({
         account_id: thread!.account.id!,
         thread_id: threadId,
-        instruction: draftInstruction,
+        instruction: `${modePrefix}${draftInstruction}`,
       });
       setDraftInstruction('');
       router.push(`/drafts/${result.draft.id}`);
@@ -149,6 +172,33 @@ export default function ThreadDetailPage() {
       setError(`Generate draft failed: ${err.message}`);
     } finally {
       setGeneratingDraft(false);
+    }
+  }
+
+  async function handleOverrideClassification() {
+    if (!overridePriority && !overrideClassification) return;
+    setOverriding(true);
+    try {
+      await api.recordLearning(
+        'classification:override',
+        {
+          thread_id: threadId,
+          subject: thread?.subject,
+          original_priority: analysis?.priority,
+          original_classification: analysis?.classification,
+          new_priority: overridePriority || analysis?.priority,
+          new_classification: overrideClassification || analysis?.classification,
+        },
+        'thread',
+        threadId
+      );
+      setOverrideSaved(true);
+      setOverrideOpen(false);
+      setTimeout(() => setOverrideSaved(false), 3000);
+    } catch (err: any) {
+      setError(`Kunde inte spara klassificering: ${err.message}`);
+    } finally {
+      setOverriding(false);
     }
   }
 
@@ -289,7 +339,35 @@ export default function ThreadDetailPage() {
 
             {/* Generate Reply Draft */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl border border-brand-200 dark:border-brand-800 shadow-sm p-5">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{t.thread.generateDraft}</h3>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-2">
+                <PenLine size={14} className="text-brand-500" />
+                {t.thread.generateDraft}
+              </h3>
+
+              {/* Writing mode selector */}
+              {writingModes.length > 0 && (
+                <div className="mb-3">
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5 block">
+                    Skrivsätt
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedMode}
+                      onChange={(e) => setSelectedMode(e.target.value)}
+                      className="w-full appearance-none pl-3 pr-8 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                    >
+                      <option value="">Inget skrivsätt</option>
+                      {writingModes.map((mode: any) => (
+                        <option key={mode.id ?? mode.name} value={mode.name}>
+                          {mode.name}{mode.description ? ` — ${mode.description}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
               <textarea
                 value={draftInstruction}
                 onChange={(e) => setDraftInstruction(e.target.value)}
@@ -353,6 +431,71 @@ export default function ThreadDetailPage() {
                   </div>
 
                   <div className="pt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">{analysis.modelUsed}</div>
+
+                  {/* Classification override */}
+                  <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+                    {overrideSaved ? (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                        <Check size={12} />
+                        Korrigering sparad — AI lär sig
+                      </div>
+                    ) : overrideOpen ? (
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <select
+                            value={overridePriority}
+                            onChange={(e) => setOverridePriority(e.target.value)}
+                            className="w-full appearance-none pl-2.5 pr-7 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-brand-500 outline-none"
+                          >
+                            <option value="">Prioritet oförändrad</option>
+                            <option value="high">Hög</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Låg</option>
+                          </select>
+                          <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        </div>
+                        <div className="relative">
+                          <select
+                            value={overrideClassification}
+                            onChange={(e) => setOverrideClassification(e.target.value)}
+                            className="w-full appearance-none pl-2.5 pr-7 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-1 focus:ring-brand-500 outline-none"
+                          >
+                            <option value="">Typ oförändrad</option>
+                            <option value="lead">Lead</option>
+                            <option value="partner">Partner</option>
+                            <option value="personal">Personal</option>
+                            <option value="operational">Operational</option>
+                            <option value="founder">Founder</option>
+                            <option value="outreach">Outreach</option>
+                            <option value="spam">Spam</option>
+                          </select>
+                          <ChevronDown size={11} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleOverrideClassification}
+                            disabled={overriding || (!overridePriority && !overrideClassification)}
+                            className="flex-1 px-2.5 py-1.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors"
+                          >
+                            {overriding ? '…' : 'Spara'}
+                          </button>
+                          <button
+                            onClick={() => setOverrideOpen(false)}
+                            className="px-2.5 py-1.5 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors"
+                          >
+                            Avbryt
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setOverrideOpen(true); setOverridePriority(''); setOverrideClassification(''); }}
+                        className="text-xs text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 transition-colors"
+                      >
+                        Korrigera klassificering →
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (

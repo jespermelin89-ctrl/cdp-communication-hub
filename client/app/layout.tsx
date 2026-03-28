@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import ChatWidget from '@/components/ChatWidget';
 import I18nProvider from '@/components/I18nProvider';
+import PwaInstallBanner from '@/components/PwaInstallBanner';
 import PwaRegistrar from '@/components/PwaRegistrar';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ChatProvider } from '@/lib/chat-context';
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ChatProvider>
               {children}
               <ChatWidget />
+              <PwaInstallBanner />
             </ChatProvider>
           </I18nProvider>
         </ThemeProvider>

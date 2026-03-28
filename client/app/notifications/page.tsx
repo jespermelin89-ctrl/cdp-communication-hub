@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import useSWR from 'swr';
 import Link from 'next/link';
 import { AlertCircle, Bot, FileText, CheckCircle, Archive, Bell, Trash2, RefreshCw } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import EmptyState from '@/components/EmptyState';
 import { api } from '@/lib/api';
+import type { Account } from '@/lib/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ActionLog {
@@ -14,6 +15,12 @@ interface ActionLog {
   actionType: string;
   details?: any;
   createdAt: string;
+}
+
+/** Deterministic hue from email string. */
+function emailColor(email: string): string {
+  const hue = [...email].reduce((h, c) => (h * 31 + c.charCodeAt(0)) & 0xffff, 0) % 360;
+  return `hsl(${hue}, 60%, 50%)`;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -88,13 +95,32 @@ const LAST_SEEN_KEY = 'notifications_last_seen';
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function NotificationsPage() {
+  const [accountFilter, setAccountFilter] = useState<string>('');
+
   const { data, isLoading, mutate } = useSWR(
     'action-logs-50',
     () => api.getActionLogs({ limit: 50 }),
     { revalidateOnFocus: true }
   );
 
-  const logs: ActionLog[] = data?.logs ?? [];
+  // Fetch accounts to show per-account filter (only if >1)
+  const { data: accountsData } = useSWR(
+    'notif-accounts',
+    () => api.getAccounts(),
+    { revalidateOnFocus: false, shouldRetryOnError: false }
+  );
+  const accounts: Account[] = (accountsData as any)?.accounts ?? [];
+
+  const allLogs: ActionLog[] = data?.logs ?? [];
+
+  // Filter by account if selected
+  const logs = accountFilter
+    ? allLogs.filter((l) => {
+        const email: string = l.details?.account_email ?? l.details?.accountEmail ?? '';
+        return email === accountFilter;
+      })
+    : allLogs;
+
   const groups = groupByDay(logs);
 
   // Mark as seen when page is opened
@@ -122,6 +148,39 @@ export default function NotificationsPage() {
           </button>
         </div>
 
+        {/* Per-account filter — only shown when >1 account */}
+        {accounts.length > 1 && (
+          <div className="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
+            <button
+              onClick={() => setAccountFilter('')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                accountFilter === ''
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              Alla konton
+            </button>
+            {accounts.map((acc) => (
+              <button
+                key={acc.id}
+                onClick={() => setAccountFilter(acc.emailAddress)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  accountFilter === acc.emailAddress
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: acc.color ?? emailColor(acc.emailAddress) }}
+                />
+                <span className="max-w-[120px] truncate">{acc.emailAddress}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex justify-center py-20">
             <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
@@ -148,6 +207,12 @@ export default function NotificationsPage() {
                     const text = labelForLog(log);
                     const time = formatRelativeTime(log.createdAt);
 
+                    const logAccountEmail: string | null =
+                      log.details?.account_email ?? log.details?.accountEmail ?? null;
+                    const logAccount = logAccountEmail
+                      ? accounts.find((a) => a.emailAddress === logAccountEmail) ?? null
+                      : null;
+
                     const inner = (
                       <div className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                         <div className={`mt-0.5 shrink-0 ${color}`}>
@@ -155,7 +220,18 @@ export default function NotificationsPage() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{text}</p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{time}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs text-gray-400 dark:text-gray-500">{time}</p>
+                            {logAccountEmail && (
+                              <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full"
+                                  style={{ backgroundColor: logAccount?.color ?? emailColor(logAccountEmail) }}
+                                />
+                                <span className="max-w-[100px] truncate">{logAccountEmail}</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                         {href && (
                           <span className="text-xs text-brand-500 shrink-0 self-center">→</span>

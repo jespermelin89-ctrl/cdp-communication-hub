@@ -7,7 +7,7 @@ import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
-import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown, Inbox as InboxIcon } from 'lucide-react';
+import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown, Inbox as InboxIcon, Mail } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
@@ -21,6 +21,25 @@ function StatusIcon({ status, size = 18 }: { status: string; size?: number }) {
   if (status === 'failed') return <XCircle {...props} className="text-red-500" />;
   if (status === 'discarded') return <Trash2 {...props} className="text-gray-400" />;
   return <FileText {...props} className="text-gray-400" />;
+}
+
+/** Deterministic hue from email string (for account dot when color is null). */
+function accountDotColor(email: string): string {
+  const hue = [...email].reduce((h, c) => (h * 31 + c.charCodeAt(0)) & 0xffff, 0) % 360;
+  return `hsl(${hue}, 60%, 50%)`;
+}
+
+interface AccountBadgeProps { email: string; color?: string | null }
+function AccountBadge({ email, color }: AccountBadgeProps) {
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-300 font-medium max-w-[160px] truncate">
+      <span
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+        style={{ backgroundColor: color ?? accountDotColor(email) }}
+      />
+      {email}
+    </span>
+  );
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -280,10 +299,14 @@ export default function DraftCenterPage() {
                     className="flex-1 min-w-0 cursor-pointer"
                     onClick={() => setExpandedId(expandedId === draft.id ? null : draft.id)}
                   >
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <StatusIcon status={draft.status} size={16} />
                       <span className="font-semibold text-gray-900 dark:text-gray-100 truncate">{draft.subject}</span>
                       <StatusBadge status={draft.status} />
+                      <AccountBadge
+                        email={draft.account.emailAddress}
+                        color={(draft.account as any).color ?? null}
+                      />
                       <ChevronDown
                         size={14}
                         className={`shrink-0 text-gray-400 ml-auto transition-transform ${expandedId === draft.id ? 'rotate-180' : ''}`}
@@ -293,7 +316,7 @@ export default function DraftCenterPage() {
                       {t.common.to}: {draft.toAddresses.join(', ')}
                     </div>
                     <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                      {t.common.from}: {draft.account.emailAddress} · {new Date(draft.createdAt).toLocaleString()}
+                      {new Date(draft.createdAt).toLocaleString()}
                     </div>
                     {draft.bodyText && expandedId !== draft.id && (
                       <div className="text-sm text-gray-600 dark:text-gray-300 mt-2 line-clamp-2 leading-relaxed">

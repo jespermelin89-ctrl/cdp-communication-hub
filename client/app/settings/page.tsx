@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Brain, Settings2, ChevronRight, Activity, Search, LogOut } from 'lucide-react';
 import TopBar from '@/components/TopBar';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { api } from '@/lib/api';
 import { useI18n, LOCALES, type Locale } from '@/lib/i18n';
 import type { User, Account } from '@/lib/types';
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingAccount, setEditingAccount] = useState<string | null>(null);
+  const [disconnectAccount, setDisconnectAccount] = useState<Account | null>(null);
   const [editForm, setEditForm] = useState({ display_name: '', label: '', color: '' });
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -66,14 +68,20 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleDeleteAccount(account: Account) {
-    if (!confirm(t.settings.disconnectConfirm.replace('{email}', account.emailAddress))) return;
+  function handleDeleteAccount(account: Account) {
+    setDisconnectAccount(account);
+  }
+
+  async function executeDisconnect() {
+    if (!disconnectAccount) return;
+    const account = disconnectAccount;
+    setDisconnectAccount(null);
     setActionError(null);
     try {
       await api.deleteAccount(account.id);
       await loadAll();
     } catch (err: any) {
-      setActionError(`Failed: ${err.message}`);
+      setActionError(`Misslyckades: ${err.message}`);
     }
   }
 
@@ -350,6 +358,17 @@ export default function SettingsPage() {
           </div>
         )}
       </main>
+
+      <ConfirmDialog
+        open={disconnectAccount !== null}
+        title={`Koppla bort ${disconnectAccount?.emailAddress ?? ''}?`}
+        description="Kontot kopplas bort från CDP Hub. Mailet påverkas inte i Gmail."
+        confirmLabel="Koppla bort"
+        cancelLabel="Avbryt"
+        variant="danger"
+        onConfirm={executeDisconnect}
+        onCancel={() => setDisconnectAccount(null)}
+      />
     </div>
   );
 }

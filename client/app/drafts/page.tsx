@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown, Inbox as InboxIcon } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import type { Draft, DraftStatus } from '@/lib/types';
 
@@ -36,6 +37,8 @@ export default function DraftCenterPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [sendConfirmId, setSendConfirmId] = useState<string | null>(null);
+  const [discardConfirmId, setDiscardConfirmId] = useState<string | null>(null);
   const { t } = useI18n();
   const { data: draftData, isLoading: loading, mutate: mutateDrafts } = useSWR(
     '/drafts',
@@ -96,8 +99,12 @@ export default function DraftCenterPage() {
     setSelectedIds(new Set(pendingIds));
   }
 
-  async function handleSend(draftId: string) {
-    if (!confirm(t.drafts.confirmSend)) return;
+  function handleSend(draftId: string) {
+    setSendConfirmId(draftId);
+  }
+
+  async function executeSend(draftId: string) {
+    setSendConfirmId(null);
     clearError(draftId);
     setActionLoading(draftId);
     try {
@@ -111,15 +118,19 @@ export default function DraftCenterPage() {
     }
   }
 
-  async function handleDiscard(draftId: string) {
-    if (!confirm(t.drafts.confirmDiscard)) return;
+  function handleDiscard(draftId: string) {
+    setDiscardConfirmId(draftId);
+  }
+
+  async function executeDiscard(draftId: string) {
+    setDiscardConfirmId(null);
     clearError(draftId);
     setActionLoading(draftId);
     try {
       await api.discardDraft(draftId);
       await mutateDrafts();
     } catch (err: any) {
-      setError(draftId, `${t.drafts.discard} failed: ${err.message}`);
+      setError(draftId, `${t.drafts.discard} misslyckades: ${err.message}`);
     } finally {
       setActionLoading(null);
     }
@@ -351,6 +362,30 @@ export default function DraftCenterPage() {
           </div>
         )}
       </main>
+
+      {/* Send confirmation */}
+      <ConfirmDialog
+        open={sendConfirmId !== null}
+        title="Skicka mail?"
+        description="Mailet skickas direkt via Gmail. Det går inte att ångra."
+        confirmLabel="Skicka"
+        cancelLabel="Avbryt"
+        variant="warning"
+        onConfirm={() => sendConfirmId && executeSend(sendConfirmId)}
+        onCancel={() => setSendConfirmId(null)}
+      />
+
+      {/* Discard confirmation */}
+      <ConfirmDialog
+        open={discardConfirmId !== null}
+        title="Kasta utkast?"
+        description="Utkastet markeras som kastat och kan inte återställas."
+        confirmLabel="Kasta"
+        cancelLabel="Avbryt"
+        variant="danger"
+        onConfirm={() => discardConfirmId && executeDiscard(discardConfirmId)}
+        onCancel={() => setDiscardConfirmId(null)}
+      />
     </div>
   );
 }

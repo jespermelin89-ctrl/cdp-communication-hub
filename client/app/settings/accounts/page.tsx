@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Mail, Settings, Inbox, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import TopBar from '@/components/TopBar';
 import AddEmailAccount from '@/components/AddEmailAccount';
 import { BadgeIcons, BadgeContextMenu, BadgeManager } from '@/components/EmailBadges';
@@ -26,6 +27,7 @@ export default function AccountsSettingsPage() {
     ai_handling: 'normal' as 'normal' | 'separate' | 'notify_only',
     team_members: '',
   });
+  const [disconnectAccount, setDisconnectAccount] = useState<Account | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,8 +73,14 @@ export default function AccountsSettingsPage() {
     }
   }
 
-  async function handleDeleteAccount(account: Account) {
-    if (!confirm(t.settings.disconnectConfirm.replace('{email}', account.emailAddress))) return;
+  function handleDeleteAccount(account: Account) {
+    setDisconnectAccount(account);
+  }
+
+  async function executeDisconnect() {
+    if (!disconnectAccount) return;
+    const account = disconnectAccount;
+    setDisconnectAccount(null);
     setActionLoading(true);
     try {
       await api.deleteAccount(account.id);
@@ -436,6 +444,17 @@ export default function AccountsSettingsPage() {
           <Info size={12} className="inline mr-1 text-gray-400" />{t.accounts.tip}
         </p>
       </main>
+
+      <ConfirmDialog
+        open={disconnectAccount !== null}
+        title={`Koppla bort ${disconnectAccount?.emailAddress ?? ''}?`}
+        description="Kontot kopplas bort från CDP Hub. Mailet i Gmail påverkas inte."
+        confirmLabel="Koppla bort"
+        cancelLabel="Avbryt"
+        variant="danger"
+        onConfirm={executeDisconnect}
+        onCancel={() => setDisconnectAccount(null)}
+      />
     </div>
   );
 }

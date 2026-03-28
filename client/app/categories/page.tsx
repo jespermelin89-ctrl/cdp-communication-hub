@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 
@@ -42,6 +43,8 @@ export default function CategoriesPage() {
   const [classifying, setClassifying] = useState(false);
   const [classifyResult, setClassifyResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [deleteRuleId, setDeleteRuleId] = useState<string | null>(null);
 
   const [showAddRule, setShowAddRule] = useState(false);
   const [ruleForm, setRuleForm] = useState({
@@ -90,8 +93,8 @@ export default function CategoriesPage() {
     }
   }
 
-  async function handleDeleteRule(id: string) {
-    if (!confirm(t.categories.deleteConfirm)) return;
+  async function executeDeleteRule(id: string) {
+    setDeleteRuleId(null);
     setError(null);
     try {
       await api.deleteRule(id);
@@ -99,6 +102,10 @@ export default function CategoriesPage() {
     } catch (err: any) {
       setError(err.message);
     }
+  }
+
+  function handleDeleteRule(id: string) {
+    setDeleteRuleId(id);
   }
 
   async function handleAddCategory() {
@@ -371,6 +378,17 @@ export default function CategoriesPage() {
           </div>
         )}
       </main>
+
+      <ConfirmDialog
+        open={deleteRuleId !== null}
+        title="Ta bort regel?"
+        description="Regeln tas bort permanent och kan inte återställas."
+        confirmLabel="Ta bort"
+        cancelLabel="Avbryt"
+        variant="danger"
+        onConfirm={() => deleteRuleId && executeDeleteRule(deleteRuleId)}
+        onCancel={() => setDeleteRuleId(null)}
+      />
     </div>
   );
 }

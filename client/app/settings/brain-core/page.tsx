@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { api } from '@/lib/api';
 import {
   Brain, PenLine, Tag, Users, Trash2, RefreshCw,
@@ -17,6 +18,7 @@ export default function BrainCorePage() {
   const [loading, setLoading] = useState(true);
   const [cleaning, setCleaning] = useState(false);
   const [cleanMsg, setCleanMsg] = useState<string | null>(null);
+  const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'modes' | 'rules' | 'contacts'>('modes');
 
   useEffect(() => {
@@ -35,8 +37,8 @@ export default function BrainCorePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleCleanup() {
-    if (!confirm('Rensa test-data från Brain Core learning events?')) return;
+  async function executeCleanup() {
+    setCleanupConfirmOpen(false);
     setCleaning(true);
     setCleanMsg(null);
     try {
@@ -47,6 +49,10 @@ export default function BrainCorePage() {
     } finally {
       setCleaning(false);
     }
+  }
+
+  function handleCleanup() {
+    setCleanupConfirmOpen(true);
   }
 
   const TABS = [
@@ -339,6 +345,17 @@ export default function BrainCorePage() {
           </div>
         </div>
       </main>
+
+      <ConfirmDialog
+        open={cleanupConfirmOpen}
+        title="Rensa test-data?"
+        description="Rensar test-data från Brain Core learning events. Riktiga events behålls."
+        confirmLabel="Rensa"
+        cancelLabel="Avbryt"
+        variant="warning"
+        onConfirm={executeCleanup}
+        onCancel={() => setCleanupConfirmOpen(false)}
+      />
     </div>
   );
 }

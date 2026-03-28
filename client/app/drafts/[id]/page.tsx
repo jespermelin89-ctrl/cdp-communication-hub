@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -29,6 +30,8 @@ export default function DraftDetailPage() {
   const [actioning, setActioning] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
 
   const [subject, setSubject] = useState('');
   const [bodyText, setBodyText] = useState('');
@@ -109,22 +112,26 @@ export default function DraftDetailPage() {
     }
   }
 
-  async function handleSend() {
-    if (!confirm(t.draftDetail.sendConfirm)) return;
+  async function executeSend() {
+    setSendConfirmOpen(false);
     setError(null);
     setActioning(true);
     try {
       await api.sendDraft(draftId);
       await loadDraft();
     } catch (err: any) {
-      setError(`Send failed: ${err.message}`);
+      setError(`Misslyckades att skicka: ${err.message}`);
     } finally {
       setActioning(false);
     }
   }
 
-  async function handleDiscard() {
-    if (!confirm(t.draftDetail.discardConfirm)) return;
+  function handleSend() {
+    setSendConfirmOpen(true);
+  }
+
+  async function executeDiscard() {
+    setDiscardConfirmOpen(false);
     setError(null);
     setActioning(true);
     try {
@@ -132,9 +139,13 @@ export default function DraftDetailPage() {
       api.recordLearning('draft_discarded', { draft_id: draftId }, 'draft', draftId).catch(() => {});
       router.push('/drafts');
     } catch (err: any) {
-      setError(`Discard failed: ${err.message}`);
+      setError(`Misslyckades att kasta: ${err.message}`);
       setActioning(false);
     }
+  }
+
+  function handleDiscard() {
+    setDiscardConfirmOpen(true);
   }
 
   if (loading) {
@@ -338,6 +349,30 @@ export default function DraftDetailPage() {
           )}
         </div>
       </main>
+
+      {/* Send confirmation */}
+      <ConfirmDialog
+        open={sendConfirmOpen}
+        title="Skicka mail?"
+        description="Mailet skickas direkt via Gmail. Det går inte att ångra."
+        confirmLabel="Skicka"
+        cancelLabel="Avbryt"
+        variant="warning"
+        onConfirm={executeSend}
+        onCancel={() => setSendConfirmOpen(false)}
+      />
+
+      {/* Discard confirmation */}
+      <ConfirmDialog
+        open={discardConfirmOpen}
+        title="Kasta utkast?"
+        description="Utkastet markeras som kastat och kan inte återställas."
+        confirmLabel="Kasta"
+        cancelLabel="Avbryt"
+        variant="danger"
+        onConfirm={executeDiscard}
+        onCancel={() => setDiscardConfirmOpen(false)}
+      />
     </div>
   );
 }

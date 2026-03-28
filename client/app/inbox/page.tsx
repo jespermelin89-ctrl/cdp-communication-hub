@@ -9,7 +9,7 @@ import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
 import SwipeableThread from '@/components/SwipeableThread';
-import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon, WifiOff } from 'lucide-react';
+import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon, WifiOff, Star, MailX } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PullToRefresh from '@/components/PullToRefresh';
@@ -86,6 +86,8 @@ export default function InboxPage() {
   const [batchTrashOpen, setBatchTrashOpen] = useState(false);
   const [batchTrashPending, setBatchTrashPending] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<'date' | 'priority' | 'unanalyzed'>('date');
+  const [starredOnly, setStarredOnly] = useState(false);
+  const [starringIds, setStarringIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [displayLimit, setDisplayLimit] = useState(20);
   const { t } = useI18n();
@@ -102,7 +104,7 @@ export default function InboxPage() {
   // Reset pagination when search/filter changes
   useEffect(() => {
     setDisplayLimit(20);
-  }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey]);
+  }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey, starredOnly]);
 
   // SWR — threads revalidate automatically when filters change
   const { data: threadData, isLoading: loading, mutate: mutateThreads } = useSWR(
@@ -134,6 +136,22 @@ export default function InboxPage() {
       setAccounts(result.accounts);
     } catch (err) {
       if (isDev) console.error('Failed to load accounts:', err);
+    }
+  }
+
+  async function handleToggleStar(threadId: string, currentlyStarred: boolean) {
+    setStarringIds((prev) => new Set(prev).add(threadId));
+    try {
+      if (currentlyStarred) {
+        await api.unstarThread(threadId);
+      } else {
+        await api.starThread(threadId);
+      }
+      await mutateThreads();
+    } catch {
+      toast.error('Kunde inte ändra stjärnmärkning');
+    } finally {
+      setStarringIds((prev) => { const n = new Set(prev); n.delete(threadId); return n; });
     }
   }
 
@@ -294,7 +312,9 @@ export default function InboxPage() {
   const filteredThreads = (classificationFilter
     ? sortedThreads.filter((th) => th.latestAnalysis?.classification === classificationFilter)
     : sortedThreads
-  ).filter((th) => !priorityFilter || th.latestAnalysis?.priority === priorityFilter);
+  )
+    .filter((th) => !priorityFilter || th.latestAnalysis?.priority === priorityFilter)
+    .filter((th) => !starredOnly || th.labels.includes('STARRED'));
 
   const visibleThreads = filteredThreads.slice(0, displayLimit);
 
@@ -421,7 +441,7 @@ export default function InboxPage() {
               className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
             />
           </div>
-          <div className="flex gap-2 items-center shrink-0">
+          <div className="flex gap-2 items-center shrink-0 flex-wrap">
             {(['high', 'medium', 'low'] as const).map((p) => (
               <button
                 key={p}
@@ -435,6 +455,18 @@ export default function InboxPage() {
                 {p === 'high' ? '🔥' : p === 'medium' ? '🟡' : '🟢'} {t.dashboard[p]}
               </button>
             ))}
+            {/* Starred filter */}
+            <button
+              onClick={() => setStarredOnly(!starredOnly)}
+              className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium border transition-all ${
+                starredOnly
+                  ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              <Star size={11} className={starredOnly ? 'fill-amber-400 text-amber-400' : ''} />
+              Stjärnmärkta
+            </button>
           </div>
         </div>
 
@@ -691,6 +723,20 @@ export default function InboxPage() {
 
                       {/* Actions */}
                       <div className="flex items-center gap-2 shrink-0">
+                        {/* Star toggle */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleStar(thread.id, thread.labels.includes('STARRED')); }}
+                          disabled={starringIds.has(thread.id)}
+                          title={thread.labels.includes('STARRED') ? 'Ta bort stjärna' : 'Stjärnmärk'}
+                          className="p-1 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors disabled:opacity-40"
+                        >
+                          <Star
+                            size={15}
+                            className={thread.labels.includes('STARRED')
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'text-gray-300 dark:text-gray-600 hover:text-amber-400'}
+                          />
+                        </button>
                         {!thread.latestAnalysis && (
                           <button
                             onClick={() => handleAnalyze(thread.id)}
@@ -813,13 +859,43 @@ export default function InboxPage() {
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
             {selectedIds.size} markerade
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => handleBatchArchive(Array.from(selectedIds))}
               className="btn-secondary text-sm flex items-center gap-1.5"
             >
               <Archive size={14} />
               Arkivera
+            </button>
+            <button
+              onClick={async () => {
+                const ids = Array.from(selectedIds);
+                try {
+                  await api.batchThreadAction(ids, 'read');
+                  await mutateThreads();
+                  setSelectedIds(new Set());
+                  toast.success(`${ids.length} trådar markerade som lästa`);
+                } catch { toast.error('Kunde inte markera som lästa'); }
+              }}
+              className="btn-secondary text-sm flex items-center gap-1.5"
+            >
+              <MailX size={14} className="rotate-180" />
+              Markera läst
+            </button>
+            <button
+              onClick={async () => {
+                const ids = Array.from(selectedIds);
+                try {
+                  await api.batchThreadAction(ids, 'unread');
+                  await mutateThreads();
+                  setSelectedIds(new Set());
+                  toast.success(`${ids.length} trådar markerade som olästa`);
+                } catch { toast.error('Kunde inte markera som olästa'); }
+              }}
+              className="btn-secondary text-sm flex items-center gap-1.5"
+            >
+              <MailX size={14} />
+              Markera oläst
             </button>
             <button
               onClick={() => handleBatchClassify(Array.from(selectedIds))}

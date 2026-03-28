@@ -330,6 +330,30 @@ export class GmailService {
   }
 
   /**
+   * Star a Gmail thread (add STARRED label).
+   */
+  async starThread(accountId: string, gmailThreadId: string): Promise<void> {
+    const gmail = await this.getClient(accountId);
+    await gmail.users.threads.modify({
+      userId: 'me',
+      id: gmailThreadId,
+      requestBody: { addLabelIds: ['STARRED'] },
+    });
+  }
+
+  /**
+   * Unstar a Gmail thread (remove STARRED label).
+   */
+  async unstarThread(accountId: string, gmailThreadId: string): Promise<void> {
+    const gmail = await this.getClient(accountId);
+    await gmail.users.threads.modify({
+      userId: 'me',
+      id: gmailThreadId,
+      requestBody: { removeLabelIds: ['STARRED'] },
+    });
+  }
+
+  /**
    * Mark a Gmail thread as unread (add UNREAD label).
    */
   async markAsUnread(accountId: string, gmailThreadId: string): Promise<void> {

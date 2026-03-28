@@ -535,9 +535,20 @@ export default function ChatWidget() {
                         ? 'bg-red-50 text-red-700 border border-red-200 rounded-bl-md'
                         : msg.type === 'info' || msg.queued
                           ? 'bg-amber-50 text-amber-700 border border-amber-200 rounded-bl-md'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-md'
+                          : msg.type === 'ai_response'
+                            ? 'bg-brand-50 dark:bg-brand-900/20 text-gray-800 dark:text-gray-200 border border-brand-200 dark:border-brand-800 rounded-bl-md'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-md'
                   }`}
                 >
+                  {/* Amanda avatar for AI responses */}
+                  {msg.type === 'ai_response' && msg.role === 'assistant' && (
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <div className="w-4 h-4 bg-brand-500 rounded-full flex items-center justify-center shrink-0">
+                        <span className="text-white text-[8px] font-bold">A</span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-brand-600 dark:text-brand-400 uppercase tracking-wide">Amanda</span>
+                    </div>
+                  )}
                   {msg.role === 'user' ? (
                     <div className="whitespace-pre-wrap leading-relaxed break-words">
                       {msg.content}

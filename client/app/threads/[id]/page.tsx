@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send, CornerDownLeft, MailX } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -54,6 +54,7 @@ export default function ThreadDetailPage() {
 
   const [analyzing, setAnalyzing] = useState(false);
   const [markingUnread, setMarkingUnread] = useState(false);
+  const [starring, setStarring] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [draftInstruction, setDraftInstruction] = useState('');
   const [syncingMessages, setSyncingMessages] = useState(false);
@@ -147,6 +148,26 @@ export default function ThreadDetailPage() {
     } catch (err: any) {
       setError(`Arkivering misslyckades: ${err.message}`);
       setArchiving(false);
+    }
+  }
+
+  async function handleToggleStar() {
+    if (!thread) return;
+    const isStarred = thread.labels?.includes('STARRED');
+    setStarring(true);
+    try {
+      if (isStarred) {
+        await api.unstarThread(threadId);
+        toast.success('Stjärna borttagen');
+      } else {
+        await api.starThread(threadId);
+        toast.success('Stjärnmärkt');
+      }
+      await mutateThread();
+    } catch {
+      toast.error('Kunde inte ändra stjärnmärkning');
+    } finally {
+      setStarring(false);
     }
   }
 
@@ -323,6 +344,14 @@ export default function ThreadDetailPage() {
               <CornerDownLeft size={14} />
               Svara
             </button>
+            {/* Forward */}
+            <button
+              onClick={() => router.push(`/compose?forward=${threadId}`)}
+              className="btn-secondary text-sm flex items-center gap-1.5"
+            >
+              <Forward size={14} />
+              Vidarebefordra
+            </button>
             <button
               onClick={handleAnalyze}
               disabled={analyzing}
@@ -338,6 +367,20 @@ export default function ThreadDetailPage() {
             >
               {archiving ? <span className="w-3.5 h-3.5 border border-gray-400 border-t-brand-500 rounded-full animate-spin" /> : <Archive size={14} />}
               Arkivera
+            </button>
+            {/* Star toggle */}
+            <button
+              onClick={handleToggleStar}
+              disabled={starring}
+              title={thread.labels?.includes('STARRED') ? 'Ta bort stjärna' : 'Stjärnmärk'}
+              className={`btn-secondary text-sm flex items-center gap-1.5 ${
+                thread.labels?.includes('STARRED') ? 'border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400' : ''
+              }`}
+            >
+              {starring
+                ? <span className="w-3.5 h-3.5 border border-gray-400 border-t-brand-500 rounded-full animate-spin" />
+                : <Star size={14} className={thread.labels?.includes('STARRED') ? 'fill-amber-400' : ''} />}
+              {thread.labels?.includes('STARRED') ? 'Stjärnmärkt' : 'Stjärnmärk'}
             </button>
             {/* Mark as unread — goes back to inbox with thread showing as unread */}
             <button

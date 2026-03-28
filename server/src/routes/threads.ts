@@ -229,6 +229,42 @@ export async function threadRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /threads/:id/star — Star thread (add STARRED label).
+   */
+  fastify.post('/threads/:id/star', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+    if (thread.account.provider === 'gmail' && thread.gmailThreadId) {
+      try { await gmailService.starThread(thread.account.id, thread.gmailThreadId); } catch { /* non-fatal */ }
+    }
+    const labels = [...new Set([...thread.labels, 'STARRED'])];
+    await prisma.emailThread.update({ where: { id }, data: { labels } });
+    return { message: 'Thread starred.', labels };
+  });
+
+  /**
+   * POST /threads/:id/unstar — Unstar thread (remove STARRED label).
+   */
+  fastify.post('/threads/:id/unstar', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+    if (thread.account.provider === 'gmail' && thread.gmailThreadId) {
+      try { await gmailService.unstarThread(thread.account.id, thread.gmailThreadId); } catch { /* non-fatal */ }
+    }
+    const labels = thread.labels.filter((l) => l !== 'STARRED');
+    await prisma.emailThread.update({ where: { id }, data: { labels } });
+    return { message: 'Thread unstarred.', labels };
+  });
+
+  /**
    * POST /threads/:id/unread — Mark thread as unread (add UNREAD label).
    */
   fastify.post('/threads/:id/unread', async (request, reply) => {
@@ -313,17 +349,21 @@ export async function threadRoutes(fastify: FastifyInstance) {
   });
 
   /**
-   * POST /threads/batch — Batch archive or trash multiple threads.
-   * Body: { threadIds: string[], action: 'archive' | 'trash' }
+   * POST /threads/batch — Batch action on multiple threads.
+   * Body: { threadIds: string[], action: 'archive' | 'trash' | 'read' | 'unread' | 'star' | 'unstar' }
    */
   fastify.post('/threads/batch', async (request, reply) => {
-    const { threadIds, action } = request.body as { threadIds: string[]; action: 'archive' | 'trash' };
+    const { threadIds, action } = request.body as {
+      threadIds: string[];
+      action: 'archive' | 'trash' | 'read' | 'unread' | 'star' | 'unstar';
+    };
 
     if (!Array.isArray(threadIds) || threadIds.length === 0) {
       return reply.code(400).send({ error: 'threadIds must be a non-empty array' });
     }
-    if (action !== 'archive' && action !== 'trash') {
-      return reply.code(400).send({ error: 'action must be "archive" or "trash"' });
+    const validActions = ['archive', 'trash', 'read', 'unread', 'star', 'unstar'] as const;
+    if (!validActions.includes(action as any)) {
+      return reply.code(400).send({ error: `action must be one of: ${validActions.join(', ')}` });
     }
 
     const threads = await prisma.emailThread.findMany({
@@ -333,21 +373,45 @@ export async function threadRoutes(fastify: FastifyInstance) {
 
     const results = await Promise.allSettled(
       threads.map(async (thread) => {
-        if (thread.account.provider === 'gmail') {
-          if (action === 'archive') {
-            await gmailService.archiveThread(thread.account.id, thread.gmailThreadId);
-          } else {
-            await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
-          }
+        const isGmail = thread.account.provider === 'gmail';
+        switch (action) {
+          case 'archive':
+            if (isGmail) await gmailService.archiveThread(thread.account.id, thread.gmailThreadId);
+            await prisma.emailThread.update({
+              where: { id: thread.id },
+              data: { labels: thread.labels.filter((l) => l !== 'INBOX') },
+            });
+            break;
+          case 'trash':
+            if (isGmail) await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
+            await prisma.emailThread.update({
+              where: { id: thread.id },
+              data: { labels: [...thread.labels.filter((l) => l !== 'INBOX'), 'TRASH'] },
+            });
+            break;
+          case 'read':
+            if (isGmail) await gmailService.markAsRead(thread.account.id, thread.gmailThreadId);
+            await prisma.emailThread.update({ where: { id: thread.id }, data: { isRead: true } });
+            break;
+          case 'unread':
+            if (isGmail) await gmailService.markAsUnread(thread.account.id, thread.gmailThreadId);
+            await prisma.emailThread.update({ where: { id: thread.id }, data: { isRead: false } });
+            break;
+          case 'star':
+            if (isGmail) await gmailService.starThread(thread.account.id, thread.gmailThreadId);
+            await prisma.emailThread.update({
+              where: { id: thread.id },
+              data: { labels: [...new Set([...thread.labels, 'STARRED'])] },
+            });
+            break;
+          case 'unstar':
+            if (isGmail) await gmailService.unstarThread(thread.account.id, thread.gmailThreadId);
+            await prisma.emailThread.update({
+              where: { id: thread.id },
+              data: { labels: thread.labels.filter((l) => l !== 'STARRED') },
+            });
+            break;
         }
-        await prisma.emailThread.update({
-          where: { id: thread.id },
-          data: {
-            labels: action === 'archive'
-              ? thread.labels.filter((l: string) => l !== 'INBOX')
-              : [...thread.labels.filter((l: string) => l !== 'INBOX'), 'TRASH'],
-          },
-        });
       })
     );
 

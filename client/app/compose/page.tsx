@@ -22,8 +22,10 @@ export default function ComposePage() {
   const { t } = useI18n();
   const toInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Reply context ─────────────────────────────────────────────────────────
+  // ── Reply / Forward context ───────────────────────────────────────────────
+  const forwardThreadId = searchParams.get('forward');
   const [replySubject, setReplySubject] = useState<string | null>(null);
+  const [forwardSubject, setForwardSubject] = useState<string | null>(null);
   const [replyLoading, setReplyLoading] = useState(false);
 
   // ── Form state ────────────────────────────────────────────────────────────
@@ -119,6 +121,54 @@ export default function ComposePage() {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replyThreadId]);
+
+  // ── Forward pre-fill — load thread data when ?forward=<id> ───────────────
+  useEffect(() => {
+    if (!forwardThreadId) return;
+    let cancelled = false;
+    setReplyLoading(true);
+    api.getThread(forwardThreadId)
+      .then((res) => {
+        if (cancelled) return;
+        const thread = res.thread as any;
+        const originalSubject = thread.subject ?? '';
+        const fwdSubject = originalSubject.toLowerCase().startsWith('fwd:')
+          ? originalSubject
+          : `Fwd: ${originalSubject}`;
+        setSubject(fwdSubject);
+        setForwardSubject(originalSubject);
+
+        // Auto-select the account that received the email
+        if (thread.account?.id) setSelectedAccountId(thread.account.id);
+
+        // Build forwarded body with original message header
+        const latestMsg = thread.messages?.[thread.messages.length - 1];
+        const fromAddr = latestMsg?.fromAddress ?? thread.participantEmails?.[0] ?? '';
+        const msgDate = latestMsg?.receivedAt
+          ? new Date(latestMsg.receivedAt).toLocaleString('sv-SE')
+          : '';
+        const originalBody = latestMsg?.bodyText ?? thread.snippet ?? '';
+        const forwardedBlock = [
+          '',
+          '',
+          '---------- Vidarebefordrat meddelande ----------',
+          `Från: ${fromAddr}`,
+          `Datum: ${msgDate}`,
+          `Ämne: ${originalSubject}`,
+          '',
+          originalBody,
+        ].join('\n');
+        setBody(forwardedBlock);
+        // Focus the To field so user can type recipient
+        setTimeout(() => toInputRef.current?.focus(), 100);
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('Kunde inte hämta tråd för vidarebefordran');
+      })
+      .finally(() => { if (!cancelled) setReplyLoading(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forwardThreadId]);
 
   // ── Contact filtering ─────────────────────────────────────────────────────
   const filteredContacts = contactQuery.length >= 1
@@ -254,10 +304,18 @@ export default function ComposePage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
               {replyThreadId ? (
                 <CornerDownLeft size={22} className="text-brand-500" />
+              ) : forwardThreadId ? (
+                <Send size={22} className="text-brand-500 -scale-x-100" />
               ) : (
                 <PenLine size={22} className="text-brand-500" />
               )}
-              {replyLoading ? 'Laddar svar…' : replyThreadId ? 'Svara' : 'Nytt meddelande'}
+              {replyLoading
+                ? 'Laddar…'
+                : replyThreadId
+                ? 'Svara'
+                : forwardThreadId
+                ? 'Vidarebefordra'
+                : 'Nytt meddelande'}
             </h1>
             {replySubject && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
@@ -265,7 +323,13 @@ export default function ComposePage() {
                 Svarar på: <span className="font-medium truncate max-w-[300px]">{replySubject}</span>
               </p>
             )}
-            {!replySubject && (
+            {forwardSubject && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+                <Send size={13} className="shrink-0 text-brand-400 -scale-x-100" />
+                Vidarebefordrar: <span className="font-medium truncate max-w-[300px]">{forwardSubject}</span>
+              </p>
+            )}
+            {!replySubject && !forwardSubject && (
               <p className="text-sm text-gray-400 mt-0.5">⌘↩ skicka · ⌘S spara · Esc tillbaka</p>
             )}
           </div>

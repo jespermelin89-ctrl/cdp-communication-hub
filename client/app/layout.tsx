@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import dynamic from 'next/dynamic';
 import { Toaster } from 'sonner';
 import './globals.css';
 import I18nProvider from '@/components/I18nProvider';
@@ -8,14 +7,7 @@ import PwaRegistrar from '@/components/PwaRegistrar';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ChatProvider } from '@/lib/chat-context';
 import ErrorBoundary from '@/components/ErrorBoundary';
-
-// Lazy-load heavy client components — no SSR needed
-const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false, loading: () => null });
-const BottomNav = dynamic(() => import('@/components/BottomNav'), { ssr: false });
-const OnboardingWizard = dynamic(() => import('@/components/OnboardingWizard'), { ssr: false });
-const HighPriorityAlert = dynamic(() => import('@/components/HighPriorityAlert'), { ssr: false });
-const GlobalShortcuts = dynamic(() => import('@/components/GlobalShortcuts'), { ssr: false });
-const ShortcutsHelpModal = dynamic(() => import('@/components/ShortcutsHelpModal'), { ssr: false });
+import ClientShell from '@/components/ClientShell';
 
 export const metadata: Metadata = {
   title: 'CDP Communication Hub',
@@ -64,13 +56,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <ErrorBoundary>
                 {children}
               </ErrorBoundary>
-              <ChatWidget />
               <PwaInstallBanner />
-              <BottomNav />
-              <OnboardingWizard />
-              <HighPriorityAlert />
-              <GlobalShortcuts />
-              <ShortcutsHelpModal />
+              <ClientShell />
             </ChatProvider>
           </I18nProvider>
         </ThemeProvider>

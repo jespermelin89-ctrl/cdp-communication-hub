@@ -16,7 +16,15 @@ export default function AccountsSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ display_name: '', label: '', color: '', signature: '' });
+  const [editForm, setEditForm] = useState({
+    display_name: '',
+    label: '',
+    color: '',
+    signature: '',
+    account_type: 'personal' as 'personal' | 'team' | 'shared',
+    ai_handling: 'normal' as 'normal' | 'separate' | 'notify_only',
+    team_members: '',
+  });
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +88,9 @@ export default function AccountsSettingsPage() {
       label: account.label || '',
       color: account.color || '#6366F1',
       signature: account.signature || '',
+      account_type: account.accountType || 'personal',
+      ai_handling: account.aiHandling || 'normal',
+      team_members: (account.teamMembers || []).join(', '),
     });
   }
 
@@ -92,6 +103,11 @@ export default function AccountsSettingsPage() {
         label: editForm.label || undefined,
         color: editForm.color || undefined,
         signature: editForm.signature || null,
+        account_type: editForm.account_type,
+        ai_handling: editForm.ai_handling,
+        team_members: editForm.team_members
+          ? editForm.team_members.split(',').map((e) => e.trim()).filter(Boolean)
+          : [],
       });
       setEditingAccount(null);
       await loadAccounts();
@@ -333,6 +349,54 @@ export default function AccountsSettingsPage() {
                             </div>
                           )}
                         </div>
+
+                        {/* Account type + AI handling */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              {t.accounts.accountTypeLabel}
+                            </label>
+                            <select
+                              value={editForm.account_type}
+                              onChange={(e) => setEditForm((f) => ({ ...f, account_type: e.target.value as 'personal' | 'team' | 'shared' }))}
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                            >
+                              <option value="personal">Personlig</option>
+                              <option value="team">Team</option>
+                              <option value="shared">Delad inkorg</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              {t.accounts.aiHandlingLabel}
+                            </label>
+                            <select
+                              value={editForm.ai_handling}
+                              onChange={(e) => setEditForm((f) => ({ ...f, ai_handling: e.target.value as 'normal' | 'separate' | 'notify_only' }))}
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                            >
+                              <option value="normal">Hantera normalt</option>
+                              <option value="separate">Separera team-mejl</option>
+                              <option value="notify_only">Notifiera bara</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Team members — only shown for team/shared */}
+                        {(editForm.account_type === 'team' || editForm.account_type === 'shared') && (
+                          <div className="mb-3">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              {t.accounts.teamMembersLabel}
+                            </label>
+                            <input
+                              type="text"
+                              value={editForm.team_members}
+                              onChange={(e) => setEditForm((f) => ({ ...f, team_members: e.target.value }))}
+                              className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 outline-none dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                              placeholder={t.accounts.teamMembersPlaceholder}
+                            />
+                          </div>
+                        )}
 
                         <BadgeManager
                           accountId={account.id}

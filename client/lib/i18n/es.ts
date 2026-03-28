@@ -220,6 +220,10 @@ const es: Translations = {
     editTitle: 'Editar cuenta',
     signature: 'Firma de correo',
     signaturePlaceholder: 'Saludos,\nTu nombre',
+    accountTypeLabel: 'Tipo de cuenta',
+    aiHandlingLabel: 'Comportamiento IA',
+    teamMembersLabel: 'Miembros del equipo',
+    teamMembersPlaceholder: 'email1@example.com, email2@example.com',
   },
 
   actions: {

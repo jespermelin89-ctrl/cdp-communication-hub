@@ -173,6 +173,9 @@ class ApiClient {
     color?: string;
     is_active?: boolean;
     signature?: string | null;
+    account_type?: 'personal' | 'team' | 'shared';
+    ai_handling?: 'normal' | 'separate' | 'notify_only';
+    team_members?: string[];
   }) {
     return this.request<{ account: any }>('PATCH', `/accounts/${id}`, data);
   }

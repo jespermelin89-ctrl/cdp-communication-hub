@@ -220,6 +220,10 @@ const en: Translations = {
     editTitle: 'Edit Account',
     signature: 'Email Signature',
     signaturePlaceholder: 'Best regards,\nYour Name',
+    accountTypeLabel: 'Account type',
+    aiHandlingLabel: 'AI behaviour',
+    teamMembersLabel: 'Team members',
+    teamMembersPlaceholder: 'email1@example.com, email2@example.com',
   },
 
   actions: {

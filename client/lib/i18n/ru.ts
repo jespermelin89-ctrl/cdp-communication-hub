@@ -220,6 +220,10 @@ const ru: Translations = {
     editTitle: 'Редактировать аккаунт',
     signature: 'Подпись эл. почты',
     signaturePlaceholder: 'С уважением,\nВаше имя',
+    accountTypeLabel: 'Тип аккаунта',
+    aiHandlingLabel: 'Поведение ИИ',
+    teamMembersLabel: 'Участники команды',
+    teamMembersPlaceholder: 'email1@example.com, email2@example.com',
   },
 
   actions: {

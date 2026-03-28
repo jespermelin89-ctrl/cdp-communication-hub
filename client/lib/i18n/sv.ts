@@ -204,6 +204,10 @@ const sv = {
     editTitle: 'Redigera konto',
     signature: 'E-postsignatur',
     signaturePlaceholder: 'Med vänliga hälsningar,\nJesper Melin\njespermelin89@gmail.com',
+    accountTypeLabel: 'Kontotyp',
+    aiHandlingLabel: 'AI-beteende',
+    teamMembersLabel: 'Teammedlemmar',
+    teamMembersPlaceholder: 'email1@example.com, email2@example.com',
   },
 
   // Activity log

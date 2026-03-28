@@ -214,8 +214,12 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 9. ✅ **DB-migration** — `20260327000000_add_account_fields` för account_type/team_members/ai_handling; render.yaml har GROQ_API_KEY
 10. ✅ **Arkivera/radera** — `/threads/:id/archive`, `/threads/:id/trash`, `/threads/batch`; Archive/Trash knappar i Inbox + tråd-vy
 11. ✅ **AI fallback-kedja** — Groq → Anthropic → OpenAI med logging
-12. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell efter deploy
-13. **n8n integration** (framtida — planera bara, bygg inte)
+12. ✅ **Draft editor** — auto-save (30s debounce) + tecken/ord-räknare i realtid
+13. ✅ **Browser-notifieringar** — useNotifications hook, Bell/BellOff i TopBar, notifyNewHighPriority i Inbox
+14. ✅ **AI-stabilitet** — truncateContent (body→2000, snippet→300), provider blacklist (1h), gpt-4o-mini, utökad NO_REPLY_PATTERN
+15. ✅ **Account dropdown** — AccountDropdown i Inbox + settings editor för accountType/aiHandling/teamMembers
+16. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell efter deploy
+17. **n8n integration** (framtida — planera bara, bygg inte)
 
 ## Key API Patterns
 - All API calls go through `client/lib/api.ts` which handles auth headers + base URL

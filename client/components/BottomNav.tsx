@@ -56,9 +56,9 @@ export default function BottomNav() {
     }
   );
 
-  // Extract counts from command-center response (may vary by backend)
-  const unreadCount: number = (cmdData as any)?.unread_count ?? (cmdData as any)?.unread ?? 0;
-  const pendingCount: number = (cmdData as any)?.pending_drafts ?? (cmdData as any)?.pending ?? 0;
+  // Extract counts from command-center response
+  const unreadCount: number = (cmdData as any)?.overview?.unread_threads ?? 0;
+  const pendingCount: number = (cmdData as any)?.overview?.pending_drafts ?? 0;
 
   return (
     // Only visible on mobile — desktop uses sidebar / TopBar

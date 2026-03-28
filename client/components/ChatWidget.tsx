@@ -445,23 +445,28 @@ export default function ChatWidget() {
   return (
     <>
       {/* Floating button — hidden on mobile when chat is open (fullscreen replaces it) */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-6 right-6 z-50 w-14 h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 ${isOpen ? 'hidden sm:flex' : 'flex'}`}
-        style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
-        aria-label={isOpen ? 'Stäng chatt' : 'Öppna chatt'}
+      <div
+        className={`fixed z-50 flex flex-col items-end gap-1 ${isOpen ? 'hidden sm:flex' : 'flex'}`}
+        style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))', right: '1.5rem' }}
       >
-        {isOpen ? <X size={22} /> : (
-          <div className="relative">
-            <MessageCircle size={22} />
-            {(selectedThreadIds.length > 0 || queuedCount > 0) && (
-              <span className="absolute -top-2 -right-2 w-4 h-4 bg-amber-400 text-gray-900 text-[10px] font-bold rounded-full flex items-center justify-center">
-                {selectedThreadIds.length + queuedCount}
-              </span>
-            )}
-          </div>
-        )}
-      </button>
+        <span className="hidden sm:block text-[10px] text-gray-400 dark:text-gray-500 font-mono bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700 shadow-sm">⌘K</span>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-14 h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
+          aria-label={isOpen ? 'Stäng chatt' : 'Öppna chatt'}
+        >
+          {isOpen ? <X size={22} /> : (
+            <div className="relative">
+              <MessageCircle size={22} />
+              {(selectedThreadIds.length > 0 || queuedCount > 0) && (
+                <span className="absolute -top-2 -right-2 w-4 h-4 bg-amber-400 text-gray-900 text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {selectedThreadIds.length + queuedCount}
+                </span>
+              )}
+            </div>
+          )}
+        </button>
+      </div>
 
       {/* Chat panel — fullscreen on mobile (<sm), floating bubble on sm+ */}
       {isOpen && (

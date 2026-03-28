@@ -11,6 +11,7 @@ import { env } from './config/env';
 import { connectDatabase, disconnectDatabase } from './config/database';
 import { errorHandler } from './middleware/error.middleware';
 import { startSyncScheduler, stopSyncScheduler } from './services/sync-scheduler.service';
+import { autoSeedBrainCore } from './utils/auto-seed';
 
 // Routes
 import { authRoutes } from './routes/auth';
@@ -107,6 +108,8 @@ async function main() {
   } else {
     // Start background sync scheduler once DB is confirmed ready
     startSyncScheduler();
+    // Auto-seed Brain Core if empty (runs once, safe on every restart)
+    autoSeedBrainCore().catch((err) => console.error('[auto-seed] Fel:', err));
   }
 
   // Graceful shutdown

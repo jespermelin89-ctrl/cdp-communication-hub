@@ -103,6 +103,21 @@ const INTENTS: Intent[] = [
       return api.chatAsk('visa senaste notiser och viktiga händelser');
     },
   },
+  {
+    pattern: /^(nytt\s*mail|skriv\s*mail|compose|ny\s*e-post|skicka\s*till)\s*(.*)/i,
+    description: 'Skapar utkast till nytt mail',
+    execute: async (match) => {
+      const hint = match[2] ? `Ämne/mottagare: ${match[2]}` : '';
+      return api.chatAsk(`skapa ett nytt mail-utkast${hint ? ' — ' + hint : ''}. Fråga efter mottagare, ämne och meddelande om de saknas.`);
+    },
+  },
+  {
+    pattern: /^(daglig\s*sammanfattning|dagens\s*sammanfattning|daily\s*summary|sammanfatta\s*dagen)/i,
+    description: 'Hämtar daglig AI-sammanfattning',
+    execute: async () => {
+      return api.chatAsk('visa dagens dagliga sammanfattning från Brain Core med needs_reply, good_to_know och ai_recommendation');
+    },
+  },
 ];
 
 // ── Quick action chips ────────────────────────────────────────────────────────
@@ -112,6 +127,8 @@ const QUICK_ACTIONS = [
   { label: '🔄 Synca', cmd: 'synca' },
   { label: '🧠 Brain Core', cmd: 'brain status' },
   { label: '📝 Utkast', cmd: 'utkast' },
+  { label: '✉️ Nytt mail', cmd: 'nytt mail' },
+  { label: '📅 Daglig sammanfattning', cmd: 'daglig sammanfattning' },
 ];
 
 // ── Connection status badge shown inside the chat header ──────────────────

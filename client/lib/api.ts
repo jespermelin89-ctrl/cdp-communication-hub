@@ -54,7 +54,9 @@ class ApiClient {
 
         if (resp.ok) return true;
       } catch (e) {
-        console.log(`Backend wake attempt ${i + 1}/${maxAttempts}...`);
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Backend wake attempt ${i + 1}/${maxAttempts}...`);
+        }
         // Wait a bit before retrying
         if (i < maxAttempts - 1) {
           await new Promise(r => setTimeout(r, 2000));

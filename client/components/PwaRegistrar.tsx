@@ -15,11 +15,11 @@ export default function PwaRegistrar() {
     ) {
       navigator.serviceWorker
         .register('/sw.js', { scope: '/' })
-        .then((reg) => {
-          console.log('[PWA] Service worker registered:', reg.scope);
+        .then((_reg) => {
+          // Service worker registered successfully
         })
-        .catch((err) => {
-          console.warn('[PWA] Service worker registration failed:', err);
+        .catch((_err) => {
+          // Service worker registration failed — app still works online
         });
     }
   }, []);

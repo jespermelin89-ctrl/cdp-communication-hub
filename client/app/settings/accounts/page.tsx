@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Mail, Settings, Inbox, Info } from 'lucide-react';
+import { toast } from 'sonner';
 import TopBar from '@/components/TopBar';
 import AddEmailAccount from '@/components/AddEmailAccount';
 import { BadgeIcons, BadgeContextMenu, BadgeManager } from '@/components/EmailBadges';
@@ -48,9 +49,10 @@ export default function AccountsSettingsPage() {
     setActionLoading(true);
     try {
       await api.setDefaultAccount(accountId);
+      toast.success('Standardkonto uppdaterat');
       await loadAccounts();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Kunde inte uppdatera standardkonto');
     } finally {
       setActionLoading(false);
     }
@@ -60,9 +62,10 @@ export default function AccountsSettingsPage() {
     setActionLoading(true);
     try {
       await api.updateAccount(account.id, { is_active: !account.isActive });
+      toast.success(account.isActive ? 'Konto inaktiverat' : 'Konto aktiverat');
       await loadAccounts();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Kunde inte uppdatera konto');
     } finally {
       setActionLoading(false);
     }
@@ -73,9 +76,10 @@ export default function AccountsSettingsPage() {
     setActionLoading(true);
     try {
       await api.deleteAccount(account.id);
+      toast.success(`${account.emailAddress} kopplades bort`);
       await loadAccounts();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Kunde inte koppla bort konto');
     } finally {
       setActionLoading(false);
     }
@@ -112,7 +116,7 @@ export default function AccountsSettingsPage() {
       setEditingAccount(null);
       await loadAccounts();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Kunde inte spara ändringar');
     } finally {
       setActionLoading(false);
     }

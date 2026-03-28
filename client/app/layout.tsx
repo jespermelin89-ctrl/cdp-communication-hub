@@ -19,12 +19,25 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'CDP Hub',
   },
   icons: {
     icon: '/icons/icon-192.svg',
     apple: '/icons/icon-192.svg',
+  },
+  openGraph: {
+    title: 'CDP Communication Hub',
+    description: 'AI-powered email communication hub with draft approval workflow',
+    type: 'website',
+    siteName: 'CDP Hub',
+    images: [{ url: '/icons/icon-192.svg', width: 192, height: 192 }],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'CDP Communication Hub',
+    description: 'AI-powered email communication hub with draft approval workflow',
+    images: ['/icons/icon-192.svg'],
   },
 };
 

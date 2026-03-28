@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
 import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -43,14 +45,19 @@ export default function ThreadDetailPage() {
   const threadId = params.id as string;
   const { t } = useI18n();
 
-  const [thread, setThread] = useState<EmailThread | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: threadData, isLoading: loading, mutate: mutateThread } = useSWR(
+    threadId ? `/threads/${threadId}` : null,
+    () => api.getThread(threadId),
+    { revalidateOnFocus: true }
+  );
+  const thread = threadData?.thread ?? null;
+
   const [analyzing, setAnalyzing] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
   const [draftInstruction, setDraftInstruction] = useState('');
   const [syncingMessages, setSyncingMessages] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [trashConfirm, setTrashConfirm] = useState(false);
+  const [trashConfirmOpen, setTrashConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contact, setContact] = useState<any>(null);
 
@@ -65,8 +72,8 @@ export default function ThreadDetailPage() {
   const [overriding, setOverriding] = useState(false);
   const [overrideSaved, setOverrideSaved] = useState(false);
 
+  // Load writing profile once per threadId
   useEffect(() => {
-    loadThread();
     api.getWritingProfile().then((r) => {
       const modes = r.profile?.modes ?? [];
       setWritingModes(modes);
@@ -74,23 +81,15 @@ export default function ThreadDetailPage() {
     }).catch(() => {});
   }, [threadId]);
 
-  async function loadThread() {
-    try {
-      setLoading(true);
-      const result = await api.getThread(threadId);
-      setThread(result.thread);
-      // Mark as read silently (non-fatal)
-      if (!result.thread.isRead) {
-        api.markThreadAsRead(threadId).catch(() => {});
-      }
-      // Try to load contact profile for the external sender
-      loadContactForThread(result.thread);
-    } catch (err: any) {
-      console.error('Failed to load thread:', err);
-    } finally {
-      setLoading(false);
+  // Side-effects that depend on the loaded thread
+  useEffect(() => {
+    if (!thread) return;
+    if (!thread.isRead) {
+      api.markThreadAsRead(threadId).catch(() => {});
     }
-  }
+    loadContactForThread(thread);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thread?.id]);
 
   async function loadContactForThread(thread: any) {
     try {
@@ -111,7 +110,7 @@ export default function ThreadDetailPage() {
     setSyncingMessages(true);
     try {
       await api.syncMessages(threadId);
-      await loadThread();
+      await mutateThread();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -125,7 +124,7 @@ export default function ThreadDetailPage() {
     try {
       await api.syncMessages(threadId);
       await api.analyzeThread(threadId);
-      await loadThread();
+      await mutateThread();
       toast.success('Analys klar');
     } catch (err: any) {
       setError(`Analysis failed: ${err.message}`);
@@ -148,14 +147,18 @@ export default function ThreadDetailPage() {
     }
   }
 
-  async function handleTrash() {
+  function handleTrash() {
+    setTrashConfirmOpen(true);
+  }
+
+  async function executeTrash() {
+    setTrashConfirmOpen(false);
     try {
       await api.trashThread(threadId);
       api.recordLearning('thread_trashed', { thread_id: threadId }, 'thread', threadId).catch(() => {});
       router.push('/inbox');
     } catch (err: any) {
       setError(`Flytt till papperskorgen misslyckades: ${err.message}`);
-      setTrashConfirm(false);
     }
   }
 
@@ -293,7 +296,7 @@ export default function ThreadDetailPage() {
               Arkivera
             </button>
             <button
-              onClick={() => setTrashConfirm(true)}
+              onClick={handleTrash}
               className="text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
             >
               <Trash2 size={14} />
@@ -306,7 +309,7 @@ export default function ThreadDetailPage() {
           {/* Messages — 2/3 */}
           <div className="lg:col-span-2 space-y-4">
             {thread.messages && thread.messages.length > 0 ? (
-              thread.messages.map((msg) => (
+              thread.messages.map((msg: any) => (
                 <div key={msg.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
                   <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700">
                     <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.fromAddress)}`}>
@@ -611,7 +614,7 @@ export default function ThreadDetailPage() {
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{t.thread.draftsForThread}</h3>
                 <div className="space-y-2">
-                  {thread.drafts.map((draft) => (
+                  {thread.drafts.map((draft: any) => (
                     <a
                       key={draft.id}
                       href={`/drafts/${draft.id}`}
@@ -634,33 +637,16 @@ export default function ThreadDetailPage() {
         </div>
       </main>
 
-      {/* Trash confirmation dialog */}
-      {trashConfirm && (
-        <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 px-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 max-w-sm w-full">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
-                <Trash2 size={18} className="text-red-600 dark:text-red-400" />
-              </div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Flytta till papperskorgen?</h3>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-              Mejlet flyttas till papperskorgen i Gmail och kan återställas inom 30 dagar.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setTrashConfirm(false)} className="btn-secondary text-sm">
-                Avbryt
-              </button>
-              <button
-                onClick={handleTrash}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition-colors"
-              >
-                Flytta till papperskorgen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={trashConfirmOpen}
+        title="Flytta till papperskorgen?"
+        description="Mejlet flyttas till papperskorgen i Gmail och kan återställas inom 30 dagar."
+        confirmLabel="Flytta till papperskorgen"
+        cancelLabel="Avbryt"
+        variant="danger"
+        onConfirm={executeTrash}
+        onCancel={() => setTrashConfirmOpen(false)}
+      />
     </div>
   );
 }

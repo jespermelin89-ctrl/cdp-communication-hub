@@ -99,7 +99,7 @@ export function BadgeContextMenu({ accountId, currentBadges, onBadgesChanged, ch
         onBadgesChanged([...currentBadges, badge]);
       }
     } catch (err) {
-      console.error('Failed to toggle badge:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to toggle badge:', err);
     } finally {
       setLoading(null);
       setShowMenu(false);
@@ -177,7 +177,7 @@ export function BadgeManager({ accountId, currentBadges, onBadgesChanged }: Badg
         onBadgesChanged([...currentBadges, badge]);
       }
     } catch (err) {
-      console.error('Failed to toggle badge:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to toggle badge:', err);
     } finally {
       setLoading(null);
     }

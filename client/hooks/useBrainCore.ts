@@ -78,7 +78,7 @@ export function useBrainCore() {
       });
       return;
     } catch {
-      console.warn('[useBrainCore] Path A (API) failed, trying agent fallback…');
+      if (process.env.NODE_ENV === 'development') console.warn('[useBrainCore] Path A (API) failed, trying agent fallback…');
     }
 
     // ── Step 3: Path B — agent brain-status (JWT auth) ────────────────────
@@ -109,7 +109,7 @@ export function useBrainCore() {
         }
       }
     } catch {
-      console.warn('[useBrainCore] Path B (Agent) failed, keeping cache');
+      if (process.env.NODE_ENV === 'development') console.warn('[useBrainCore] Path B (Agent) failed, keeping cache');
     }
 
     // ── Step 4: Offline — keep whatever step 1 loaded ────────────────────

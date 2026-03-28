@@ -32,6 +32,8 @@ export default function DraftCenterPage() {
   const [filter, setFilter] = useState<DraftStatus | ''>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -63,12 +65,42 @@ export default function DraftCenterPage() {
     setActionLoading(draftId);
     try {
       await api.approveDraft(draftId);
+      api.recordLearning('draft_approved', { draft_id: draftId }, 'draft', draftId).catch(() => {});
       await loadDrafts();
     } catch (err: any) {
       setError(draftId, `${t.drafts.approve} failed: ${err.message}`);
     } finally {
       setActionLoading(null);
     }
+  }
+
+  async function handleBulkApprove() {
+    if (selectedIds.size === 0) return;
+    setBulkLoading(true);
+    for (const id of selectedIds) {
+      try {
+        await api.approveDraft(id);
+        api.recordLearning('draft_approved', { draft_id: id }, 'draft', id).catch(() => {});
+      } catch {
+        // continue with remaining
+      }
+    }
+    setSelectedIds(new Set());
+    setBulkLoading(false);
+    await loadDrafts();
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllPending() {
+    const pendingIds = visibleDrafts.filter((d) => d.status === 'pending').map((d) => d.id);
+    setSelectedIds(new Set(pendingIds));
   }
 
   async function handleSend(draftId: string) {
@@ -122,6 +154,28 @@ export default function DraftCenterPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.drafts.title}</h1>
+          {/* Bulk approve bar */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-500 dark:text-gray-400">{selectedIds.size} valda</span>
+              <button
+                onClick={handleBulkApprove}
+                disabled={bulkLoading}
+                className="btn-primary text-sm flex items-center gap-1.5"
+              >
+                {bulkLoading
+                  ? <span className="w-3.5 h-3.5 border border-white/40 border-t-white rounded-full animate-spin" />
+                  : <CheckCircle size={14} />}
+                Godkänn valda
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-sm text-gray-400 hover:text-gray-600"
+              >
+                Avmarkera
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Stat cards */}
@@ -146,7 +200,15 @@ export default function DraftCenterPage() {
         )}
 
         {/* Filter pills */}
-        <div className="flex gap-2 mb-5 overflow-x-auto">
+        <div className="flex items-center gap-2 mb-5 overflow-x-auto">
+          {filter === 'pending' || filter === '' ? (
+            <button
+              onClick={selectAllPending}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              Markera alla
+            </button>
+          ) : null}
           {statusFilters.map((f) => (
             <button
               key={f.value}
@@ -201,6 +263,16 @@ export default function DraftCenterPage() {
                     draft.status === 'failed' ? 'border-red-200 dark:border-red-800' : 'border-gray-200 dark:border-gray-700'
                   }`}
                 >
+                  {/* Checkbox for pending */}
+                  {draft.status === 'pending' && (
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(draft.id)}
+                      onChange={() => toggleSelect(draft.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 accent-brand-500 cursor-pointer"
+                    />
+                  )}
                   {/* Draft info */}
                   <Link href={`/drafts/${draft.id}`} className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">

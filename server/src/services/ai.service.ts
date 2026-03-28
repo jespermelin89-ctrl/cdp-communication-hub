@@ -13,6 +13,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { env } from '../config/env';
 import { AIAnalysisSchema, type AIAnalysisOutput } from '../utils/validators';
+import { brainCoreService } from './brain-core.service';
 
 // System prompt for email analysis
 const ANALYSIS_SYSTEM_PROMPT = `You are an email analysis assistant for a business communication hub.
@@ -259,6 +260,57 @@ ${m.body}
       : DRAFT_SYSTEM_PROMPT;
 
     return this.chat(draftSystemPrompt, userMessage);
+  }
+
+  /**
+   * Generate a draft using the user's Brain Core writing profile and learning history.
+   * Fetches writing modes, voice attributes, and recent feedback to inject rich context.
+   */
+  async generateDraftWithProfile(options: {
+    instruction: string;
+    threadContext?: ThreadData;
+    userId: string;
+  }): Promise<string> {
+    const [profile, learning] = await Promise.all([
+      brainCoreService.getWritingProfile(options.userId).catch(() => ({ modes: [], attributes: [] })),
+      brainCoreService.getRelevantLearning(options.userId, { eventType: 'draft' }).catch(() => []),
+    ]);
+
+    let learningContext = '';
+
+    const modes = (profile as any)?.modes ?? [];
+    const attributes = (profile as any)?.attributes ?? [];
+
+    if (modes.length > 0) {
+      learningContext += '\n\nSKRIVPROFIL — Använd rätt ton baserat på instruktionen:\n';
+      for (const mode of modes) {
+        learningContext += `- ${mode.name}: ${mode.description || ''}\n`;
+        const phrases = mode.examplePhrases ?? mode.example_phrases ?? [];
+        if (phrases.length > 0) {
+          learningContext += `  Exempelfraser: ${phrases.join(', ')}\n`;
+        }
+      }
+    }
+
+    if (attributes.length > 0) {
+      learningContext += '\nRÖSTATTRIBUT — Följ dessa ALLTID:\n';
+      for (const attr of attributes) {
+        learningContext += `- ${attr.attribute}: ${attr.description || ''}\n`;
+      }
+    }
+
+    if (learning.length > 0) {
+      learningContext += '\nTIDIGARE FEEDBACK (lär dig av detta):\n';
+      for (const event of (learning as any[]).slice(-5)) {
+        learningContext += `- ${event.eventType}: ${JSON.stringify(event.data).substring(0, 200)}\n`;
+      }
+    }
+
+    return this.generateDraft({
+      instruction: options.instruction,
+      threadContext: options.threadContext,
+      learningContext: learningContext || undefined,
+    });
   }
 
   /**

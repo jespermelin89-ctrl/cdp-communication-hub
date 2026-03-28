@@ -54,19 +54,32 @@ export async function aiRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Fetch learning context (silent — non-blocking)
+    // Fetch learning context + classification overrides (silent — non-blocking)
     let learningContext: string | undefined;
     try {
       const sender = thread.participantEmails[0];
-      const events = await brainCoreService.getRelevantLearning(request.userId!, { sender });
-      if (events.length > 0) {
-        learningContext =
+      const [senderEvents, overrideEvents] = await Promise.all([
+        brainCoreService.getRelevantLearning(request.userId!, { sender }),
+        brainCoreService.getRelevantLearning(request.userId!, { eventType: 'classification:override' }),
+      ]);
+
+      let ctx = '';
+      if (senderEvents.length > 0) {
+        ctx +=
           'Historik — så har användaren hanterat liknande mail tidigare:\n' +
-          events
+          senderEvents
             .slice(0, 5)
             .map((e) => `- ${e.eventType}: ${JSON.stringify(e.data).substring(0, 200)}`)
             .join('\n');
       }
+      if (overrideEvents.length > 0) {
+        ctx += '\n\nUSER CLASSIFICATION OVERRIDES (learn from these):\n';
+        for (const o of overrideEvents.slice(-10)) {
+          const d = o.data as any;
+          ctx += `- Thread "${d?.subject}": user changed ${d?.original_classification}/${d?.original_priority} → ${d?.new_classification}/${d?.new_priority}\n`;
+        }
+      }
+      if (ctx) learningContext = ctx;
     } catch {
       // learning context is non-critical — continue without it
     }
@@ -195,31 +208,13 @@ export async function aiRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Fetch draft learning context (voice/style preferences from past approvals)
-    let draftLearningContext: string | undefined;
-    try {
-      const draftEvents = await brainCoreService.getRelevantLearning(request.userId!, {
-        eventType: 'draft:approved',
-      });
-      if (draftEvents.length > 0) {
-        draftLearningContext =
-          'Skrivstilar som användaren har godkänt tidigare:\n' +
-          draftEvents
-            .slice(0, 5)
-            .map((e) => `- ${JSON.stringify(e.data).substring(0, 200)}`)
-            .join('\n');
-      }
-    } catch {
-      // non-critical
-    }
-
-    // Generate draft text via AI
+    // Generate draft text via AI — injects Brain Core writing profile + learning history
     let draftText: string;
     try {
-      draftText = await aiService.generateDraft({
+      draftText = await aiService.generateDraftWithProfile({
         instruction,
         threadContext,
-        learningContext: draftLearningContext,
+        userId: request.userId!,
       });
     } catch (aiErr: any) {
       request.log.error(aiErr, 'AI draft generation failed');

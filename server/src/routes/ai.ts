@@ -107,7 +107,7 @@ export async function aiRoutes(fastify: FastifyInstance) {
         : lastMessage.toAddresses.filter((addr: string) => addr !== thread.account.emailAddress);
 
       // Skip draft if recipient is an automated address (mailer-daemon, noreply, bounces, etc.)
-      const NO_REPLY_PATTERN = /^(mailer-daemon|noreply|no-reply|do-not-reply|donotreply|bounces?)\+?@/i;
+      const NO_REPLY_PATTERN = /^(mailer-daemon|noreply|no-reply|no\.reply|do-not-reply|donotreply|bounces?|postmaster|notifications?)\+?@/i;
       const replyTo = rawReplyTo.filter((addr: string) => !NO_REPLY_PATTERN.test(addr));
 
       if (replyTo.length > 0) {

@@ -5,6 +5,8 @@
  * It produces structured outputs gated behind human approval.
  *
  * Supports Groq (default/free), Anthropic (Claude), and OpenAI via unified interface.
+ * Provider blacklisting: permanently-failing providers (e.g. no credits) are skipped
+ * for 1 hour to avoid wasted latency on every request.
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -53,19 +55,13 @@ CRITICAL INSTRUCTIONS:
 2. No subject line, no greeting suggestions outside the body, no meta-commentary.
 3. No markdown formatting.`;
 
-// System prompt for inbox summary
-const SUMMARY_SYSTEM_PROMPT = `You are an email inbox analyst for a business founder.
+// System prompt for inbox summary — kept short and concise
+const SUMMARY_SYSTEM_PROMPT = `Du är en mail-assistent. Ge en KORT sammanfattning på max 2-3 meningar:
+1. Antal olästa som kräver åtgärd
+2. Viktigaste ärenden (max 3)
+3. Rekommenderad nästa åtgärd
 
-LANGUAGE INSTRUCTIONS:
-- Write the summary in Swedish.
-
-CRITICAL INSTRUCTIONS:
-1. Max 3-4 lines. No introduction. No closing. Facts only.
-2. Format exactly like this:
-   Rad 1: X olästa — viktigaste att agera på: [namn/avsändare + ämne]
-   Rad 2: [Eventuella deadlines eller brådskande ärenden, eller skip]
-   Rad 3: [Trend, t.ex. "Mycket spam från X — överväg filter"]
-3. Return plain text. No markdown. No bullet points.`;
+Format: Kort och koncist. Inga listor. Inga punkter. Ren löpande text på svenska.`;
 
 interface ThreadData {
   subject: string;
@@ -101,6 +97,9 @@ export class AIService {
   private openai: OpenAI | null = null;
   private groq: OpenAI | null = null;
 
+  /** provider name → timestamp until which it is blacklisted */
+  private providerBlacklist: Map<string, number> = new Map();
+
   constructor() {
     if (env.ANTHROPIC_API_KEY) {
       this.anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -117,12 +116,61 @@ export class AIService {
   }
 
   /**
+   * Truncate text to maxChars to stay within provider token limits.
+   * Groq TPM limit is 12 000 tokens — keep each message body under 2 000 chars.
+   */
+  private truncateContent(text: string | null | undefined, maxChars: number): string {
+    if (!text) return '';
+    if (text.length <= maxChars) return text;
+    return text.substring(0, maxChars) + '... [trunkerad]';
+  }
+
+  /**
+   * Returns true if the provider is not currently blacklisted.
+   * Clears expired blacklist entries automatically.
+   */
+  private isProviderAvailable(name: string): boolean {
+    const until = this.providerBlacklist.get(name);
+    if (!until) return true;
+    if (Date.now() > until) {
+      this.providerBlacklist.delete(name);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Blacklist a provider for durationMs (default 1 hour).
+   * Used when a provider returns a permanent error like "no credits".
+   */
+  private blacklistProvider(name: string, durationMs = 3_600_000): void {
+    this.providerBlacklist.set(name, Date.now() + durationMs);
+    console.warn(`[AI] Provider ${name} blacklisted for ${durationMs / 60000} min`);
+  }
+
+  /**
+   * Returns true if the error indicates a permanent/billing failure that
+   * won't resolve by retrying (no credits, invalid key, account suspended).
+   */
+  private isPermanentError(err: any): boolean {
+    const msg: string = err?.message ?? '';
+    const status: number = err?.status ?? err?.statusCode ?? 0;
+    return (
+      status === 402 ||
+      (status === 400 && /credit|quota|billing|insufficient/i.test(msg)) ||
+      /insufficient_quota|credit balance|no credits|account.*suspend/i.test(msg)
+    );
+  }
+
+  /**
    * Analyze an email thread. Returns structured analysis.
-   * Limits to 10 most recent messages for performance.
+   * Limits to 10 most recent messages; truncates bodies to 2 000 chars each.
    */
   async analyzeThread(threadData: ThreadData): Promise<AIAnalysisOutput> {
-    // Limit to 10 most recent messages
-    const recentMessages = threadData.messages.slice(-10);
+    const recentMessages = threadData.messages.slice(-10).map((m) => ({
+      ...m,
+      body: this.truncateContent(m.body, 2000),
+    }));
 
     const userMessage = `Analyze this email thread:
 
@@ -172,6 +220,7 @@ ${userMessage}`;
 
   /**
    * Generate a draft email from a natural language instruction.
+   * Truncates thread context bodies to 1 500 chars.
    */
   async generateDraft(options: {
     instruction: string;
@@ -180,7 +229,10 @@ ${userMessage}`;
     let userMessage = `Write an email based on this instruction: "${options.instruction}"`;
 
     if (options.threadContext) {
-      const recentMessages = options.threadContext.messages.slice(-5);
+      const recentMessages = options.threadContext.messages.slice(-5).map((m) => ({
+        ...m,
+        body: this.truncateContent(m.body, 1500),
+      }));
       userMessage += `\n\nThis is a reply to the following thread:
 Subject: ${options.threadContext.subject}
 
@@ -201,6 +253,7 @@ ${m.body}
 
   /**
    * Summarize inbox state for the Command Center daily briefing.
+   * Truncates snippets to 300 chars to keep payload small.
    */
   async summarizeInbox(threads: Array<{
     subject: string;
@@ -211,38 +264,39 @@ ${m.body}
     lastMessageAt: Date;
     isRead: boolean;
   }>): Promise<string> {
-    const userMessage = `Here are the current inbox threads (${threads.length} total):
+    const userMessage = `Inkorgen har ${threads.length} trådar totalt:
 
 ${threads
-  .slice(0, 30) // Limit to 30 most recent for summary
+  .slice(0, 30)
   .map(
-    (t, i) => `${i + 1}. Subject: ${t.subject}
-   Snippet: ${t.snippet}
-   Priority: ${t.priority || 'unanalyzed'} | Type: ${t.classification || 'unanalyzed'}
-   Messages: ${t.messageCount} | Last activity: ${t.lastMessageAt.toISOString()}
-   Read: ${t.isRead ? 'yes' : 'NO'}`
+    (t, i) => `${i + 1}. Ämne: ${t.subject}
+   Utdrag: ${this.truncateContent(t.snippet, 300)}
+   Prioritet: ${t.priority || 'ej analyserad'} | Typ: ${t.classification || 'ej analyserad'}
+   Meddelanden: ${t.messageCount} | Senast: ${t.lastMessageAt.toISOString()}
+   Läst: ${t.isRead ? 'ja' : 'NEJ'}`
   )
   .join('\n\n')}
 
-Provide a concise daily briefing summary.`;
+Ge en kort sammanfattning.`;
 
     return this.chat(SUMMARY_SYSTEM_PROMPT, userMessage);
   }
 
   /**
    * Core chat method - tries providers in fallback order: Groq → Anthropic → OpenAI.
-   * Always attempts Groq first regardless of AI_PROVIDER setting if a key is present.
-   * Logs which provider succeeded or failed.
+   * Skips blacklisted providers. Permanently-failing providers are blacklisted for 1 h.
    */
   private async chat(systemPrompt: string, userMessage: string): Promise<string> {
-    const providers: Array<{ name: string; fn: () => Promise<string> }> = [];
+    const allProviders: Array<{ name: string; fn: () => Promise<string> }> = [];
 
-    if (this.groq) providers.push({ name: 'groq', fn: () => this.chatGroq(systemPrompt, userMessage) });
-    if (this.anthropic) providers.push({ name: 'anthropic', fn: () => this.chatAnthropic(systemPrompt, userMessage) });
-    if (this.openai) providers.push({ name: 'openai', fn: () => this.chatOpenAI(systemPrompt, userMessage) });
+    if (this.groq) allProviders.push({ name: 'groq', fn: () => this.chatGroq(systemPrompt, userMessage) });
+    if (this.anthropic) allProviders.push({ name: 'anthropic', fn: () => this.chatAnthropic(systemPrompt, userMessage) });
+    if (this.openai) allProviders.push({ name: 'openai', fn: () => this.chatOpenAI(systemPrompt, userMessage) });
+
+    const providers = allProviders.filter((p) => this.isProviderAvailable(p.name));
 
     if (providers.length === 0) {
-      throw new Error('No AI provider configured. Set GROQ_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY.');
+      throw new Error('No AI provider available. All providers are blacklisted or unconfigured.');
     }
 
     let lastError: Error | null = null;
@@ -257,6 +311,9 @@ Provide a concise daily briefing summary.`;
         return result;
       } catch (err: any) {
         console.warn(`[AI] Provider ${provider.name} failed: ${err?.message}`);
+        if (this.isPermanentError(err)) {
+          this.blacklistProvider(provider.name);
+        }
         lastError = err;
       }
     }
@@ -294,7 +351,7 @@ Provide a concise daily briefing summary.`;
 
   private async chatOpenAI(systemPrompt: string, userMessage: string): Promise<string> {
     const response = await this.openai!.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini', // 16x cheaper than gpt-4o, sufficient for mail analysis
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },

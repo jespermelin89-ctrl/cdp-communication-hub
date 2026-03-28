@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
 import { Bot, Mail, CheckCircle, Archive, Brain, RefreshCw, AlertCircle } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
 
 function EventIcon({ type }: { type: string }) {
   if (type.includes('draft')) return <CheckCircle size={14} className="text-emerald-500" />;
@@ -58,8 +59,8 @@ export default function ActivityPage() {
       setLogs(prev => p === 1 ? newLogs : [...prev, ...newLogs]);
       setHasMore(newLogs.length === 30);
       setPage(p);
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Non-critical — show empty state
     } finally {
       setLoading(false);
     }
@@ -87,10 +88,11 @@ export default function ActivityPage() {
             <div className="w-6 h-6 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
           </div>
         ) : logs.length === 0 ? (
-          <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-            <Brain size={40} className="mx-auto mb-3 opacity-30" />
-            <p>Ingen aktivitet loggad ännu</p>
-          </div>
+          <EmptyState
+            icon={Brain}
+            title="Ingen aktivitet loggad ännu"
+            description="Aktiviteter loggas när du analyserar mail, godkänner utkast och mer"
+          />
         ) : (
           <div className="relative">
             {/* Timeline line */}

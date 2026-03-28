@@ -6,7 +6,9 @@ import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
-import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown } from 'lucide-react';
+import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -74,6 +76,8 @@ export default function InboxPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [archivingIds, setArchivingIds] = useState<Set<string>>(new Set());
   const [trashConfirmId, setTrashConfirmId] = useState<string | null>(null);
+  const [batchTrashOpen, setBatchTrashOpen] = useState(false);
+  const [batchTrashPending, setBatchTrashPending] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<'date' | 'priority' | 'unanalyzed'>('date');
   const { t } = useI18n();
   const { setSelectedThreadIds } = useChatContext();
@@ -186,7 +190,11 @@ export default function InboxPage() {
   async function handleBatchAction(action: 'archive' | 'trash') {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (action === 'trash' && !window.confirm(`Flytta ${ids.length} trådar till papperskorgen?`)) return;
+    if (action === 'trash') {
+      setBatchTrashPending(ids);
+      setBatchTrashOpen(true);
+      return;
+    }
     await api.batchThreadAction(ids, action);
     setSelectedIds(new Set());
     toast.success(`${ids.length} trådar ${action === 'archive' ? 'arkiverade' : 'raderade'}`);
@@ -254,6 +262,15 @@ export default function InboxPage() {
   const availableClassifications = Array.from(
     new Set(threads.map((th) => th.latestAnalysis?.classification).filter(Boolean))
   ) as string[];
+
+  async function executeBatchTrash() {
+    setBatchTrashOpen(false);
+    await api.batchThreadAction(batchTrashPending, 'trash');
+    setSelectedIds(new Set());
+    toast.success(`${batchTrashPending.length} trådar flyttade till papperskorgen`);
+    setBatchTrashPending([]);
+    await loadThreads();
+  }
 
   const unanalyzedCount = threads.filter((th) => !th.latestAnalysis).length;
   const analyzingAny = analyzingIds.size > 0;
@@ -454,12 +471,13 @@ export default function InboxPage() {
             </div>
           </div>
         ) : visibleThreads.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 text-center py-16 shadow-sm">
-            <div className="text-4xl mb-3">📭</div>
-            <p className="text-gray-500 dark:text-gray-400 mb-4">{t.inbox.noThreads}</p>
-            <button onClick={handleSync} className="btn-primary">
-              {t.inbox.syncNow}
-            </button>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+            <EmptyState
+              icon={InboxIcon}
+              title={t.inbox.noThreads}
+              description="Synka din inkorg för att hämta nya mail"
+              action={{ label: t.inbox.syncNow, onClick: handleSync }}
+            />
           </div>
         ) : (
           <>
@@ -694,7 +712,19 @@ export default function InboxPage() {
         )}
       </main>
 
-      {/* Trash Confirmation Dialog */}
+      {/* Batch Trash Confirmation */}
+      <ConfirmDialog
+        open={batchTrashOpen}
+        title={`Flytta ${batchTrashPending.length} trådar till papperskorgen?`}
+        description="Trådarna flyttas till papperskorgen i Gmail och kan återställas inom 30 dagar."
+        confirmLabel="Flytta till papperskorgen"
+        cancelLabel="Avbryt"
+        variant="danger"
+        onConfirm={executeBatchTrash}
+        onCancel={() => { setBatchTrashOpen(false); setBatchTrashPending([]); }}
+      />
+
+      {/* Single-thread Trash Confirmation Dialog */}
       {trashConfirmId && (
         <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 max-w-sm w-full">

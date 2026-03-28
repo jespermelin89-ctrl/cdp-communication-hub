@@ -6,7 +6,8 @@ import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
-import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown } from 'lucide-react';
+import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown, Inbox as InboxIcon } from 'lucide-react';
+import EmptyState from '@/components/EmptyState';
 import { toast } from 'sonner';
 import type { Draft, DraftStatus } from '@/lib/types';
 
@@ -245,16 +246,13 @@ export default function DraftCenterPage() {
             </div>
           </div>
         ) : visibleDrafts.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 text-center py-16 px-6">
-            <div className="flex justify-center mb-3"><FileText size={40} strokeWidth={1.5} className="text-gray-300 dark:text-gray-600" /></div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">{t.drafts.noDrafts}</p>
-            <p className="text-gray-400 dark:text-gray-500 text-sm mb-5 max-w-sm mx-auto">{t.drafts.noDraftsHint}</p>
-            <Link
-              href="/inbox"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              {t.drafts.goToInbox}
-            </Link>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600">
+            <EmptyState
+              icon={FileText}
+              title={t.drafts.noDrafts}
+              description={t.drafts.noDraftsHint}
+              action={{ label: t.drafts.goToInbox, onClick: () => window.location.href = '/inbox' }}
+            />
           </div>
         ) : (
           <div className="space-y-3">

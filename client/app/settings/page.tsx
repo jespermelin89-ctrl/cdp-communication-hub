@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Brain, Settings2, ChevronRight } from 'lucide-react';
+import { Brain, Settings2, ChevronRight, Activity, Search, LogOut } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
 import { useI18n, LOCALES, type Locale } from '@/lib/i18n';
@@ -311,6 +311,26 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2.5">
                     <Brain size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
                     <span className="text-sm text-gray-700 dark:text-gray-300">Brain Core — Skrivprofil & AI</span>
+                  </div>
+                  <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
+                </Link>
+                <Link
+                  href="/activity"
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Activity size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Aktivitetslogg</span>
+                  </div>
+                  <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
+                </Link>
+                <Link
+                  href="/search"
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Search size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Sök mail</span>
                   </div>
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>

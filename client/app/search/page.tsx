@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Search, X, Clock, ArrowLeft } from 'lucide-react';
+import { Search, X, Clock, ArrowLeft, SearchX } from 'lucide-react';
 import { api } from '@/lib/api';
+import EmptyState from '@/components/EmptyState';
 
 const RECENT_KEY = 'cdp_recent_searches';
 const MAX_RECENT = 8;
@@ -184,9 +185,19 @@ export default function SearchPage() {
         {/* Results */}
         {!loading && searched && (
           <div>
-            <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-              {results.length === 0 ? `Inga träffar för "${query}"` : `${results.length} träffar för "${query}"`}
-            </div>
+            {results.length > 0 && (
+              <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                {results.length} träffar för &quot;{query}&quot;
+              </div>
+            )}
+            {results.length === 0 ? (
+              <EmptyState
+                icon={SearchX}
+                title={`Inga träffar för "${query}"`}
+                description="Prova ett annat sökord eller filtrera på prioritet"
+                action={{ label: 'Rensa sökning', onClick: () => { setQuery(''); setResults([]); setSearched(false); } }}
+              />
+            ) : (
             <div className="space-y-2">
               {results.map(thread => (
                 <Link
@@ -214,6 +225,7 @@ export default function SearchPage() {
                 </Link>
               ))}
             </div>
+            )}
           </div>
         )}
       </main>

@@ -66,8 +66,8 @@ export default function CategoriesPage() {
       if (!ruleForm.category_slug && catRes.categories.length > 0) {
         setRuleForm((f) => ({ ...f, category_slug: catRes.categories[0].slug }));
       }
-    } catch (err) {
-      console.error('Failed to load:', err);
+    } catch {
+      // Non-critical — show empty state
     } finally {
       setLoading(false);
     }

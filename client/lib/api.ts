@@ -66,6 +66,30 @@ class ApiClient {
     return false;
   }
 
+  private async requestWithRetry<T>(
+    method: string,
+    path: string,
+    body?: any,
+    query?: Record<string, string>,
+    retries = 2
+  ): Promise<T> {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        return await this.request<T>(method, path, body, query);
+      } catch (err: any) {
+        // Never retry auth errors — redirect is already in flight
+        if (err.message === 'Session expired') throw err;
+        // Never retry client errors (4xx) — retrying won't help
+        if (err.message?.startsWith('Request failed') && attempt === 0) throw err;
+        // Last attempt — propagate
+        if (attempt === retries) throw err;
+        // Exponential backoff: 2s, 4s
+        await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+      }
+    }
+    throw new Error('Max retries nåddes — försök igen');
+  }
+
   private async request<T>(
     method: string,
     path: string,
@@ -138,12 +162,12 @@ class ApiClient {
   }
 
   async getProfile() {
-    return this.request<{ user: any }>('GET', '/auth/me');
+    return this.requestWithRetry<{ user: any }>('GET', '/auth/me');
   }
 
   // Accounts
   async getAccounts() {
-    return this.request<{ accounts: any[] }>('GET', '/accounts');
+    return this.requestWithRetry<{ accounts: any[] }>('GET', '/accounts');
   }
 
   async setDefaultAccount(accountId: string) {
@@ -216,11 +240,11 @@ class ApiClient {
     if (params?.page) query.page = String(params.page);
     if (params?.limit) query.limit = String(params.limit);
     if (params?.search) query.search = params.search;
-    return this.request<{ threads: any[]; pagination: any }>('GET', '/threads', undefined, query);
+    return this.requestWithRetry<{ threads: any[]; pagination: any }>('GET', '/threads', undefined, query);
   }
 
   async getThread(id: string) {
-    return this.request<{ thread: any }>('GET', `/threads/${id}`);
+    return this.requestWithRetry<{ thread: any }>('GET', `/threads/${id}`);
   }
 
   async syncThreads(accountId: string, maxResults = 20) {
@@ -253,11 +277,11 @@ class ApiClient {
     if (params?.status) query.status = params.status;
     if (params?.account_id) query.account_id = params.account_id;
     if (params?.page) query.page = String(params.page);
-    return this.request<{ drafts: any[]; pagination: any }>('GET', '/drafts', undefined, query);
+    return this.requestWithRetry<{ drafts: any[]; pagination: any }>('GET', '/drafts', undefined, query);
   }
 
   async getDraft(id: string) {
-    return this.request<{ draft: any }>('GET', `/drafts/${id}`);
+    return this.requestWithRetry<{ draft: any }>('GET', `/drafts/${id}`);
   }
 
   async createDraft(data: {
@@ -316,12 +340,12 @@ class ApiClient {
 
   // Command Center
   async getCommandCenter() {
-    return this.request<any>('GET', '/command-center');
+    return this.requestWithRetry<any>('GET', '/command-center');
   }
 
   // Categories & Rules
   async getCategories() {
-    return this.request<{ categories: any[] }>('GET', '/categories');
+    return this.requestWithRetry<{ categories: any[] }>('GET', '/categories');
   }
 
   async createCategory(data: { name: string; color?: string; icon?: string; description?: string }) {
@@ -333,7 +357,7 @@ class ApiClient {
   }
 
   async getRules() {
-    return this.request<{ rules: any[] }>('GET', '/categories/rules');
+    return this.requestWithRetry<{ rules: any[] }>('GET', '/categories/rules');
   }
 
   async createRule(data: {
@@ -367,7 +391,7 @@ class ApiClient {
   }
 
   async getProviders() {
-    return this.request<{ providers: any[] }>('GET', '/providers');
+    return this.requestWithRetry<{ providers: any[] }>('GET', '/providers');
   }
 
   // Chat commands
@@ -384,12 +408,12 @@ class ApiClient {
 
   // Brain Summary (BRAIN-OS / external consumer endpoint)
   async getBrainSummary() {
-    return this.request<any>('GET', '/brain-summary');
+    return this.requestWithRetry<any>('GET', '/brain-summary');
   }
 
   // Brain Core
   async getDailySummary() {
-    return this.request<{ summary: any }>('GET', '/brain-core/daily-summary');
+    return this.requestWithRetry<{ summary: any }>('GET', '/brain-core/daily-summary');
   }
 
   async regenerateDailySummary() {
@@ -397,15 +421,15 @@ class ApiClient {
   }
 
   async getWritingProfile() {
-    return this.request<{ profile: { modes: any[]; attributes: any[] } }>('GET', '/brain-core/writing-profile');
+    return this.requestWithRetry<{ profile: { modes: any[]; attributes: any[] } }>('GET', '/brain-core/writing-profile');
   }
 
   async getContacts() {
-    return this.request<{ contacts: any[] }>('GET', '/brain-core/contacts');
+    return this.requestWithRetry<{ contacts: any[] }>('GET', '/brain-core/contacts');
   }
 
   async getClassificationRules() {
-    return this.request<{ rules: any[] }>('GET', '/brain-core/classification');
+    return this.requestWithRetry<{ rules: any[] }>('GET', '/brain-core/classification');
   }
 
   async recordLearning(eventType: string, data?: object, sourceType?: string, sourceId?: string) {
@@ -431,7 +455,7 @@ class ApiClient {
     const query: Record<string, string> = {};
     if (params?.page) query.page = String(params.page);
     if (params?.limit) query.limit = String(params.limit);
-    return this.request<{ logs: any[]; pagination: any }>('GET', '/action-logs', undefined, query);
+    return this.requestWithRetry<{ logs: any[]; pagination: any }>('GET', '/action-logs', undefined, query);
   }
 }
 

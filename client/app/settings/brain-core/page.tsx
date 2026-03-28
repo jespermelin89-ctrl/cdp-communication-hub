@@ -31,7 +31,7 @@ export default function BrainCorePage() {
         setRules(rulesRes.rules ?? []);
         setContacts(contactsRes.contacts ?? []);
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

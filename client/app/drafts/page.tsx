@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
@@ -29,8 +30,6 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function DraftCenterPage() {
-  const [allDrafts, setAllDrafts] = useState<Draft[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<DraftStatus | ''>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
@@ -38,22 +37,12 @@ export default function DraftCenterPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const { t } = useI18n();
-
-  useEffect(() => {
-    loadDrafts();
-  }, []);
-
-  async function loadDrafts() {
-    try {
-      setLoading(true);
-      const result = await api.getDrafts({});
-      setAllDrafts(result.drafts);
-    } catch (err: any) {
-      console.error('Failed to load drafts:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data: draftData, isLoading: loading, mutate: mutateDrafts } = useSWR(
+    '/drafts',
+    () => api.getDrafts({}),
+    { refreshInterval: 30000, revalidateOnFocus: true }
+  );
+  const allDrafts: Draft[] = draftData?.drafts ?? [];
 
   function setError(id: string, msg: string) {
     setErrors((prev) => new Map(prev).set(id, msg));
@@ -70,7 +59,7 @@ export default function DraftCenterPage() {
       await api.approveDraft(draftId);
       api.recordLearning('draft_approved', { draft_id: draftId }, 'draft', draftId).catch(() => {});
       toast.success('Utkast godkänt — redo att skickas');
-      await loadDrafts();
+      await mutateDrafts();
     } catch (err: any) {
       setError(draftId, `${t.drafts.approve} failed: ${err.message}`);
     } finally {
@@ -91,7 +80,7 @@ export default function DraftCenterPage() {
     }
     setSelectedIds(new Set());
     setBulkLoading(false);
-    await loadDrafts();
+    await mutateDrafts();
   }
 
   function toggleSelect(id: string) {
@@ -114,7 +103,7 @@ export default function DraftCenterPage() {
     try {
       await api.sendDraft(draftId);
       toast.success('Mail skickat!');
-      await loadDrafts();
+      await mutateDrafts();
     } catch (err: any) {
       setError(draftId, `${t.drafts.sendFailed}: ${err.message}`);
     } finally {
@@ -128,7 +117,7 @@ export default function DraftCenterPage() {
     setActionLoading(draftId);
     try {
       await api.discardDraft(draftId);
-      await loadDrafts();
+      await mutateDrafts();
     } catch (err: any) {
       setError(draftId, `${t.drafts.discard} failed: ${err.message}`);
     } finally {

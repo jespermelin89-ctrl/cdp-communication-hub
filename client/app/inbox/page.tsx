@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useSWR from 'swr';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
@@ -33,6 +34,8 @@ const PRIORITY_FILTER_COLORS: Record<string, string> = {
   low: 'bg-emerald-400 text-white border-emerald-400',
 };
 
+const isDev = process.env.NODE_ENV === 'development';
+
 const CLASSIFICATION_LABELS: Record<string, string> = {
   lead: 'Lead',
   partner: 'Partner',
@@ -61,12 +64,10 @@ function formatRelativeTime(dateStr: string | null | undefined): string {
 }
 
 export default function InboxPage() {
-  const [threads, setThreads] = useState<EmailThread[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [classificationFilter, setClassificationFilter] = useState<string>('');
-  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [analyzeErrors, setAnalyzeErrors] = useState<Map<string, string>>(new Map());
@@ -83,43 +84,36 @@ export default function InboxPage() {
   const { setSelectedThreadIds } = useChatContext();
   const { notifyNewHighPriority } = useNotifications();
 
+  // SWR — threads revalidate automatically when filters change
+  const { data: threadData, isLoading: loading, mutate: mutateThreads } = useSWR(
+    ['threads', selectedAccountId, search],
+    () => api.getThreads({
+      account_id: selectedAccountId || undefined,
+      search: search || undefined,
+    }),
+    { refreshInterval: 60000, revalidateOnFocus: true }
+  );
+  const threads: EmailThread[] = threadData?.threads ?? [];
+
   useEffect(() => {
     loadAccounts();
   }, []);
-
-  useEffect(() => {
-    loadThreads();
-  }, [selectedAccountId, priorityFilter, search]);
 
   // Sync inbox selection → global ChatContext so the chat widget knows which threads are selected
   useEffect(() => {
     setSelectedThreadIds(Array.from(selectedIds));
   }, [selectedIds]);
 
+  useEffect(() => {
+    if (threadData?.threads) notifyNewHighPriority(threadData.threads);
+  }, [threadData]);
+
   async function loadAccounts() {
     try {
       const result = await api.getAccounts();
       setAccounts(result.accounts);
     } catch (err) {
-      console.error('Failed to load accounts:', err);
-    }
-  }
-
-  async function loadThreads() {
-    try {
-      setLoading(true);
-      const params: Record<string, string> = {};
-      if (selectedAccountId) params.account_id = selectedAccountId;
-      if (priorityFilter) params.priority = priorityFilter;
-      if (search) params.search = search;
-      const result = await api.getThreads(params);
-      setThreads(result.threads);
-      notifyNewHighPriority(result.threads);
-      setSelectedIds(new Set());
-    } catch (err: any) {
-      console.error('Failed to load threads:', err);
-    } finally {
-      setLoading(false);
+      if (isDev) console.error('Failed to load accounts:', err);
     }
   }
 
@@ -132,9 +126,9 @@ export default function InboxPage() {
       for (const account of toSync) {
         await api.syncThreads(account.id, 30);
       }
-      await loadThreads();
+      await mutateThreads();
     } catch (err: any) {
-      console.error('Sync failed:', err);
+      if (isDev) console.error('Sync failed:', err);
       toast.error('Sync misslyckades');
     } finally {
       setSyncing(false);
@@ -147,10 +141,10 @@ export default function InboxPage() {
     try {
       await api.syncMessages(threadId);
       await api.analyzeThread(threadId);
-      await loadThreads();
+      await mutateThreads();
     } catch (err: any) {
       const msg: string = err?.message || 'Analysis failed';
-      console.error(`Analyze thread ${threadId}:`, msg);
+      if (isDev) console.error(`Analyze thread ${threadId}:`, msg);
       setAnalyzeErrors((prev) => new Map(prev).set(threadId, msg));
       toast.error(`Analys misslyckades: ${msg.substring(0, 60)}`);
     } finally {
@@ -166,10 +160,10 @@ export default function InboxPage() {
     setArchivingIds((prev) => new Set(prev).add(threadId));
     try {
       await api.archiveThread(threadId);
-      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      await mutateThreads();
       toast.success('Tråd arkiverad');
     } catch (err: any) {
-      console.error('Archive failed:', err);
+      if (isDev) console.error('Archive failed:', err);
       toast.error('Arkivering misslyckades');
     } finally {
       setArchivingIds((prev) => { const next = new Set(prev); next.delete(threadId); return next; });
@@ -179,9 +173,9 @@ export default function InboxPage() {
   async function handleTrash(threadId: string) {
     try {
       await api.trashThread(threadId);
-      setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      await mutateThreads();
     } catch (err: any) {
-      console.error('Trash failed:', err);
+      if (isDev) console.error('Trash failed:', err);
     } finally {
       setTrashConfirmId(null);
     }
@@ -198,7 +192,7 @@ export default function InboxPage() {
     await api.batchThreadAction(ids, action);
     setSelectedIds(new Set());
     toast.success(`${ids.length} trådar ${action === 'archive' ? 'arkiverade' : 'raderade'}`);
-    await loadThreads();
+    await mutateThreads();
   }
 
   async function handleBulkAnalyze() {
@@ -269,7 +263,7 @@ export default function InboxPage() {
     setSelectedIds(new Set());
     toast.success(`${batchTrashPending.length} trådar flyttade till papperskorgen`);
     setBatchTrashPending([]);
-    await loadThreads();
+    await mutateThreads();
   }
 
   const unanalyzedCount = threads.filter((th) => !th.latestAnalysis).length;
@@ -339,7 +333,7 @@ export default function InboxPage() {
                 account={acc}
                 selected={selectedAccountId === acc.id}
                 onSelect={() => setSelectedAccountId(acc.id)}
-                onSync={async () => { await api.syncThreads(acc.id, 30); loadThreads(); }}
+                onSync={async () => { await api.syncThreads(acc.id, 30); await mutateThreads(); }}
               />
             ))}
           </div>

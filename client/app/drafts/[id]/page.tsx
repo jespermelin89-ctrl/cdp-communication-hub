@@ -48,8 +48,8 @@ export default function DraftDetailPage() {
       setSubject(result.draft.subject);
       setBodyText(result.draft.bodyText);
       setToAddresses(result.draft.toAddresses.join(', '));
-    } catch (err: any) {
-      console.error('Failed to load draft:', err);
+    } catch {
+      // Show not-found state
     } finally {
       setLoading(false);
     }
@@ -100,6 +100,7 @@ export default function DraftDetailPage() {
     setActioning(true);
     try {
       await api.approveDraft(draftId);
+      api.recordLearning('draft_approved', { draft_id: draftId }, 'draft', draftId).catch(() => {});
       await loadDraft();
     } catch (err: any) {
       setError(`Approve failed: ${err.message}`);
@@ -128,6 +129,7 @@ export default function DraftDetailPage() {
     setActioning(true);
     try {
       await api.discardDraft(draftId);
+      api.recordLearning('draft_discarded', { draft_id: draftId }, 'draft', draftId).catch(() => {});
       router.push('/drafts');
     } catch (err: any) {
       setError(`Discard failed: ${err.message}`);

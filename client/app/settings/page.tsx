@@ -39,7 +39,7 @@ export default function SettingsPage() {
       setAccounts(accountsRes.accounts);
       setError(null);
     } catch (err: any) {
-      console.error('Failed to load settings:', err);
+      if (process.env.NODE_ENV === 'development') console.error('Failed to load settings:', err);
       setError(err.message);
     } finally {
       setLoading(false);

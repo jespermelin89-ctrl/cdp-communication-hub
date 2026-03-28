@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import useSWR from 'swr';
 import Link from 'next/link';
 import {
   Mail, AlertTriangle, FileText, CheckCircle, RefreshCw, Brain, Inbox, Settings,
@@ -17,11 +18,7 @@ import { toast } from 'sonner';
 import type { CommandCenterData, Account } from '@/lib/types';
 
 export default function DashboardPage() {
-  const [data, setData] = useState<CommandCenterData | null>(null);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [dailySummary, setDailySummary] = useState<any | null>(null);
@@ -33,42 +30,42 @@ export default function DashboardPage() {
   const [bulkResult, setBulkResult] = useState<{ analyzed: number; ai_calls: number } | null>(null);
   const { t } = useI18n();
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const { data: cmdSWR, isLoading: loading, mutate: mutateDashboard } = useSWR(
+    'command-center',
+    () => api.getCommandCenter(),
+    { refreshInterval: 120000, revalidateOnFocus: true }
+  );
+  const data: CommandCenterData | null = cmdSWR ?? null;
 
-  async function loadData() {
-    try {
-      setLoading(true);
-      const [cmdResult, catResult] = await Promise.all([
-        api.getCommandCenter(),
-        api.getCategories().catch(() => ({ categories: [] })),
-      ]);
-      setData(cmdResult);
-      setCategories(catResult.categories || []);
-      // Auto-fetch AI summary for default account if not cached
-      const defaultAcc = cmdResult.accounts?.find((a: Account) => a.isDefault) ?? cmdResult.accounts?.[0];
-      if (defaultAcc) {
-        const cached = sessionStorage.getItem(`ai_summary_${defaultAcc.id}`);
-        if (cached) {
-          setAiSummary(cached);
-        } else {
-          fetchAiSummary(defaultAcc.id);
-        }
-      }
-      // Load Brain Core daily summary
-      fetchDailySummary();
-      // Build AI sorting suggestions
-      buildSortingGroups();
-      // Load top contacts
-      api.getContacts().then((r) => setContacts(r.contacts ?? [])).catch(() => {});
-    } catch (err: any) {
-      setError(err.message);
-      toast.error('Kunde inte ladda dashboard-data');
-    } finally {
-      setLoading(false);
+  const { data: catSWR } = useSWR(
+    'categories',
+    () => api.getCategories().catch(() => ({ categories: [] })),
+    { refreshInterval: 300000 }
+  );
+  const categories: any[] = catSWR?.categories ?? [];
+
+  // Track whether we've run the one-time initial side effects
+  const didInitRef = useRef(false);
+
+  // Initial side effects — run once when data first loads
+  useEffect(() => {
+    if (!data || didInitRef.current) return;
+    didInitRef.current = true;
+    const defaultAcc = data.accounts?.find((a: Account) => a.isDefault) ?? data.accounts?.[0];
+    if (defaultAcc) {
+      const cached = sessionStorage.getItem(`ai_summary_${defaultAcc.id}`);
+      if (cached) setAiSummary(cached);
+      else fetchAiSummary(defaultAcc.id);
     }
-  }
+    fetchDailySummary();
+  }, [data]);
+
+  // Refresh contacts + sorting suggestions on each revalidation
+  useEffect(() => {
+    if (!data) return;
+    buildSortingGroups();
+    api.getContacts().then((r) => setContacts(r.contacts ?? [])).catch(() => {});
+  }, [data]);
 
   async function fetchAiSummary(accountId: string) {
     setSummaryLoading(true);
@@ -174,7 +171,7 @@ export default function DashboardPage() {
       setBulkResult({ analyzed: result.analyzed, ai_calls: result.ai_calls });
       toast.success(`Klassificerade ${result.analyzed} mail (${result.ai_calls} AI-anrop)`);
       // Refresh data to show updated counts
-      await loadData();
+      await mutateDashboard();
     } catch {
       // Non-critical
     } finally {
@@ -189,7 +186,7 @@ export default function DashboardPage() {
       for (const acc of data.accounts.filter((a: Account) => a.isActive)) {
         await api.syncThreads(acc.id, 30);
       }
-      await loadData();
+      await mutateDashboard();
     } catch (err: any) {
       toast.error(`Sync misslyckades: ${err.message}`);
     } finally {
@@ -259,10 +256,6 @@ export default function DashboardPage() {
               <span className="text-sm">{t.dashboard.loading}</span>
             </div>
           </div>
-        )}
-
-        {error && (
-          <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 px-4 py-3 mb-6 text-sm">{error}</div>
         )}
 
         {data && (

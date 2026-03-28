@@ -25,7 +25,10 @@ import { draftService } from '../services/draft.service';
 import { brainCoreService } from '../services/brain-core.service';
 import { env } from '../config/env';
 
-const ALLOWED_ACTIONS = ['briefing', 'classify', 'draft', 'search', 'brain-status', 'learn'] as const;
+const ALLOWED_ACTIONS = [
+  'briefing', 'classify', 'draft', 'search', 'brain-status', 'learn',
+  'bulk-classify', 'sync',
+] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
 /** Reject request if X-API-Key header does not match COMMAND_API_KEY */
@@ -45,7 +48,7 @@ export default async function agentRoutes(app: FastifyInstance) {
   /**
    * POST /agent/execute
    */
-  app.post('/agent/execute', async (req, reply) => {
+  app.post('/execute', async (req, reply) => {
     const body = req.body as { action?: string; params?: Record<string, any> };
     const action = body?.action as AgentAction | undefined;
     const params = body?.params ?? {};
@@ -390,6 +393,84 @@ export default async function agentRoutes(app: FastifyInstance) {
             },
           };
         }
+
+        // ── BULK-CLASSIFY ─────────────────────────────────────────────────
+        case 'bulk-classify': {
+          const limit = Math.min(Number(params.limit) || 10, 20);
+
+          const unanalyzed = await prisma.emailThread.findMany({
+            where: {
+              account: { userId },
+              isRead: false,
+              analyses: { none: {} },
+            },
+            take: limit,
+            orderBy: { lastMessageAt: 'desc' },
+            include: {
+              messages: { orderBy: { receivedAt: 'asc' }, take: 3 },
+            },
+          });
+
+          const results: Array<{
+            thread_id: string;
+            subject: string | null;
+            priority: string;
+            classification: string;
+          }> = [];
+
+          for (const thread of unanalyzed) {
+            try {
+              const threadData = {
+                subject: thread.subject || '(No Subject)',
+                messages: thread.messages.map((m) => ({
+                  from: m.fromAddress,
+                  to: m.toAddresses,
+                  body: m.bodyText || '',
+                  date: m.receivedAt.toISOString(),
+                })),
+              };
+              const analysis = await aiService.analyzeThread(threadData);
+              await prisma.aIAnalysis.create({
+                data: {
+                  threadId: thread.id,
+                  summary: analysis.summary,
+                  classification: analysis.classification,
+                  priority: analysis.priority,
+                  suggestedAction: analysis.suggested_action,
+                  draftText: analysis.draft_text,
+                  confidence: analysis.confidence,
+                  modelUsed: analysis.model_used,
+                },
+              });
+              results.push({
+                thread_id: thread.id,
+                subject: thread.subject,
+                priority: analysis.priority,
+                classification: analysis.classification,
+              });
+            } catch {
+              // Skip failed analyses — continue with remaining threads
+            }
+          }
+
+          return {
+            success: true,
+            action,
+            data: { analyzed: results.length, total_unanalyzed: unanalyzed.length, results },
+            provider_used: env.AI_PROVIDER,
+          };
+        }
+
+        // ── SYNC ──────────────────────────────────────────────────────────
+        case 'sync': {
+          const { startSyncNow } = await import('../services/sync-scheduler.service');
+          await startSyncNow();
+          return {
+            success: true,
+            action,
+            data: { message: 'Gmail-sync startad för alla aktiva konton.' },
+          };
+        }
       }
     } catch (err: any) {
       const msg: string = err?.message ?? 'Okänt fel';
@@ -398,5 +479,54 @@ export default async function agentRoutes(app: FastifyInstance) {
         : msg;
       return reply.code(500).send({ success: false, action, error: safe });
     }
+  });
+
+  // ── GET /notifications ─────────────────────────────────────────────────────
+  app.get('/notifications', async (req, reply) => {
+    const account = await prisma.emailAccount.findFirst({ where: { isActive: true } });
+    if (!account) {
+      return reply.code(503).send({ success: false, error: 'Inga aktiva konton.' });
+    }
+    const userId = account.userId;
+
+    const since = new Date(Date.now() - 30 * 60 * 1000); // last 30 min
+
+    const [newThreadCount, pendingDraftCount, highPriorityUnread] = await Promise.all([
+      prisma.emailThread.count({
+        where: {
+          account: { userId },
+          isRead: false,
+          lastMessageAt: { gte: since },
+        },
+      }),
+      prisma.draft.count({
+        where: { account: { userId }, status: 'pending' },
+      }),
+      prisma.emailThread.findMany({
+        where: {
+          account: { userId },
+          isRead: false,
+          analyses: { some: { priority: 'high' } },
+        },
+        take: 5,
+        orderBy: { lastMessageAt: 'desc' },
+        select: {
+          id: true,
+          subject: true,
+          participantEmails: true,
+          lastMessageAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        new_emails_30min: newThreadCount,
+        pending_drafts: pendingDraftCount,
+        high_priority_unread: highPriorityUnread,
+        checked_at: new Date().toISOString(),
+      },
+    };
   });
 }

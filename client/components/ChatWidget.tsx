@@ -96,7 +96,7 @@ export default function ChatWidget() {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages]);
 
   useEffect(() => {
@@ -224,10 +224,11 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* Floating button */}
+      {/* Floating button — hidden on mobile when chat is open (fullscreen replaces it) */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105"
+        className={`fixed bottom-6 right-6 z-50 w-14 h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 ${isOpen ? 'hidden sm:flex' : 'flex'}`}
+        style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
         title="Öppna chatt"
       >
         {isOpen ? <X size={22} /> : (
@@ -242,11 +243,11 @@ export default function ChatWidget() {
         )}
       </button>
 
-      {/* Chat panel */}
+      {/* Chat panel — fullscreen on mobile (<sm), floating bubble on sm+ */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-96 h-[32rem] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+        <div className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 z-50 sm:w-96 sm:h-[32rem] bg-white dark:bg-gray-800 sm:rounded-2xl shadow-2xl border-0 sm:border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom,0px)]">
           {/* Header */}
-          <div className="px-4 py-3 bg-brand-500 text-white flex items-center gap-2">
+          <div className="px-4 py-3 bg-brand-500 text-white flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
               <span className="font-bold text-sm">C</span>
             </div>
@@ -260,6 +261,14 @@ export default function ChatWidget() {
               className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
             >
               <RefreshCw size={14} />
+            </button>
+            {/* Close button — only visible on mobile where FAB is hidden */}
+            <button
+              onClick={() => setIsOpen(false)}
+              title="Stäng"
+              className="sm:hidden p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <X size={16} />
             </button>
           </div>
 

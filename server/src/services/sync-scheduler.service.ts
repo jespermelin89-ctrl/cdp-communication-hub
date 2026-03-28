@@ -192,6 +192,15 @@ export function startSyncScheduler(): void {
   }, AI_INTERVAL_MS);
 }
 
+/**
+ * One-shot sync — runs syncAllAccounts() immediately without touching intervals.
+ * Called by the Agent API `sync` action so Amanda can trigger a manual refresh.
+ */
+export async function startSyncNow(): Promise<void> {
+  console.log('[Scheduler] Manual sync triggered via Agent API');
+  await syncAllAccounts();
+}
+
 export function stopSyncScheduler(): void {
   if (syncInterval) {
     clearInterval(syncInterval);

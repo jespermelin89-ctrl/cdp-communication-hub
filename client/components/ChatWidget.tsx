@@ -174,7 +174,7 @@ export default function ChatWidget() {
   const { t } = useI18n();
   const { selectedThreadIds } = useChatContext();
   const networkStatus = useNetworkStatus();
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, setIsOpen } = useChatContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);

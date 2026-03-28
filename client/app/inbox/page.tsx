@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
+import SwipeableThread from '@/components/SwipeableThread';
 import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -16,6 +18,7 @@ import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { useChatContext } from '@/lib/chat-context';
 import { useNotifications } from '@/lib/use-notifications';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { EmailThread, Account } from '@/lib/types';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
@@ -64,6 +67,7 @@ function formatRelativeTime(dateStr: string | null | undefined): string {
 }
 
 export default function InboxPage() {
+  const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
@@ -80,6 +84,7 @@ export default function InboxPage() {
   const [batchTrashOpen, setBatchTrashOpen] = useState(false);
   const [batchTrashPending, setBatchTrashPending] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<'date' | 'priority' | 'unanalyzed'>('date');
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const { t } = useI18n();
   const { setSelectedThreadIds } = useChatContext();
   const { notifyNewHighPriority } = useNotifications();
@@ -209,6 +214,28 @@ export default function InboxPage() {
     }
   }
 
+  async function handleBatchArchive(ids: string[]) {
+    try {
+      await api.batchThreadAction(ids, 'archive');
+      setSelectedIds(new Set());
+      await mutateThreads();
+      toast.success(`${ids.length} trådar arkiverade`);
+    } catch {
+      toast.error('Batch-arkivering misslyckades');
+    }
+  }
+
+  async function handleBatchClassify(ids: string[]) {
+    try {
+      const result = await api.bulkClassify(ids.length);
+      setSelectedIds(new Set());
+      await mutateThreads();
+      toast.success(`${result.analyzed} trådar klassificerade`);
+    } catch {
+      toast.error('Batch-klassificering misslyckades');
+    }
+  }
+
   function toggleSelect(id: string, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -256,6 +283,22 @@ export default function InboxPage() {
   const availableClassifications = Array.from(
     new Set(threads.map((th) => th.latestAnalysis?.classification).filter(Boolean))
   ) as string[];
+
+  // j/k navigation + e/r actions
+  useKeyboardShortcuts({
+    j: () => setFocusedIndex((i) => Math.min(i + 1, visibleThreads.length - 1)),
+    k: () => setFocusedIndex((i) => Math.max(i - 1, 0)),
+    e: () => {
+      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        handleArchive(visibleThreads[focusedIndex].id);
+      }
+    },
+    r: () => {
+      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        router.push(`/threads/${visibleThreads[focusedIndex].id}`);
+      }
+    },
+  });
 
   async function executeBatchTrash() {
     setBatchTrashOpen(false);
@@ -503,10 +546,18 @@ export default function InboxPage() {
                   : sender.split('@')[0];
 
                 return (
-                  <div
+                  <SwipeableThread
                     key={thread.id}
+                    onSwipeLeft={() => handleArchive(thread.id)}
+                    onSwipeRight={() => router.push(`/threads/${thread.id}`)}
+                    leftLabel="Arkivera"
+                    rightLabel="Öppna"
+                  >
+                  <div
                     className={`bg-white dark:bg-gray-800 rounded-2xl border transition-all shadow-sm ${
-                      isSelected
+                      focusedIndex === visibleThreads.indexOf(thread)
+                        ? 'border-brand-400 dark:border-brand-600 ring-2 ring-brand-200 dark:ring-brand-800'
+                        : isSelected
                         ? 'border-brand-300 dark:border-brand-700 ring-1 ring-brand-200 dark:ring-brand-800'
                         : isUnread
                         ? 'border-l-4 border-l-brand-500 border-gray-200 dark:border-gray-700'
@@ -557,9 +608,14 @@ export default function InboxPage() {
 
                         {/* Subject + badges */}
                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                          <span className={`text-sm truncate ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
-                            {thread.subject || t.inbox.noSubject}
-                          </span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {isUnread && (
+                              <span className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />
+                            )}
+                            <span className={`text-sm truncate ${isUnread ? 'font-semibold text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
+                              {thread.subject || t.inbox.noSubject}
+                            </span>
+                          </div>
                           {thread.latestAnalysis && (
                             <>
                               <PriorityBadge priority={thread.latestAnalysis.priority} />
@@ -579,10 +635,16 @@ export default function InboxPage() {
                           )}
                         </div>
 
-                        {/* Message count + snippet */}
-                        <div className="text-xs text-gray-400 dark:text-gray-500 mb-1">
+                        {/* Message count */}
+                        <div className="text-xs text-gray-400 dark:text-gray-500 mb-0.5">
                           {thread.messageCount} {t.inbox.messages}
                         </div>
+                        {/* Snippet preview */}
+                        {thread.snippet && (
+                          <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5 max-w-md">
+                            {thread.snippet}
+                          </p>
+                        )}
 
                         {thread.latestAnalysis ? (
                           <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-1.5 mt-1 flex items-start gap-2">
@@ -699,12 +761,44 @@ export default function InboxPage() {
                       </div>
                     )}
                   </div>
+                  </SwipeableThread>
                 );
               })}
             </div>
           </>
         )}
       </main>
+
+      {/* Sticky batch action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-16 sm:bottom-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg px-4 py-3 flex items-center justify-between safe-area-bottom">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            {selectedIds.size} markerade
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleBatchArchive(Array.from(selectedIds))}
+              className="btn-secondary text-sm flex items-center gap-1.5"
+            >
+              <Archive size={14} />
+              Arkivera
+            </button>
+            <button
+              onClick={() => handleBatchClassify(Array.from(selectedIds))}
+              className="btn-primary text-sm flex items-center gap-1.5"
+            >
+              <Bot size={14} />
+              Klassificera
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              Avmarkera
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Batch Trash Confirmation */}
       <ConfirmDialog
@@ -719,35 +813,16 @@ export default function InboxPage() {
       />
 
       {/* Single-thread Trash Confirmation Dialog */}
-      {trashConfirmId && (
-        <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50 px-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-6 max-w-sm w-full">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
-                <Trash2 size={18} className="text-red-600 dark:text-red-400" />
-              </div>
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100">Flytta till papperskorgen?</h3>
-            </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-              Mejlet flyttas till papperskorgen i Gmail och kan återställas inom 30 dagar.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setTrashConfirmId(null)}
-                className="btn-secondary text-sm"
-              >
-                Avbryt
-              </button>
-              <button
-                onClick={() => handleTrash(trashConfirmId)}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-xl transition-colors"
-              >
-                Flytta till papperskorgen
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={trashConfirmId !== null}
+        title="Flytta till papperskorgen?"
+        description="Mejlet flyttas till papperskorgen i Gmail och kan återställas inom 30 dagar."
+        confirmLabel="Flytta till papperskorgen"
+        cancelLabel="Avbryt"
+        variant="danger"
+        onConfirm={() => trashConfirmId && handleTrash(trashConfirmId)}
+        onCancel={() => setTrashConfirmId(null)}
+      />
     </div>
   );
 }

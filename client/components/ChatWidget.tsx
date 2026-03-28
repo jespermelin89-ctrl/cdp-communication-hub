@@ -2,10 +2,12 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { MessageCircle, X, Send, RefreshCw } from 'lucide-react';
+import { MessageCircle, X, Send, RefreshCw, WifiOff, Loader, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useChatContext } from '@/lib/chat-context';
+import { commandQueue } from '@/lib/command-queue';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import VoiceButton from './VoiceButton';
 
 interface ChatMessage {
@@ -15,16 +17,58 @@ interface ChatMessage {
   type?: string;
   data?: any;
   timestamp: Date;
+  queued?: boolean; // true = sent while offline, waiting for flush
+}
+
+// ── Connection status badge shown inside the chat header ──────────────────
+function ConnectionBadge({
+  online,
+  backendReachable,
+  renderColdStart,
+  queuedCount,
+}: {
+  online: boolean;
+  backendReachable: boolean;
+  renderColdStart: boolean;
+  queuedCount: number;
+}) {
+  if (!online) {
+    return (
+      <div className="flex items-center gap-1 text-[10px] text-amber-300 font-medium">
+        <WifiOff className="w-3 h-3 shrink-0" />
+        Offline{queuedCount > 0 ? ` · ${queuedCount} köat` : ''}
+      </div>
+    );
+  }
+  if (renderColdStart) {
+    return (
+      <div className="flex items-center gap-1 text-[10px] text-blue-300 font-medium">
+        <Loader className="w-3 h-3 shrink-0 animate-spin" />
+        Backend startar…
+      </div>
+    );
+  }
+  if (!backendReachable) {
+    return (
+      <div className="flex items-center gap-1 text-[10px] text-red-300 font-medium">
+        <AlertCircle className="w-3 h-3 shrink-0" />
+        Servern svarar inte
+      </div>
+    );
+  }
+  return null;
 }
 
 export default function ChatWidget() {
   const { t } = useI18n();
   const { selectedThreadIds } = useChatContext();
+  const networkStatus = useNetworkStatus();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [queuedCount, setQueuedCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -38,6 +82,51 @@ export default function ChatWidget() {
     }]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sync queue count display
+  useEffect(() => {
+    commandQueue.count().then(setQueuedCount).catch(() => {});
+  }, []);
+
+  // Flush queued commands when we come back online
+  useEffect(() => {
+    if (!networkStatus.online || !networkStatus.backendReachable) return;
+
+    commandQueue.count().then((n) => {
+      if (n === 0) return;
+      // Flush: send each queued command
+      commandQueue.flush(async (cmd) => {
+        try {
+          const result = await api.chatAsk(cmd.text);
+          setMessages((prev) => {
+            // Replace the 'queued' placeholder bubble if present
+            const withoutQueued = prev.filter(
+              (m) => !(m.queued && m.content === cmd.text)
+            );
+            return [
+              ...withoutQueued,
+              {
+                id: `a-flush-${cmd.id}`,
+                role: 'assistant' as const,
+                content: result.message,
+                type: result.type,
+                data: result.data,
+                timestamp: new Date(),
+              },
+            ];
+          });
+          return true;
+        } catch {
+          return false;
+        }
+      }).then((flushed) => {
+        if (flushed > 0) {
+          commandQueue.count().then(setQueuedCount).catch(() => {});
+        }
+      });
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [networkStatus.online, networkStatus.backendReachable]);
 
   // Handle URL params: ?voice=1 opens chat + starts mic, ?cmd=<action> auto-sends a command
   useEffect(() => {
@@ -54,10 +143,8 @@ export default function ChatWidget() {
       };
       const message = commandMap[cmd];
       if (message) {
-        // Short delay so welcome message renders first
         setTimeout(() => {
           setInput(message);
-          // Use a ref-based send to avoid stale closure
           setTimeout(() => {
             setInput('');
             const userMsg: ChatMessage = {
@@ -116,10 +203,34 @@ export default function ChatWidget() {
 
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
+
+    // ── Offline: queue the command ────────────────────────────────────────
+    if (!networkStatus.online) {
+      await commandQueue.add(text);
+      const n = await commandQueue.count();
+      setQueuedCount(n);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `q-${Date.now()}`,
+          role: 'assistant',
+          content: '📥 Du är offline. Meddelandet köas och skickas automatiskt när du är online igen.',
+          type: 'info',
+          timestamp: new Date(),
+          queued: true,
+        },
+      ]);
+      return;
+    }
+
+    // ── Online: send normally ─────────────────────────────────────────────
     setLoading(true);
 
     try {
-      const result = await api.chatAsk(text, selectedThreadIds.length > 0 ? selectedThreadIds : undefined);
+      const result = await api.chatAsk(
+        text,
+        selectedThreadIds.length > 0 ? selectedThreadIds : undefined
+      );
 
       const assistantMsg: ChatMessage = {
         id: `a-${Date.now()}`,
@@ -234,9 +345,9 @@ export default function ChatWidget() {
         {isOpen ? <X size={22} /> : (
           <div className="relative">
             <MessageCircle size={22} />
-            {selectedThreadIds.length > 0 && (
+            {(selectedThreadIds.length > 0 || queuedCount > 0) && (
               <span className="absolute -top-2 -right-2 w-4 h-4 bg-amber-400 text-gray-900 text-[10px] font-bold rounded-full flex items-center justify-center">
-                {selectedThreadIds.length}
+                {selectedThreadIds.length + queuedCount}
               </span>
             )}
           </div>
@@ -251,9 +362,19 @@ export default function ChatWidget() {
             <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
               <span className="font-bold text-sm">C</span>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm">{t.chat.title}</div>
-              <div className="text-xs text-brand-100">{t.chat.subtitle}</div>
+              <div className="text-xs text-brand-100 truncate">
+                <ConnectionBadge
+                  online={networkStatus.online}
+                  backendReachable={networkStatus.backendReachable}
+                  renderColdStart={networkStatus.renderColdStart}
+                  queuedCount={queuedCount}
+                />
+                {networkStatus.online && networkStatus.backendReachable && !networkStatus.renderColdStart && (
+                  <span>{t.chat.subtitle}</span>
+                )}
+              </div>
             </div>
             <button
               onClick={resetChat}
@@ -280,6 +401,14 @@ export default function ChatWidget() {
             </div>
           )}
 
+          {/* Queued commands banner */}
+          {queuedCount > 0 && networkStatus.online && (
+            <div className="px-3 py-2 bg-blue-50 border-b border-blue-200 text-xs text-blue-700 flex items-center gap-1.5">
+              <Loader size={11} className="animate-spin shrink-0" />
+              <span>Skickar {queuedCount} köat {queuedCount === 1 ? 'meddelande' : 'meddelanden'}…</span>
+            </div>
+          )}
+
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((msg) => (
@@ -290,7 +419,9 @@ export default function ChatWidget() {
                       ? 'bg-brand-500 text-white rounded-br-md'
                       : msg.type === 'error'
                         ? 'bg-red-50 text-red-700 border border-red-200 rounded-bl-md'
-                        : 'bg-gray-100 text-gray-800 rounded-bl-md'
+                        : msg.type === 'info' || msg.queued
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200 rounded-bl-md'
+                          : 'bg-gray-100 text-gray-800 rounded-bl-md'
                   }`}
                 >
                   <div className="whitespace-pre-wrap leading-relaxed break-words">
@@ -357,7 +488,7 @@ export default function ChatWidget() {
           </div>
 
           {/* Input */}
-          <div className="p-3 border-t border-gray-100 dark:border-gray-700">
+          <div className="p-3 border-t border-gray-100 dark:border-gray-700" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}>
             <div className="flex gap-2 items-center">
               <input
                 ref={inputRef}
@@ -365,7 +496,7 @@ export default function ChatWidget() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                placeholder={t.chat.placeholder}
+                placeholder={networkStatus.online ? t.chat.placeholder : 'Offline — meddelanden köas…'}
                 disabled={loading}
                 className="flex-1 px-4 py-2.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none disabled:opacity-50"
               />
@@ -374,8 +505,12 @@ export default function ChatWidget() {
                 <button
                   onClick={handleSend}
                   disabled={loading || !input.trim()}
-                  className="p-2.5 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-50 transition-colors"
-                  title="Skicka"
+                  className={`p-2.5 rounded-xl transition-colors disabled:opacity-50 ${
+                    networkStatus.online
+                      ? 'bg-brand-500 text-white hover:bg-brand-600'
+                      : 'bg-amber-500 text-white hover:bg-amber-600'
+                  }`}
+                  title={networkStatus.online ? 'Skicka' : 'Kö meddelande (offline)'}
                 >
                   <Send className="w-4 h-4" />
                 </button>

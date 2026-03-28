@@ -31,6 +31,20 @@
       "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
     },
     {
+      "name": "Kolla mail",
+      "short_name": "Briefing",
+      "description": "Morgon-briefing med röstinput",
+      "url": "/?voice=1&cmd=briefing",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Nytt mail",
+      "short_name": "Skriv",
+      "description": "Skriv nytt mail med röst",
+      "url": "/?voice=1&cmd=compose",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192", "type": "image/svg+xml" }]
+    },
+    {
       "name": "Utkast",
       "short_name": "Utkast",
       "description": "Hantera utkast",

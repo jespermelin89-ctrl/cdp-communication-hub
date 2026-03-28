@@ -14,6 +14,7 @@ export default function GlobalShortcuts() {
 
   useKeyboardShortcuts({
     'cmd+k': () => setChatOpen(true),
+    'cmd+n': () => router.push('/compose'),
     'cmd+shift+m': () => router.push('/inbox'),
     'cmd+shift+d': () => router.push('/drafts'),
     'cmd+shift+b': () => router.push('/settings/brain-core'),

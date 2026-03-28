@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Inbox, FileText, Bell, Settings } from 'lucide-react';
+import { Inbox, FileText, Bell, Settings, PenSquare } from 'lucide-react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
 
@@ -96,6 +96,15 @@ export default function BottomNav() {
       className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 flex items-stretch"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
+      {/* Compose FAB — centered above the nav bar */}
+      <Link
+        href="/compose"
+        aria-label="Nytt mail"
+        className="absolute -top-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-brand-500 hover:bg-brand-600 text-white rounded-2xl shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95"
+      >
+        <PenSquare size={20} />
+      </Link>
+
       <NavItem
         href="/inbox"
         icon={<Inbox size={20} />}
@@ -110,6 +119,8 @@ export default function BottomNav() {
         badge={pendingCount}
         active={pathname === '/drafts' || pathname.startsWith('/drafts/')}
       />
+      {/* Empty slot — FAB sits here visually */}
+      <div className="flex-1" aria-hidden />
       <NavItem
         href="/notifications"
         icon={<Bell size={20} />}

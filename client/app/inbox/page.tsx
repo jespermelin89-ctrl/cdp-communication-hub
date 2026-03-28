@@ -10,6 +10,7 @@ import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown } from 'lucid
 import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
+import { toast } from 'sonner';
 import { useChatContext } from '@/lib/chat-context';
 import { useNotifications } from '@/lib/use-notifications';
 import type { EmailThread, Account } from '@/lib/types';
@@ -130,6 +131,7 @@ export default function InboxPage() {
       await loadThreads();
     } catch (err: any) {
       console.error('Sync failed:', err);
+      toast.error('Sync misslyckades');
     } finally {
       setSyncing(false);
     }
@@ -146,6 +148,7 @@ export default function InboxPage() {
       const msg: string = err?.message || 'Analysis failed';
       console.error(`Analyze thread ${threadId}:`, msg);
       setAnalyzeErrors((prev) => new Map(prev).set(threadId, msg));
+      toast.error(`Analys misslyckades: ${msg.substring(0, 60)}`);
     } finally {
       setAnalyzingIds((prev) => {
         const next = new Set(prev);
@@ -160,8 +163,10 @@ export default function InboxPage() {
     try {
       await api.archiveThread(threadId);
       setThreads((prev) => prev.filter((t) => t.id !== threadId));
+      toast.success('Tråd arkiverad');
     } catch (err: any) {
       console.error('Archive failed:', err);
+      toast.error('Arkivering misslyckades');
     } finally {
       setArchivingIds((prev) => { const next = new Set(prev); next.delete(threadId); return next; });
     }
@@ -184,6 +189,7 @@ export default function InboxPage() {
     if (action === 'trash' && !window.confirm(`Flytta ${ids.length} trådar till papperskorgen?`)) return;
     await api.batchThreadAction(ids, action);
     setSelectedIds(new Set());
+    toast.success(`${ids.length} trådar ${action === 'archive' ? 'arkiverade' : 'raderade'}`);
     await loadThreads();
   }
 

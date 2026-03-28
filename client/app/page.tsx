@@ -13,6 +13,7 @@ import AccountBadge from '@/components/AccountBadge';
 import AddEmailAccount from '@/components/AddEmailAccount';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
+import { toast } from 'sonner';
 import type { CommandCenterData, Account } from '@/lib/types';
 
 export default function DashboardPage() {
@@ -63,6 +64,7 @@ export default function DashboardPage() {
       api.getContacts().then((r) => setContacts(r.contacts ?? [])).catch(() => {});
     } catch (err: any) {
       setError(err.message);
+      toast.error('Kunde inte ladda dashboard-data');
     } finally {
       setLoading(false);
     }
@@ -152,8 +154,9 @@ export default function DashboardPage() {
     try {
       await api.batchThreadAction(group.threadIds, group.action);
       setSortingGroups((prev) => prev.filter((_, i) => i !== index));
+      toast.success(`${group.label} hanterat`);
     } catch {
-      // Non-critical
+      toast.error('Kunde inte utföra åtgärden');
     } finally {
       setApplyingGroup(null);
     }
@@ -169,6 +172,7 @@ export default function DashboardPage() {
     try {
       const result = await api.bulkClassify(20);
       setBulkResult({ analyzed: result.analyzed, ai_calls: result.ai_calls });
+      toast.success(`Klassificerade ${result.analyzed} mail (${result.ai_calls} AI-anrop)`);
       // Refresh data to show updated counts
       await loadData();
     } catch {
@@ -187,7 +191,7 @@ export default function DashboardPage() {
       }
       await loadData();
     } catch (err: any) {
-      alert(`Sync failed: ${err.message}`);
+      toast.error(`Sync misslyckades: ${err.message}`);
     } finally {
       setSyncing(false);
     }

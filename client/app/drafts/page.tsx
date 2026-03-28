@@ -6,7 +6,8 @@ import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
-import { Clock, CheckCircle, Send, XCircle, Trash2, FileText } from 'lucide-react';
+import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Draft, DraftStatus } from '@/lib/types';
 
 function StatusIcon({ status, size = 18 }: { status: string; size?: number }) {
@@ -34,6 +35,7 @@ export default function DraftCenterPage() {
   const [errors, setErrors] = useState<Map<string, string>>(new Map());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -66,6 +68,7 @@ export default function DraftCenterPage() {
     try {
       await api.approveDraft(draftId);
       api.recordLearning('draft_approved', { draft_id: draftId }, 'draft', draftId).catch(() => {});
+      toast.success('Utkast godkänt — redo att skickas');
       await loadDrafts();
     } catch (err: any) {
       setError(draftId, `${t.drafts.approve} failed: ${err.message}`);
@@ -109,6 +112,7 @@ export default function DraftCenterPage() {
     setActionLoading(draftId);
     try {
       await api.sendDraft(draftId);
+      toast.success('Mail skickat!');
       await loadDrafts();
     } catch (err: any) {
       setError(draftId, `${t.drafts.sendFailed}: ${err.message}`);
@@ -274,11 +278,18 @@ export default function DraftCenterPage() {
                     />
                   )}
                   {/* Draft info */}
-                  <Link href={`/drafts/${draft.id}`} className="flex-1 min-w-0">
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => setExpandedId(expandedId === draft.id ? null : draft.id)}
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <StatusIcon status={draft.status} size={16} />
                       <span className="font-semibold text-gray-900 dark:text-gray-100 truncate">{draft.subject}</span>
                       <StatusBadge status={draft.status} />
+                      <ChevronDown
+                        size={14}
+                        className={`shrink-0 text-gray-400 ml-auto transition-transform ${expandedId === draft.id ? 'rotate-180' : ''}`}
+                      />
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
                       {t.common.to}: {draft.toAddresses.join(', ')}
@@ -286,12 +297,20 @@ export default function DraftCenterPage() {
                     <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                       {t.common.from}: {draft.account.emailAddress} · {new Date(draft.createdAt).toLocaleString()}
                     </div>
-                    {draft.bodyText && (
+                    {draft.bodyText && expandedId !== draft.id && (
                       <div className="text-sm text-gray-600 dark:text-gray-300 mt-2 line-clamp-2 leading-relaxed">
                         {draft.bodyText.substring(0, 160)}…
                       </div>
                     )}
-                  </Link>
+                    {/* Expanded preview */}
+                    {expandedId === draft.id && draft.bodyText && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                        <div className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-4 py-3 whitespace-pre-wrap leading-relaxed border border-gray-100 dark:border-gray-700 max-h-48 overflow-y-auto">
+                          {draft.bodyText}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 shrink-0">

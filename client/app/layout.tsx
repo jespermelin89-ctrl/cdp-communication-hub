@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import dynamic from 'next/dynamic';
+import { Toaster } from 'sonner';
 import './globals.css';
 import I18nProvider from '@/components/I18nProvider';
 import PwaInstallBanner from '@/components/PwaInstallBanner';
@@ -10,6 +11,7 @@ import { ChatProvider } from '@/lib/chat-context';
 // Lazy-load heavy client components — no SSR needed
 const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
 const BottomNav = dynamic(() => import('@/components/BottomNav'), { ssr: false });
+const OnboardingWizard = dynamic(() => import('@/components/OnboardingWizard'), { ssr: false });
 
 export const metadata: Metadata = {
   title: 'CDP Communication Hub',
@@ -46,10 +48,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <ChatWidget />
               <PwaInstallBanner />
               <BottomNav />
+              <OnboardingWizard />
             </ChatProvider>
           </I18nProvider>
         </ThemeProvider>
         <PwaRegistrar />
+        {/* Toast notifications — richColors auto-adapts to dark mode */}
+        <Toaster
+          position="top-center"
+          richColors
+          toastOptions={{
+            duration: 3500,
+            classNames: {
+              toast: 'dark:!bg-gray-800 dark:!text-white dark:!border-gray-700',
+            },
+          }}
+        />
       </body>
     </html>
   );

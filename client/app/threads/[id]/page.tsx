@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import type { EmailThread, AIAnalysis } from '@/lib/types';
@@ -125,8 +126,10 @@ export default function ThreadDetailPage() {
       await api.syncMessages(threadId);
       await api.analyzeThread(threadId);
       await loadThread();
+      toast.success('Analys klar');
     } catch (err: any) {
       setError(`Analysis failed: ${err.message}`);
+      toast.error('Analys misslyckades');
     } finally {
       setAnalyzing(false);
     }
@@ -137,6 +140,7 @@ export default function ThreadDetailPage() {
     try {
       await api.archiveThread(threadId);
       api.recordLearning('thread_archived', { thread_id: threadId }, 'thread', threadId).catch(() => {});
+      toast.success('Tråd arkiverad');
       router.push('/inbox');
     } catch (err: any) {
       setError(`Arkivering misslyckades: ${err.message}`);
@@ -167,9 +171,11 @@ export default function ThreadDetailPage() {
         instruction: `${modePrefix}${draftInstruction}`,
       });
       setDraftInstruction('');
+      toast.success('Utkast skapat — granska i Utkast');
       router.push(`/drafts/${result.draft.id}`);
     } catch (err: any) {
       setError(`Generate draft failed: ${err.message}`);
+      toast.error('Kunde inte skapa utkast');
     } finally {
       setGeneratingDraft(false);
     }
@@ -367,6 +373,28 @@ export default function ThreadDetailPage() {
                   </div>
                 </div>
               )}
+
+              {/* Quick reply presets */}
+              <div className="flex flex-wrap gap-1.5 mb-2.5">
+                {[
+                  'Svara kort och bekräftande',
+                  'Be om mer information',
+                  'Tacka nej artigt',
+                  'Vidarebefordra till rätt person',
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setDraftInstruction(preset)}
+                    className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
+                      draftInstruction === preset
+                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-300'
+                        : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
 
               <textarea
                 value={draftInstruction}

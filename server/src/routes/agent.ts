@@ -27,7 +27,7 @@ import { env } from '../config/env';
 
 const ALLOWED_ACTIONS = [
   'briefing', 'classify', 'draft', 'search', 'brain-status', 'learn',
-  'bulk-classify', 'sync',
+  'bulk-classify', 'sync', 'cleanup',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -238,9 +238,45 @@ export default async function agentRoutes(app: FastifyInstance) {
             }
           }
 
+          // Build writing profile + learning context (mirrors /ai/generate-draft)
+          let draftLearningContext: string | undefined;
+          try {
+            const [profile, approvedDrafts] = await Promise.all([
+              brainCoreService.getWritingProfile(userId),
+              brainCoreService.getRelevantLearning(userId, {
+                sender: threadContext?.messages?.[0]?.from,
+                eventType: 'draft:approved',
+              }),
+            ]);
+
+            const parts: string[] = [];
+
+            const defaultMode =
+              profile.modes.find((m) => m.modeKey === 'casual_sv') ?? profile.modes[0];
+            if (defaultMode) {
+              parts.push(
+                `Skriv i denna stil: ${defaultMode.description}` +
+                (defaultMode.signOff ? `\nSignatur: ${defaultMode.signOff}` : '')
+              );
+            }
+
+            if (approvedDrafts.length > 0) {
+              const examples = approvedDrafts.slice(0, 3).map((e) => {
+                const d = e.data as any;
+                return `- Ton: ${d.tone ?? 'okänd'}, Längd: ${d.word_count ?? '?'} ord`;
+              });
+              parts.push('Historiska utkast:\n' + examples.join('\n'));
+            }
+
+            if (parts.length > 0) draftLearningContext = parts.join('\n\n');
+          } catch {
+            // Learning context is non-critical — continue without it
+          }
+
           const draftText = await aiService.generateDraft({
             instruction: params.instruction,
             threadContext,
+            learningContext: draftLearningContext,
           });
 
           const toAddrs: string[] = Array.isArray(params.to_addresses)
@@ -469,6 +505,42 @@ export default async function agentRoutes(app: FastifyInstance) {
             success: true,
             action,
             data: { message: 'Gmail-sync startad för alla aktiva konton.' },
+          };
+        }
+
+        // ── CLEANUP ───────────────────────────────────────────────────────
+        case 'cleanup': {
+          // Remove test/debug learning events, keep real ones
+          const patterns = (params.event_type_prefix as string | undefined) ?? 'test:';
+          const deleted = await prisma.learningEvent.deleteMany({
+            where: {
+              userId,
+              eventType: { startsWith: patterns },
+            },
+          });
+          // Also prune old learning events if count exceeds 1000 (keep newest)
+          const totalCount = await prisma.learningEvent.count({ where: { userId } });
+          let pruned = 0;
+          if (totalCount > 1000) {
+            const oldest = await prisma.learningEvent.findMany({
+              where: { userId },
+              orderBy: { createdAt: 'asc' },
+              take: totalCount - 1000,
+              select: { id: true },
+            });
+            const pruneResult = await prisma.learningEvent.deleteMany({
+              where: { id: { in: oldest.map((e) => e.id) } },
+            });
+            pruned = pruneResult.count;
+          }
+          return {
+            success: true,
+            action,
+            data: {
+              deleted_test_events: deleted.count,
+              pruned_old_events: pruned,
+              pattern: patterns,
+            },
           };
         }
       }

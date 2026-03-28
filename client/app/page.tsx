@@ -5,7 +5,7 @@ import Link from 'next/link';
 import {
   Mail, AlertTriangle, FileText, CheckCircle, RefreshCw, Brain, Inbox, Settings,
   AlertCircle, Info, Lightbulb, Sparkles, Send, Trash2, Bot, Link2, Tag,
-  MailOpen,
+  MailOpen, Zap, Users, ChevronRight,
 } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
@@ -27,6 +27,9 @@ export default function DashboardPage() {
   const [dailySummaryLoading, setDailySummaryLoading] = useState(false);
   const [sortingGroups, setSortingGroups] = useState<Array<{ label: string; threadIds: string[]; action: 'archive' | 'trash'; dismissed: boolean }>>([]);
   const [applyingGroup, setApplyingGroup] = useState<string | null>(null);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [bulkClassifying, setBulkClassifying] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{ analyzed: number; ai_calls: number } | null>(null);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -56,6 +59,8 @@ export default function DashboardPage() {
       fetchDailySummary();
       // Build AI sorting suggestions
       buildSortingGroups();
+      // Load top contacts
+      api.getContacts().then((r) => setContacts(r.contacts ?? [])).catch(() => {});
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -156,6 +161,21 @@ export default function DashboardPage() {
 
   function dismissSortingGroup(index: number) {
     setSortingGroups((prev) => prev.map((g, i) => i === index ? { ...g, dismissed: true } : g));
+  }
+
+  async function handleBulkClassify() {
+    setBulkClassifying(true);
+    setBulkResult(null);
+    try {
+      const result = await api.bulkClassify(20);
+      setBulkResult({ analyzed: result.analyzed, ai_calls: result.ai_calls });
+      // Refresh data to show updated counts
+      await loadData();
+    } catch {
+      // Non-critical
+    } finally {
+      setBulkClassifying(false);
+    }
   }
 
   async function handleQuickSync() {
@@ -490,6 +510,103 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+
+            {/* Snabb-triage */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                  <Zap size={16} className="text-amber-500" />
+                  Snabb-triage
+                </h2>
+                <button
+                  onClick={handleBulkClassify}
+                  disabled={bulkClassifying}
+                  className="text-xs font-medium px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {bulkClassifying ? 'Klassificerar…' : 'Klassificera nu'}
+                </button>
+              </div>
+
+              {bulkResult && (
+                <div className="mb-3 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+                  ✓ {bulkResult.analyzed} trådar klassificerade ({bulkResult.ai_calls} AI-anrop, resten via regelmotor)
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Link
+                  href="/inbox?priority=high"
+                  className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 hover:border-red-300 transition-colors"
+                >
+                  <span className="text-2xl font-bold text-red-600">{data.overview.high_priority_threads}</span>
+                  <span className="text-xs text-red-500 font-medium">🔴 Hög prio</span>
+                </Link>
+                <Link
+                  href="/inbox?priority=medium"
+                  className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 hover:border-amber-300 transition-colors"
+                >
+                  <span className="text-2xl font-bold text-amber-600">{data.overview.medium_priority_threads}</span>
+                  <span className="text-xs text-amber-500 font-medium">🟡 Medium</span>
+                </Link>
+                <Link
+                  href="/inbox?classification=operational"
+                  className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-600 hover:border-gray-300 transition-colors"
+                >
+                  <span className="text-2xl font-bold text-gray-500">{data.overview.low_priority_threads}</span>
+                  <span className="text-xs text-gray-400 font-medium">⚪ Låg/Auto</span>
+                </Link>
+                <button
+                  onClick={handleBulkClassify}
+                  disabled={bulkClassifying}
+                  className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-brand-50 dark:bg-brand-900/20 border border-brand-100 dark:border-brand-800 hover:border-brand-300 transition-colors disabled:opacity-50"
+                >
+                  <span className="text-2xl font-bold text-brand-600">{unanalyzed}</span>
+                  <span className="text-xs text-brand-500 font-medium">📊 Oklassificerade</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Top Contacts */}
+            {contacts.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    <Users size={16} className="text-brand-500" />
+                    Topp-kontakter
+                  </h2>
+                  <Link href="/settings" className="text-xs text-brand-500 hover:text-brand-600 font-medium flex items-center gap-0.5">
+                    Alla <ChevronRight size={12} />
+                  </Link>
+                </div>
+                <div className="space-y-2">
+                  {contacts.slice(0, 5).map((contact: any) => (
+                    <div key={contact.id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-900/40 flex items-center justify-center shrink-0">
+                          <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">
+                            {(contact.displayName || contact.emailAddress).charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-gray-800 dark:text-gray-200 font-medium truncate">
+                            {contact.displayName || contact.emailAddress.split('@')[0]}
+                          </div>
+                          <div className="text-xs text-gray-400 truncate">{contact.emailAddress}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {contact.relationship && contact.relationship !== 'unknown' && (
+                          <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded">
+                            {contact.relationship}
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400">{contact.totalEmails} mail</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Main Grid */}
             <div className="grid lg:grid-cols-3 gap-6 mb-6">

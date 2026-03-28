@@ -223,6 +223,10 @@ class ApiClient {
     return this.request('POST', `/threads/${threadId}/trash`);
   }
 
+  async markThreadAsRead(threadId: string) {
+    return this.request('POST', `/threads/${threadId}/read`);
+  }
+
   async batchThreadAction(threadIds: string[], action: 'archive' | 'trash') {
     return this.request('POST', '/threads/batch', { threadIds, action });
   }
@@ -395,6 +399,15 @@ class ApiClient {
       source_type: sourceType,
       source_id: sourceId,
     });
+  }
+
+  async bulkClassify(limit = 10) {
+    return this.request<{
+      analyzed: number;
+      total_unanalyzed: number;
+      ai_calls: number;
+      results: Array<{ thread_id: string; subject: string | null; priority: string; classification: string; source: 'rule' | 'ai' }>;
+    }>('POST', '/ai/bulk-classify', { limit });
   }
 
   // Action Logs

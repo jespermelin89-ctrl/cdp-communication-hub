@@ -16,6 +16,7 @@ import {
   GenerateDraftRequestSchema,
   SummarizeInboxRequestSchema,
 } from '../utils/validators';
+import { matchClassificationRule } from '../services/rule-engine.service';
 
 export async function aiRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
@@ -315,5 +316,121 @@ export async function aiRoutes(fastify: FastifyInstance) {
     }
 
     return { summary };
+  });
+
+  /**
+   * POST /ai/bulk-classify
+   * Classify up to 20 unanalyzed threads for the current user.
+   * Rule engine first (free), AI only if no rule matches (max 10 AI calls).
+   */
+  fastify.post('/ai/bulk-classify', async (request, reply) => {
+    const body = request.body as { limit?: number } | undefined;
+    const limit = Math.min(Number(body?.limit) || 10, 20);
+    const userId = request.userId;
+    const MAX_AI = 10;
+
+    const unanalyzed = await prisma.emailThread.findMany({
+      where: {
+        account: { userId },
+        analyses: { none: {} },
+        messages: { some: {} },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+      take: limit,
+      include: {
+        messages: {
+          orderBy: { receivedAt: 'asc' },
+          take: 3,
+          select: { fromAddress: true, toAddresses: true, bodyText: true, receivedAt: true },
+        },
+      },
+    });
+
+    const results: Array<{
+      thread_id: string;
+      subject: string | null;
+      priority: string;
+      classification: string;
+      source: 'rule' | 'ai';
+    }> = [];
+
+    let aiCalls = 0;
+
+    for (const thread of unanalyzed) {
+      try {
+        const ruleMatch = await matchClassificationRule(
+          {
+            subject: thread.subject,
+            participantEmails: thread.participantEmails,
+            messages: thread.messages.map((m) => ({ bodyText: m.bodyText })),
+          },
+          userId
+        );
+
+        if (ruleMatch) {
+          await prisma.aIAnalysis.create({
+            data: {
+              threadId: thread.id,
+              summary: `Matchad regel: ${ruleMatch.categoryName}`,
+              classification: ruleMatch.categoryKey,
+              priority: ruleMatch.priority,
+              suggestedAction: ruleMatch.action,
+              confidence: 1.0,
+              modelUsed: 'rule-engine',
+            },
+          });
+          results.push({
+            thread_id: thread.id,
+            subject: thread.subject,
+            priority: ruleMatch.priority,
+            classification: ruleMatch.categoryKey,
+            source: 'rule',
+          });
+          continue;
+        }
+
+        if (aiCalls >= MAX_AI) continue;
+
+        const analysis = await aiService.analyzeThread({
+          subject: thread.subject || '(No Subject)',
+          messages: thread.messages.map((m) => ({
+            from: m.fromAddress,
+            to: m.toAddresses,
+            body: m.bodyText || '',
+            date: m.receivedAt.toISOString(),
+          })),
+        });
+        aiCalls++;
+
+        await prisma.aIAnalysis.create({
+          data: {
+            threadId: thread.id,
+            summary: analysis.summary,
+            classification: analysis.classification,
+            priority: analysis.priority,
+            suggestedAction: analysis.suggested_action,
+            draftText: analysis.draft_text ?? null,
+            confidence: analysis.confidence,
+            modelUsed: analysis.model_used,
+          },
+        });
+        results.push({
+          thread_id: thread.id,
+          subject: thread.subject,
+          priority: analysis.priority,
+          classification: analysis.classification,
+          source: 'ai',
+        });
+      } catch {
+        // Skip failed threads — continue with the rest
+      }
+    }
+
+    return {
+      analyzed: results.length,
+      total_unanalyzed: unanalyzed.length,
+      ai_calls: aiCalls,
+      results,
+    };
   });
 }

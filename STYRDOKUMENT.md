@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-28 11:50:03 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-28 14:13:58 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -74,6 +74,7 @@ Prefix: `/api/v1`
 | `POST    /ai/analyze-thread` | `ai` |
 | `POST    /ai/generate-draft` | `ai` |
 | `POST    /ai/summarize-inbox` | `ai` |
+| `POST    /ai/bulk-classify` | `ai` |
 | `POST    /auth/google` | `auth` |
 | `GET     /auth/google/callback` | `auth` |
 | `POST    /auth/connect` | `auth` |
@@ -121,6 +122,7 @@ Prefix: `/api/v1`
 - `email-provider.factory.ts`
 - `gmail.service.ts`
 - `imap.service.ts`
+- `rule-engine.service.ts`
 - `smtp.service.ts`
 - `sync-scheduler.service.ts`
 

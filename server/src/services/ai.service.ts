@@ -348,7 +348,7 @@ Ge en kort sammanfattning.`;
    * Core chat method - tries providers in fallback order: Groq → Anthropic → OpenAI.
    * Skips blacklisted providers. Permanently-failing providers are blacklisted for 1 h.
    */
-  private async chat(systemPrompt: string, userMessage: string): Promise<string> {
+  async chat(systemPrompt: string, userMessage: string): Promise<string> {
     const allProviders: Array<{ name: string; fn: () => Promise<string> }> = [];
 
     if (this.groq) allProviders.push({ name: 'groq', fn: () => this.chatGroq(systemPrompt, userMessage) });

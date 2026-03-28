@@ -13,6 +13,7 @@ import { authMiddleware } from '../middleware/auth.middleware';
 import { chatCommandService } from '../services/chat-command.service';
 import { categoryService } from '../services/category.service';
 import { brainCoreService } from '../services/brain-core.service';
+import { aiService } from '../services/ai.service';
 import { env } from '../config/env';
 import { prisma } from '../config/database';
 
@@ -147,7 +148,7 @@ export default async function chatRoutes(app: FastifyInstance) {
 
   /**
    * POST /chat/ask
-   * Natural language — AI parses the intent and calls the right command.
+   * Natural language — keyword shortcuts first, then AI fallback with optional thread context.
    * Body: { message: string, thread_ids?: string[] }
    */
   app.post('/chat/ask', async (req, reply) => {
@@ -157,6 +158,7 @@ export default async function chatRoutes(app: FastifyInstance) {
     try {
       const msg = message.toLowerCase();
 
+      // ── Thread-specific keywords ──────────────────────────────────────────
       if (thread_ids && thread_ids.length > 0) {
         if (msg.includes('sammanfatt') || msg.includes('analysera') || msg.includes('summary') ||
             msg.includes('analyze') || msg.includes('vad handlar')) {
@@ -167,11 +169,13 @@ export default async function chatRoutes(app: FastifyInstance) {
         }
       }
 
+      // ── Inbox overview ────────────────────────────────────────────────────
       if (msg.includes('sammanfatt') || msg.includes('summary') || msg.includes('överblick') ||
           (msg.includes('inbox') && (msg.includes('visa') || msg.includes('show')))) {
         return chatCommandService.getInboxSummary(req.userId!);
       }
 
+      // ── Spam / block ──────────────────────────────────────────────────────
       if (msg.includes('skräp') || msg.includes('spam') || msg.includes('mute') || msg.includes('block')) {
         const emailMatch = msg.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
         const domainMatch = msg.match(/\*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
@@ -195,6 +199,7 @@ export default async function chatRoutes(app: FastifyInstance) {
         return { type: 'info', message: 'Vill du markera som skräp? Ange avsändaradressen, t.ex. "markera noreply@skool.com som skräp".' };
       }
 
+      // ── Structured data queries ───────────────────────────────────────────
       if (msg.includes('regler') || msg.includes('rules') || msg.includes('filter')) {
         return chatCommandService.listRules(req.userId!);
       }
@@ -208,7 +213,52 @@ export default async function chatRoutes(app: FastifyInstance) {
         return chatCommandService.getFilteredThreads(req.userId!, { unreadOnly: true, limit: 20 });
       }
 
-      return chatCommandService.getInboxSummary(req.userId!);
+      // ── AI fallback — natural language conversation with optional thread context ──
+      let threadContext = '';
+      if (thread_ids && thread_ids.length > 0) {
+        try {
+          const threads = await prisma.emailThread.findMany({
+            where: {
+              id: { in: thread_ids },
+              account: { userId: req.userId! },
+            },
+            select: {
+              id: true,
+              subject: true,
+              snippet: true,
+              participantEmails: true,
+              messages: {
+                orderBy: { receivedAt: 'desc' },
+                take: 1,
+                select: { fromAddress: true, bodyText: true },
+              },
+            },
+          });
+          if (threads.length > 0) {
+            threadContext = '\n\nVALDA TRÅDAR:\n' + threads.map((t) => {
+              const sender = t.messages[0]?.fromAddress ?? t.participantEmails[0] ?? 'okänd';
+              const preview = t.snippet ?? t.messages[0]?.bodyText?.slice(0, 200) ?? '';
+              return `- "${t.subject ?? '(utan ämne)'}" från ${sender}: ${preview}`;
+            }).join('\n');
+          }
+        } catch {
+          // thread context is optional — continue without it
+        }
+      }
+
+      const amandaSystemPrompt = `Du är Amanda, en AI-mailassistent för CDP Communication Hub.
+Du hjälper användaren med deras e-post på ett personligt, vänligt och professionellt sätt.
+Du kan svara på frågor om e-post, ge råd om kommunikation och hjälpa till med formuleringar.
+VIKTIGT: Du KAN INTE skicka mail, ta bort mail eller utföra åtgärder på egen hand — du föreslår, användaren bestämmer.
+Svara alltid på svenska om inget annat anges. Håll svaren koncisa (max 3-4 meningar).${threadContext}`;
+
+      const aiReply = await aiService.chat(amandaSystemPrompt, message);
+
+      return {
+        type: 'ai_response',
+        message: aiReply,
+        provider: 'amanda',
+      };
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Okänt fel';
       const safeMsg = /prisma|database|connection/i.test(msg)

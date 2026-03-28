@@ -48,6 +48,9 @@ export default function ComposePage() {
   const [aiInstruction, setAiInstruction] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
 
+  // ── Signature tracking ────────────────────────────────────────────────────
+  const prevAccountIdRef = useRef<string>('');
+
   // ── Submit state ──────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
@@ -68,6 +71,22 @@ export default function ComposePage() {
       setSelectedAccountId(accounts[0].id);
     }
   }, [accounts, selectedAccountId]);
+
+  // Pre-fill / update signature when account is selected (compose mode only)
+  useEffect(() => {
+    if (!selectedAccountId || accounts.length === 0) return;
+    if (replyThreadId || forwardThreadId) return; // reply/forward manage their own body
+    if (selectedAccountId === prevAccountIdRef.current) return; // no-op on re-render
+    prevAccountIdRef.current = selectedAccountId;
+    const acc = accounts.find(a => a.id === selectedAccountId);
+    if (!acc) return;
+    setBody(prev => {
+      const sigStart = prev.indexOf('\n\n--\n');
+      const content = sigStart >= 0 ? prev.slice(0, sigStart) : prev;
+      return acc.signature ? `${content}\n\n--\n${acc.signature}` : content;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccountId, accounts]);
 
   // Set default writing mode
   useEffect(() => {

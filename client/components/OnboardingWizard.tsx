@@ -1,45 +1,56 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Mail, Bot, Mic, Smartphone, Zap, ChevronRight } from 'lucide-react';
+import { Mail, Bot, Bell, Keyboard, CheckCircle2, Zap, ChevronRight } from 'lucide-react';
 
 const STEPS = [
   {
     icon: <Zap size={32} className="text-brand-500" />,
     title: 'Välkommen till CDP Hub',
-    body: 'Din AI-drivna kommunikationshjälp. Läs, analysera och svara på mail — utan att skicka utan ditt godkännande.',
+    body: 'Din AI-drivna mailassistent Amanda hjälper dig att läsa, analysera och svara på mail — utan att skicka ett enda mail utan ditt godkännande.',
   },
   {
     icon: <Mail size={32} className="text-indigo-500" />,
     title: 'Din inkorg',
-    body: 'Mail triageras automatiskt: hög prioritet, medium och låg. AI klassificerar nytt mail och flaggar vad som behöver svar.',
+    body: 'Amanda triagerar automatiskt: hög prioritet, medium och låg. AI klassificerar nytt mail och flaggar vad som behöver svar direkt.',
   },
   {
     icon: <Bot size={32} className="text-emerald-500" />,
     title: 'Chatta med Amanda',
-    body: 'Tryck på chat-bubblan nere till höger. Skriv "kolla mail", "klassificera" eller "brain status" — eller ställ en fri fråga.',
+    body: 'Tryck på chat-bubblan (⌘K). Skriv "sammanfatta inkorgen", "visa viktiga mail" eller ställ en fri fråga på svenska.',
   },
   {
-    icon: <Mic size={32} className="text-rose-500" />,
-    title: 'Röststyrning',
-    body: 'Tryck på mikrofon-knappen i chatten för att diktera dina kommandon. Funkar med Siri via iOS-genvägar.',
+    icon: <Keyboard size={32} className="text-violet-500" />,
+    title: 'Snabbtangenter',
+    body: '⌘N — nytt mail  ·  ⌘K — öppna Amanda  ·  ? — visa alla genvägar  ·  J/K — navigera trådar  ·  Esc — stäng',
   },
   {
-    icon: <Smartphone size={32} className="text-amber-500" />,
-    title: 'Installera som app',
-    body: 'Lägg till CDP Hub på hemskärmen för snabbare åtkomst. Safari → Dela → Lägg till på hemskärmen.',
+    icon: <CheckCircle2 size={32} className="text-emerald-500" />,
+    title: 'Klar!',
+    body: 'Amanda börjar nu synka och klassificera din mail. Alla utkast kräver ditt godkännande innan de skickas — du har alltid full kontroll.',
   },
 ];
 
 export default function OnboardingWizard() {
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState(0);
+  const [notifStatus, setNotifStatus] = useState<'idle' | 'granted' | 'denied'>('idle');
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !localStorage.getItem('cdp_onboarded')) {
       setVisible(true);
     }
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') setNotifStatus('granted');
+      if (Notification.permission === 'denied') setNotifStatus('denied');
+    }
   }, []);
+
+  async function requestNotifications() {
+    if (!('Notification' in window)) return;
+    const result = await Notification.requestPermission();
+    setNotifStatus(result === 'granted' ? 'granted' : 'denied');
+  }
 
   function complete() {
     localStorage.setItem('cdp_onboarded', '1');
@@ -83,6 +94,23 @@ export default function OnboardingWizard() {
           </div>
           <h2 id="onboarding-title" className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">{current.title}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{current.body}</p>
+
+          {/* Step 3 (index 2): notification permission button */}
+          {step === 2 && notifStatus === 'idle' && (
+            <button
+              onClick={requestNotifications}
+              className="mt-4 flex items-center gap-2 mx-auto px-4 py-2 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-700 text-brand-700 dark:text-brand-300 text-sm font-medium rounded-xl hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
+            >
+              <Bell size={15} />
+              Aktivera notiser
+            </button>
+          )}
+          {step === 2 && notifStatus === 'granted' && (
+            <p className="mt-4 text-xs text-emerald-600 dark:text-emerald-400 font-medium">✓ Notiser aktiverade</p>
+          )}
+          {step === 2 && notifStatus === 'denied' && (
+            <p className="mt-4 text-xs text-orange-500 font-medium">Notiser blockerade — aktivera i webbläsarinställningar</p>
+          )}
         </div>
 
         {/* Actions */}

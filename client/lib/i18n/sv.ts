@@ -305,6 +305,40 @@ const sv = {
     viewThread: 'Öppna tråd →',
   },
 
+  // Compose
+  compose: {
+    title: 'Nytt meddelande',
+    from: 'Från',
+    to: 'Till',
+    cc: 'Cc',
+    subject: 'Ämne',
+    body: 'Meddelande',
+    aiAssist: 'AI-hjälp',
+    saveDraft: 'Spara utkast',
+    send: 'Skicka',
+    sending: 'Skickar...',
+    contactSearch: 'Sök kontakt...',
+    reply: 'Svara',
+    forward: 'Vidarebefordra',
+    cancel: 'Avbryt',
+    sendConfirm: 'Skicka mail?',
+    voiceDictate: 'Diktera med röst',
+    signature: 'Signatur',
+  },
+
+  // Notifications / Activity list UI
+  notifications: {
+    title: 'Notiser',
+    empty: 'Inga notiser ännu',
+    today: 'Idag',
+    yesterday: 'Igår',
+    earlier: 'Tidigare',
+    enable: 'Aktivera notiser',
+    enabled: 'Notiser aktiverade',
+    blocked: 'Notiser blockerade i webbläsaren',
+    syncStale: 'Synk dröjer — kontrollera anslutning',
+  },
+
   // Languages
   languages: {
     sv: 'Svenska',

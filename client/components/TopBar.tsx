@@ -41,6 +41,12 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
   const accounts: Account[] = (accountsData as any)?.accounts ?? [];
   const activeAccount = accounts.find((a) => a.isDefault) ?? accounts[0] ?? null;
 
+  // True when any connected account hasn't synced in the last 10 minutes
+  const isSyncStale = accounts.some((a) => {
+    if (!a.lastSyncAt) return false;
+    return Date.now() - new Date(a.lastSyncAt).getTime() > 10 * 60 * 1000;
+  });
+
   // Fetch draft + unread counts from command-center (single call, 60s refresh).
   useEffect(() => {
     if (pendingCountProp !== undefined) return;
@@ -122,8 +128,12 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
               <Link
                 href="/settings/accounts"
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
-                title={`Aktiva konton — klicka för att hantera`}
+                title={isSyncStale ? 'Synk dröjer — klicka för att kontrollera konton' : 'Aktiva konton — klicka för att hantera'}
               >
+                {/* Sync stale warning dot */}
+                {isSyncStale && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse shrink-0" title="Synk dröjer" />
+                )}
                 <span
                   className="w-2 h-2 rounded-full shrink-0"
                   style={{ backgroundColor: activeAccount.color ?? emailColor(activeAccount.emailAddress) }}

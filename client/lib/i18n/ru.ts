@@ -291,6 +291,38 @@ const ru: Translations = {
     viewThread: 'Открыть ветку →',
   },
 
+  compose: {
+    title: 'Новое сообщение',
+    from: 'От',
+    to: 'Кому',
+    cc: 'Копия',
+    subject: 'Тема',
+    body: 'Сообщение',
+    aiAssist: 'Помощь ИИ',
+    saveDraft: 'Сохранить черновик',
+    send: 'Отправить',
+    sending: 'Отправка...',
+    contactSearch: 'Поиск контактов...',
+    reply: 'Ответить',
+    forward: 'Переслать',
+    cancel: 'Отмена',
+    sendConfirm: 'Отправить письмо?',
+    voiceDictate: 'Диктовать голосом',
+    signature: 'Подпись',
+  },
+
+  notifications: {
+    title: 'Уведомления',
+    empty: 'Уведомлений пока нет',
+    today: 'Сегодня',
+    yesterday: 'Вчера',
+    earlier: 'Ранее',
+    enable: 'Включить уведомления',
+    enabled: 'Уведомления включены',
+    blocked: 'Уведомления заблокированы в браузере',
+    syncStale: 'Синхронизация задерживается',
+  },
+
   languages: {
     sv: 'Svenska',
     en: 'English',

@@ -200,6 +200,22 @@ export class GmailService {
 
       const bodyText = extractBody(msg.payload, 'text/plain');
       const bodyHtml = extractBody(msg.payload, 'text/html');
+
+      // Extract attachment metadata (IDs only — never fetch content)
+      const allParts: any[] = [];
+      function collectParts(part: any) {
+        if (!part) return;
+        if (part.filename && part.body?.attachmentId) allParts.push(part);
+        if (part.parts) (part.parts as any[]).forEach(collectParts);
+      }
+      collectParts(msg.payload);
+      const attachments = allParts.map((p: any) => ({
+        filename: p.filename as string,
+        mimeType: (p.mimeType ?? '') as string,
+        size: Number(p.body?.size ?? 0),
+        attachmentId: p.body.attachmentId as string,
+      }));
+
       const receivedAt = msg.internalDate
         ? new Date(parseInt(msg.internalDate))
         : new Date();
@@ -218,6 +234,7 @@ export class GmailService {
           subject,
           bodyText,
           bodyHtml,
+          attachments,
           receivedAt,
         },
         create: {
@@ -229,6 +246,7 @@ export class GmailService {
           subject,
           bodyText,
           bodyHtml,
+          attachments,
           receivedAt,
         },
       });

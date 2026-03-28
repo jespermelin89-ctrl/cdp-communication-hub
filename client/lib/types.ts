@@ -63,6 +63,7 @@ export interface EmailMessage {
   subject: string | null;
   bodyText: string | null;
   bodyHtml: string | null;
+  attachments: Array<{ filename: string; mimeType: string; size: number; attachmentId: string }>;
   receivedAt: string;
 }
 

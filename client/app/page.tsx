@@ -298,6 +298,18 @@ export default function DashboardPage() {
 
         {data && (
           <>
+            {/* Welcome / syncing state — shown when accounts exist but inbox is empty */}
+            {data.overview.total_threads === 0 && data.accounts.length > 0 && (
+              <div className="card text-center py-12 mb-8">
+                <div className="flex justify-center mb-4 text-brand-400">
+                  <Bot size={48} strokeWidth={1.5} />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Amanda synkar din mail...</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">Det kan ta upp till 2 minuter första gången. Amanda klassificerar och triagerar allt automatiskt.</p>
+                <div className="w-8 h-8 border-2 border-gray-200 dark:border-gray-600 border-t-brand-500 rounded-full animate-spin mx-auto" />
+              </div>
+            )}
+
             {/* Stat Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <GradientCard

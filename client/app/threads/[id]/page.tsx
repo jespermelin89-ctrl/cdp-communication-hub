@@ -6,7 +6,8 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -26,6 +27,13 @@ const CLASSIFICATION_LABELS: Record<string, string> = {
   lead: 'Lead', partner: 'Partner', personal: 'Personal',
   spam: 'Spam', operational: 'Operational', founder: 'Founder', outreach: 'Outreach',
 };
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes === 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1048576).toFixed(1)} MB`;
+}
 
 function initials(email: string): string {
   const name = email.split('@')[0];
@@ -424,9 +432,33 @@ export default function ThreadDetailPage() {
                       {new Date(msg.receivedAt).toLocaleString()}
                     </span>
                   </div>
-                  <div className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                    {msg.bodyText || '(No text content)'}
-                  </div>
+                  {msg.bodyHtml ? (
+                    <div
+                      className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed overflow-auto max-h-[600px] [&_a]:text-brand-600 [&_a]:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_strong]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_img]:max-w-full"
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.bodyHtml) }}
+                    />
+                  ) : (
+                    <div className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                      {msg.bodyText || '(No text content)'}
+                    </div>
+                  )}
+                  {/* Attachment pills */}
+                  {msg.attachments && msg.attachments.length > 0 && (
+                    <div className="px-5 pb-4 flex flex-wrap gap-2 border-t border-gray-100 dark:border-gray-700 pt-3">
+                      {msg.attachments.map((att: any, i: number) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-600 dark:text-gray-300"
+                        >
+                          <Paperclip size={12} className="text-gray-400 shrink-0" />
+                          <span className="truncate max-w-[200px]">{att.filename || 'Bilaga'}</span>
+                          {att.size > 0 && (
+                            <span className="text-gray-400 shrink-0">{formatFileSize(att.size)}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))
             ) : (

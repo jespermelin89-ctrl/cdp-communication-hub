@@ -291,6 +291,40 @@ const en: Translations = {
     viewThread: 'Open thread →',
   },
 
+  // Compose
+  compose: {
+    title: 'New message',
+    from: 'From',
+    to: 'To',
+    cc: 'Cc',
+    subject: 'Subject',
+    body: 'Message',
+    aiAssist: 'AI assist',
+    saveDraft: 'Save draft',
+    send: 'Send',
+    sending: 'Sending...',
+    contactSearch: 'Search contacts...',
+    reply: 'Reply',
+    forward: 'Forward',
+    cancel: 'Cancel',
+    sendConfirm: 'Send email?',
+    voiceDictate: 'Dictate with voice',
+    signature: 'Signature',
+  },
+
+  // Notifications / Activity list UI
+  notifications: {
+    title: 'Notifications',
+    empty: 'No notifications yet',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    earlier: 'Earlier',
+    enable: 'Enable notifications',
+    enabled: 'Notifications enabled',
+    blocked: 'Notifications blocked in browser',
+    syncStale: 'Sync delayed — check connection',
+  },
+
   languages: {
     sv: 'Svenska',
     en: 'English',

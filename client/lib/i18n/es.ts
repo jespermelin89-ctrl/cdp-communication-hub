@@ -291,6 +291,38 @@ const es: Translations = {
     viewThread: 'Abrir hilo →',
   },
 
+  compose: {
+    title: 'Nuevo mensaje',
+    from: 'De',
+    to: 'Para',
+    cc: 'Cc',
+    subject: 'Asunto',
+    body: 'Mensaje',
+    aiAssist: 'Asistente IA',
+    saveDraft: 'Guardar borrador',
+    send: 'Enviar',
+    sending: 'Enviando...',
+    contactSearch: 'Buscar contactos...',
+    reply: 'Responder',
+    forward: 'Reenviar',
+    cancel: 'Cancelar',
+    sendConfirm: '¿Enviar correo?',
+    voiceDictate: 'Dictar con voz',
+    signature: 'Firma',
+  },
+
+  notifications: {
+    title: 'Notificaciones',
+    empty: 'Sin notificaciones aún',
+    today: 'Hoy',
+    yesterday: 'Ayer',
+    earlier: 'Antes',
+    enable: 'Activar notificaciones',
+    enabled: 'Notificaciones activadas',
+    blocked: 'Notificaciones bloqueadas en el navegador',
+    syncStale: 'Sincronización retrasada',
+  },
+
   languages: {
     sv: 'Svenska',
     en: 'English',

@@ -1,0 +1,26 @@
+/**
+ * Minimal HTML sanitizer for email display.
+ * Strips scripts, event handlers, and dangerous elements.
+ * Safe for dangerouslySetInnerHTML in email thread view.
+ */
+export function sanitizeHtml(html: string): string {
+  // Remove script tags and their content
+  let clean = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  // Remove style tags and their content
+  clean = clean.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+  // Remove inline event handlers (onclick, onload, onerror, etc.)
+  clean = clean.replace(/\s+on\w+\s*=\s*"[^"]*"/gi, '');
+  clean = clean.replace(/\s+on\w+\s*=\s*'[^']*'/gi, '');
+  clean = clean.replace(/\s+on\w+\s*=\s*\S+/gi, '');
+  // Remove javascript: URLs
+  clean = clean.replace(/href\s*=\s*"javascript:[^"]*"/gi, 'href="#"');
+  clean = clean.replace(/href\s*=\s*'javascript:[^']*'/gi, "href='#'");
+  // Remove data: URLs in src (except images which are ok)
+  clean = clean.replace(/src\s*=\s*"data:(?!image\/)[^"]*"/gi, 'src=""');
+  clean = clean.replace(/src\s*=\s*'data:(?!image\/)[^']*'/gi, "src=''");
+  // Remove dangerous elements
+  clean = clean.replace(/<\/?(?:iframe|object|embed|form|input|button|select|textarea)\b[^>]*>/gi, '');
+  // Open all links in new tab for safety
+  clean = clean.replace(/<a\s/gi, '<a target="_blank" rel="noopener noreferrer" ');
+  return clean;
+}

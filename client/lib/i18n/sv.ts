@@ -121,6 +121,7 @@ const sv = {
     notAuthenticated: 'Inte autentiserad.',
     optional: 'Valfritt',
     egWork: 't.ex. Arbete',
+    advanced: 'Avancerat',
   },
 
   // Thread detail

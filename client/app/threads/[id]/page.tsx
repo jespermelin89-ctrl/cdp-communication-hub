@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import type { EmailThread, AIAnalysis } from '@/lib/types';
@@ -51,6 +51,7 @@ export default function ThreadDetailPage() {
   const [archiving, setArchiving] = useState(false);
   const [trashConfirm, setTrashConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [contact, setContact] = useState<any>(null);
 
   useEffect(() => {
     loadThread();
@@ -61,10 +62,26 @@ export default function ThreadDetailPage() {
       setLoading(true);
       const result = await api.getThread(threadId);
       setThread(result.thread);
+      // Try to load contact profile for the external sender
+      loadContactForThread(result.thread);
     } catch (err: any) {
       console.error('Failed to load thread:', err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadContactForThread(thread: any) {
+    try {
+      const accountEmail = thread.account?.emailAddress;
+      // Find the first message sender that isn't the account owner
+      const externalSender = thread.messages?.find((m: any) => m.fromAddress !== accountEmail)?.fromAddress;
+      if (!externalSender) return;
+      const res = await api.getContacts();
+      const match = (res.contacts ?? []).find((c: any) => c.emailAddress === externalSender);
+      if (match) setContact(match);
+    } catch {
+      // silently ignore — contact panel is optional
     }
   }
 
@@ -358,6 +375,62 @@ export default function ThreadDetailPage() {
                 <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">{t.inbox.draftSuggestion}</div>
                 <div className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 rounded-xl px-3 py-2.5 border border-gray-100 dark:border-gray-700 leading-relaxed">
                   {analysis.draftText}
+                </div>
+              </div>
+            )}
+
+            {/* Contact profile */}
+            {contact && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <UserCircle2 size={14} className="text-gray-400" />
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Kontaktprofil</h3>
+                </div>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold ${avatarColor(contact.emailAddress)}`}>
+                    {initials(contact.emailAddress)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                      {contact.displayName || contact.emailAddress}
+                    </div>
+                    {contact.displayName && (
+                      <div className="text-xs text-gray-400 truncate">{contact.emailAddress}</div>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1.5 text-xs">
+                  {contact.relationship && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Relation</span>
+                      <span className={`px-2 py-0.5 rounded-full font-medium ${CLASSIFICATION_COLORS[contact.relationship] || 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
+                        {contact.relationship}
+                      </span>
+                    </div>
+                  )}
+                  {contact.language && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Språk</span>
+                      <span className="text-gray-700 dark:text-gray-300">{contact.language.toUpperCase()}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Totalt mejl</span>
+                    <span className="text-gray-700 dark:text-gray-300">{contact.totalEmails}</span>
+                  </div>
+                  {contact.lastContactAt && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400">Senast kontakt</span>
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {new Date(contact.lastContactAt).toLocaleDateString('sv-SE')}
+                      </span>
+                    </div>
+                  )}
+                  {contact.notes && (
+                    <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 text-gray-500 dark:text-gray-400 leading-relaxed">
+                      {contact.notes}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

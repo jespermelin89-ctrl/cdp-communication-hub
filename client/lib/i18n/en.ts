@@ -118,6 +118,7 @@ const en: Translations = {
     notAuthenticated: 'Not authenticated.',
     optional: 'Optional',
     egWork: 'e.g. Work',
+    advanced: 'Advanced',
   },
 
   activity: {

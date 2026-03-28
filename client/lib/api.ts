@@ -380,6 +380,14 @@ class ApiClient {
     return this.request<{ profile: { modes: any[]; attributes: any[] } }>('GET', '/brain-core/writing-profile');
   }
 
+  async getContacts() {
+    return this.request<{ contacts: any[] }>('GET', '/brain-core/contacts');
+  }
+
+  async getClassificationRules() {
+    return this.request<{ rules: any[] }>('GET', '/brain-core/classification');
+  }
+
   async recordLearning(eventType: string, data?: object, sourceType?: string, sourceId?: string) {
     return this.request<{ event: any }>('POST', '/brain-core/learn', {
       event_type: eventType,

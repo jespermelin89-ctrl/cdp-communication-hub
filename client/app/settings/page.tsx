@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Brain, Settings2, ChevronRight } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
 import { useI18n, LOCALES, type Locale } from '@/lib/i18n';
@@ -286,6 +287,33 @@ export default function SettingsPage() {
                     {t.settings.noAccounts}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Quick links */}
+            <div className="card">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">{t.settings.advanced || 'Avancerat'}</h2>
+              <div className="space-y-1">
+                <Link
+                  href="/settings/accounts"
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Settings2 size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">E-postkonton</span>
+                  </div>
+                  <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
+                </Link>
+                <Link
+                  href="/settings/brain-core"
+                  className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Brain size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Brain Core — Skrivprofil & AI</span>
+                  </div>
+                  <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
+                </Link>
               </div>
             </div>
 

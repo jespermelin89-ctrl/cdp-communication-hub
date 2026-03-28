@@ -118,6 +118,7 @@ const ru: Translations = {
     notAuthenticated: 'Не аутентифицирован.',
     optional: 'Необязательно',
     egWork: 'напр. Работа',
+    advanced: 'Дополнительно',
   },
 
   activity: {

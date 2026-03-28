@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import Link from 'next/link';
 import {
@@ -19,6 +20,7 @@ import { useNotificationPermission } from '@/hooks/useNotificationPermission';
 import type { CommandCenterData, Account } from '@/lib/types';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [syncing, setSyncing] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -32,6 +34,13 @@ export default function DashboardPage() {
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
   const { t } = useI18n();
   const { permission: notifPermission, request: requestNotifPermission } = useNotificationPermission();
+
+  // Prefetch common destinations so navigation feels instant
+  useEffect(() => {
+    router.prefetch('/inbox');
+    router.prefetch('/drafts');
+    router.prefetch('/notifications');
+  }, [router]);
 
   const { data: cmdSWR, isLoading: loading, mutate: mutateDashboard } = useSWR(
     'command-center',

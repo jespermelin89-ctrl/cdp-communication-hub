@@ -7,9 +7,10 @@ import PwaInstallBanner from '@/components/PwaInstallBanner';
 import PwaRegistrar from '@/components/PwaRegistrar';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { ChatProvider } from '@/lib/chat-context';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 // Lazy-load heavy client components — no SSR needed
-const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false });
+const ChatWidget = dynamic(() => import('@/components/ChatWidget'), { ssr: false, loading: () => null });
 const BottomNav = dynamic(() => import('@/components/BottomNav'), { ssr: false });
 const OnboardingWizard = dynamic(() => import('@/components/OnboardingWizard'), { ssr: false });
 const HighPriorityAlert = dynamic(() => import('@/components/HighPriorityAlert'), { ssr: false });
@@ -59,7 +60,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <I18nProvider>
             <ChatProvider>
-              {children}
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
               <ChatWidget />
               <PwaInstallBanner />
               <BottomNav />

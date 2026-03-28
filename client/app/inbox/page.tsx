@@ -76,8 +76,8 @@ export default function InboxPage() {
   const [analyzingIds, setAnalyzingIds] = useState<Set<string>>(new Set());
   const [analyzeErrors, setAnalyzeErrors] = useState<Map<string, string>>(new Map());
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [archivingIds, setArchivingIds] = useState<Set<string>>(new Set());
   const [trashConfirmId, setTrashConfirmId] = useState<string | null>(null);
@@ -85,16 +85,28 @@ export default function InboxPage() {
   const [batchTrashPending, setBatchTrashPending] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<'date' | 'priority' | 'unanalyzed'>('date');
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [displayLimit, setDisplayLimit] = useState(20);
   const { t } = useI18n();
   const { setSelectedThreadIds } = useChatContext();
   const { notifyNewHighPriority } = useNotifications();
 
+  // Debounce search input — only fire SWR after 400ms idle
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchInput), 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Reset pagination when search/filter changes
+  useEffect(() => {
+    setDisplayLimit(20);
+  }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey]);
+
   // SWR — threads revalidate automatically when filters change
   const { data: threadData, isLoading: loading, mutate: mutateThreads } = useSWR(
-    ['threads', selectedAccountId, search],
+    ['threads', selectedAccountId, debouncedSearch],
     () => api.getThreads({
       account_id: selectedAccountId || undefined,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
     }),
     { refreshInterval: 60000, revalidateOnFocus: true }
   );
@@ -276,9 +288,12 @@ export default function InboxPage() {
     return db - da;
   });
 
-  const visibleThreads = classificationFilter
+  const filteredThreads = (classificationFilter
     ? sortedThreads.filter((th) => th.latestAnalysis?.classification === classificationFilter)
-    : sortedThreads;
+    : sortedThreads
+  ).filter((th) => !priorityFilter || th.latestAnalysis?.priority === priorityFilter);
+
+  const visibleThreads = filteredThreads.slice(0, displayLimit);
 
   const availableClassifications = Array.from(
     new Set(threads.map((th) => th.latestAnalysis?.classification).filter(Boolean))
@@ -323,7 +338,7 @@ export default function InboxPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.inbox.title}</h1>
             {!loading && (
               <p className="text-sm text-gray-400 mt-0.5">
-                {visibleThreads.length} {t.inbox.messages}
+                {filteredThreads.length} {t.inbox.messages}
                 {unanalyzedCount > 0 && (
                   <span className="ml-2 text-amber-500 font-medium">
                     · {unanalyzedCount} {t.inbox.unanalyzed}
@@ -391,7 +406,7 @@ export default function InboxPage() {
               placeholder={t.inbox.searchPlaceholder}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') setSearch(searchInput); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') setDebouncedSearch(searchInput); }}
               className="w-full pl-9 pr-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
             />
           </div>
@@ -765,6 +780,16 @@ export default function InboxPage() {
                 );
               })}
             </div>
+
+            {/* Load more */}
+            {filteredThreads.length > displayLimit && (
+              <button
+                onClick={() => setDisplayLimit((prev) => prev + 20)}
+                className="w-full py-3 text-sm text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-colors mt-2"
+              >
+                Visa fler ({filteredThreads.length - displayLimit} kvar)
+              </button>
+            )}
           </>
         )}
       </main>

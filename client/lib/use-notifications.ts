@@ -46,6 +46,11 @@ export function useNotifications() {
         tag: thread.id, // deduplicates if already shown
       });
     }
+
+    // Haptic feedback for high-priority alerts on mobile
+    if (fresh.length > 0 && typeof navigator !== 'undefined') {
+      navigator.vibrate?.([100, 50, 100]); // double pulse
+    }
   }, []);
 
   return { permission, requestPermission, notify, notifyNewHighPriority };

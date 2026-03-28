@@ -6,7 +6,7 @@ import TopBar from '@/components/TopBar';
 import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
-import { Archive, Trash2, AlertCircle, Bot, RefreshCw } from 'lucide-react';
+import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown } from 'lucide-react';
 import { BadgeIcons } from '@/components/EmailBadges';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -73,6 +73,7 @@ export default function InboxPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [archivingIds, setArchivingIds] = useState<Set<string>>(new Set());
   const [trashConfirmId, setTrashConfirmId] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<'date' | 'priority' | 'unanalyzed'>('date');
   const { t } = useI18n();
   const { setSelectedThreadIds } = useChatContext();
   const { notifyNewHighPriority } = useNotifications();
@@ -221,9 +222,28 @@ export default function InboxPage() {
 
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
 
+  const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+  const sortedThreads = [...threads].sort((a, b) => {
+    if (sortKey === 'priority') {
+      const pa = PRIORITY_ORDER[a.latestAnalysis?.priority ?? ''] ?? 3;
+      const pb = PRIORITY_ORDER[b.latestAnalysis?.priority ?? ''] ?? 3;
+      if (pa !== pb) return pa - pb;
+    }
+    if (sortKey === 'unanalyzed') {
+      const ua = a.latestAnalysis ? 1 : 0;
+      const ub = b.latestAnalysis ? 1 : 0;
+      if (ua !== ub) return ua - ub; // unanalyzed first
+    }
+    // Default: date descending
+    const da = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+    const db = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+    return db - da;
+  });
+
   const visibleThreads = classificationFilter
-    ? threads.filter((th) => th.latestAnalysis?.classification === classificationFilter)
-    : threads;
+    ? sortedThreads.filter((th) => th.latestAnalysis?.classification === classificationFilter)
+    : sortedThreads;
 
   const availableClassifications = Array.from(
     new Set(threads.map((th) => th.latestAnalysis?.classification).filter(Boolean))
@@ -330,6 +350,31 @@ export default function InboxPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Sort options */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 shrink-0">
+            <ArrowUpDown size={12} />
+            Sortera:
+          </span>
+          {([
+            { key: 'date', label: 'Senaste' },
+            { key: 'priority', label: 'Prioritet' },
+            { key: 'unanalyzed', label: 'Oklassificerade' },
+          ] as const).map((opt) => (
+            <button
+              key={opt.key}
+              onClick={() => setSortKey(opt.key)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+                sortKey === opt.key
+                  ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-800 dark:border-gray-200'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
 
         {/* Classification Filter */}

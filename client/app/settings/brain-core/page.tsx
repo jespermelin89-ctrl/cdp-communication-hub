@@ -2,293 +2,342 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Brain, Pen, Tag, Users, RefreshCw, ChevronRight } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
-
-interface WritingMode {
-  id: string;
-  modeKey: string;
-  description: string | null;
-  examples: string[];
-  isActive: boolean;
-}
-
-interface VoiceAttribute {
-  id: string;
-  attribute: string;
-  value: string;
-  strength: number | null;
-}
-
-interface ContactProfile {
-  id: string;
-  emailAddress: string;
-  displayName: string | null;
-  relationship: string | null;
-  language: string | null;
-  totalEmails: number;
-  lastContactAt: string | null;
-}
-
-interface ClassificationRule {
-  id: string;
-  categoryKey: string;
-  description: string | null;
-  senderPatterns: string[];
-  subjectPatterns: string[];
-  isActive: boolean;
-}
-
-const RELATIONSHIP_COLORS: Record<string, string> = {
-  lead: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-  partner: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  client: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-  personal: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-  spam: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300',
-  operational: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
-};
-
-function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-100 dark:border-gray-700">
-        <Icon size={16} className="text-brand-500 shrink-0" />
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{title}</h2>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="px-5 py-8 text-center text-sm text-gray-400">
-      <Brain size={28} strokeWidth={1.5} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-      {text}
-    </div>
-  );
-}
+import {
+  Brain, PenLine, Tag, Users, Trash2, RefreshCw,
+  ChevronLeft, CheckCircle, AlertCircle, Zap
+} from 'lucide-react';
 
 export default function BrainCorePage() {
-  const [modes, setModes] = useState<WritingMode[]>([]);
-  const [attributes, setAttributes] = useState<VoiceAttribute[]>([]);
-  const [contacts, setContacts] = useState<ContactProfile[]>([]);
-  const [rules, setRules] = useState<ClassificationRule[]>([]);
+  const [writingModes, setWritingModes] = useState<any[]>([]);
+  const [voiceAttributes, setVoiceAttributes] = useState<any[]>([]);
+  const [rules, setRules] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanMsg, setCleanMsg] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'modes' | 'rules' | 'contacts'>('modes');
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    Promise.all([
+      api.getWritingProfile(),
+      api.getClassificationRules(),
+      api.getContacts(),
+    ])
+      .then(([profileRes, rulesRes, contactsRes]) => {
+        setWritingModes(profileRes.profile?.modes ?? []);
+        setVoiceAttributes(profileRes.profile?.attributes ?? []);
+        setRules(rulesRes.rules ?? []);
+        setContacts(contactsRes.contacts ?? []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
 
-  async function load() {
-    setLoading(true);
-    setError(null);
+  async function handleCleanup() {
+    if (!confirm('Rensa test-data från Brain Core learning events?')) return;
+    setCleaning(true);
+    setCleanMsg(null);
     try {
-      const [profileRes, contactsRes, rulesRes] = await Promise.all([
-        api.getWritingProfile(),
-        api.getContacts(),
-        api.getClassificationRules(),
-      ]);
-      setModes(profileRes.profile?.modes ?? []);
-      setAttributes(profileRes.profile?.attributes ?? []);
-      setContacts(contactsRes.contacts ?? []);
-      setRules(rulesRes.rules ?? []);
+      const result = await api.chatAsk('rensa test-data från learning events, behåll bara riktiga events');
+      setCleanMsg(result.message);
     } catch (err: any) {
-      setError(err.message);
+      setCleanMsg(`Fel: ${err.message}`);
     } finally {
-      setLoading(false);
+      setCleaning(false);
     }
   }
 
-  const notSeeded = !loading && !error && modes.length === 0 && attributes.length === 0 && rules.length === 0;
+  const TABS = [
+    { key: 'modes' as const, label: 'Skrivstilar', icon: <PenLine size={14} />, count: writingModes.length },
+    { key: 'rules' as const, label: 'Regler', icon: <Tag size={14} />, count: rules.length },
+    { key: 'contacts' as const, label: 'Kontakter', icon: <Users size={14} />, count: contacts.length },
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-20 sm:pb-0">
       <TopBar />
-
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Brain Core</h1>
-            <p className="text-sm text-gray-400 mt-0.5">AI:ns skrivprofil, kontakter och klassificeringsregler</p>
-          </div>
-          <button
-            onClick={load}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+        <div className="flex items-center gap-3 mb-6">
+          <Link
+            href="/settings"
+            className="p-2 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-            Uppdatera
-          </button>
-        </div>
-        <div className="mb-6">
-          <Link href="/settings" className="text-sm text-brand-600 hover:text-brand-700">
-            ← Inställningar
+            <ChevronLeft size={18} />
           </Link>
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl flex items-center justify-center">
+              <Brain size={18} className="text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Brain Core</h1>
+              <p className="text-xs text-gray-400 dark:text-gray-500">Skrivstilar, regler & kontakter</p>
+            </div>
+          </div>
         </div>
 
-        {error && (
-          <div className="mb-6 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
-            {error}
+        {/* Stats row */}
+        {!loading && (
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {[
+              { label: 'Skrivstilar', value: writingModes.length, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+              { label: 'Regler', value: rules.length, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+              { label: 'Kontakter', value: contacts.length, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20' },
+            ].map((stat) => (
+              <div key={stat.label} className={`${stat.bg} rounded-2xl p-4 text-center`}>
+                <div className={`text-2xl font-bold ${stat.color}`}>{stat.value}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{stat.label}</div>
+              </div>
+            ))}
           </div>
         )}
 
-        {notSeeded && (
-          <div className="mb-6 px-4 py-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-800 dark:text-amber-300">
-            <div className="font-semibold mb-1">Brain Core är inte seedad ännu</div>
-            <p className="text-amber-700 dark:text-amber-400">
-              Kör följande i Render Shell för att populera skrivprofil och klassificeringsregler:
-            </p>
-            <code className="block mt-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg text-xs font-mono">
-              npm run seed:brain-core
-            </code>
-          </div>
-        )}
+        {/* Tabs */}
+        <div className="flex gap-1 mb-5 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeTab === tab.key
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+              {tab.count > 0 && (
+                <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                  activeTab === tab.key
+                    ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-              <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
-              <span className="text-sm">Laddar Brain Core...</span>
-            </div>
+            <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
           </div>
         ) : (
-          <div className="space-y-5">
-
-            {/* Writing modes */}
-            <Section icon={Pen} title={`Skrivlägen (${modes.length})`}>
-              {modes.length === 0 ? (
-                <EmptyState text="Inga skrivlägen konfigurerade" />
-              ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {modes.map((mode) => (
-                    <div key={mode.id} className="px-5 py-3.5">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{mode.modeKey}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${mode.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}>
-                          {mode.isActive ? 'Aktiv' : 'Inaktiv'}
-                        </span>
-                      </div>
-                      {mode.description && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">{mode.description}</p>
-                      )}
-                      {mode.examples.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {mode.examples.slice(0, 4).map((ex, i) => (
-                            <span key={i} className="text-[10px] px-2 py-0.5 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 rounded-full border border-brand-100 dark:border-brand-900">
-                              {ex}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-
-            {/* Voice attributes */}
-            <Section icon={Brain} title={`Röstattribut (${attributes.length})`}>
-              {attributes.length === 0 ? (
-                <EmptyState text="Inga röstattribut konfigurerade" />
-              ) : (
-                <div className="px-5 py-3 flex flex-wrap gap-2">
-                  {attributes.map((attr) => (
-                    <div key={attr.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600">
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{attr.attribute}</span>
-                      <span className="text-[10px] text-gray-400">{attr.value}</span>
-                      {attr.strength != null && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 rounded-full">
-                          {Math.round(attr.strength * 100)}%
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-
-            {/* Classification rules */}
-            <Section icon={Tag} title={`Klassificeringsregler (${rules.length})`}>
-              {rules.length === 0 ? (
-                <EmptyState text="Inga klassificeringsregler konfigurerade" />
-              ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {rules.map((rule) => (
-                    <div key={rule.id} className="px-5 py-3.5">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{rule.categoryKey}</span>
-                        <Link
-                          href="/categories"
-                          className="flex items-center gap-0.5 text-[10px] text-brand-600 hover:text-brand-700"
-                        >
-                          Redigera <ChevronRight size={10} />
-                        </Link>
-                      </div>
-                      {rule.description && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">{rule.description}</p>
-                      )}
-                      {rule.senderPatterns.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {rule.senderPatterns.slice(0, 5).map((p, i) => (
-                            <span key={i} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded font-mono">
-                              {p}
-                            </span>
-                          ))}
-                          {rule.senderPatterns.length > 5 && (
-                            <span className="text-[10px] text-gray-400">+{rule.senderPatterns.length - 5} till</span>
+          <>
+            {/* SKRIVSTILAR */}
+            {activeTab === 'modes' && (
+              <div className="space-y-3">
+                {writingModes.length === 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
+                    <PenLine size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">Inga skrivstilar seedade ännu</p>
+                    <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">Kör <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">npm run seed:brain-core</code> i Render Shell</p>
+                  </div>
+                ) : (
+                  writingModes.map((mode: any) => (
+                    <div key={mode.id ?? mode.name} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div>
+                          <div className="font-semibold text-gray-900 dark:text-gray-100">{mode.name}</div>
+                          {mode.description && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{mode.description}</div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-
-            {/* Contacts */}
-            <Section icon={Users} title={`Kontakter (${contacts.length})`}>
-              {contacts.length === 0 ? (
-                <EmptyState text="Inga kontakter ännu. Analysera trådar för att bygga upp kontaktprofiler." />
-              ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {contacts.slice(0, 20).map((contact) => (
-                    <div key={contact.id} className="flex items-center justify-between px-5 py-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center text-[10px] font-bold text-gray-600 dark:text-gray-300 shrink-0">
-                          {(contact.displayName || contact.emailAddress).slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
-                            {contact.displayName || contact.emailAddress}
-                          </div>
-                          {contact.displayName && (
-                            <div className="text-[10px] text-gray-400 truncate">{contact.emailAddress}</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {contact.relationship && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${RELATIONSHIP_COLORS[contact.relationship] || 'bg-gray-100 text-gray-600'}`}>
-                            {contact.relationship}
+                        {mode.isDefault && (
+                          <span className="shrink-0 text-xs px-2 py-0.5 bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800 rounded-full font-medium">
+                            Standard
                           </span>
                         )}
-                        <span className="text-[10px] text-gray-400">{contact.totalEmails} mejl</span>
+                      </div>
+                      {mode.examples && mode.examples.length > 0 && (
+                        <div className="mt-3">
+                          <div className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide mb-2">Exempel</div>
+                          <div className="space-y-1.5">
+                            {mode.examples.slice(0, 2).map((ex: string, i: number) => (
+                              <div key={i} className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2 border border-gray-100 dark:border-gray-700 italic">
+                                "{ex}"
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+
+                {/* Voice attributes */}
+                {voiceAttributes.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Röstattribut</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {voiceAttributes.map((attr: any) => (
+                        <span
+                          key={attr.id ?? attr.attribute}
+                          className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-full text-xs font-medium"
+                        >
+                          {attr.attribute}
+                          {attr.strength != null && (
+                            <span className="ml-1 text-indigo-400">({Math.round(attr.strength * 10)}/10)</span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* REGLER */}
+            {activeTab === 'rules' && (
+              <div className="space-y-3">
+                {rules.length === 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
+                    <Tag size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">Inga klassificeringsregler skapade</p>
+                  </div>
+                ) : (
+                  rules.map((rule: any) => (
+                    <div key={rule.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-2 h-2 rounded-full shrink-0 ${rule.isActive !== false ? 'bg-emerald-400' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{rule.name || rule.categoryKey}</div>
+                            {rule.senderPatterns?.length > 0 && (
+                              <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                                Avsändare: {rule.senderPatterns.slice(0, 2).join(', ')}
+                                {rule.senderPatterns.length > 2 && ` +${rule.senderPatterns.length - 2}`}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                            rule.priority === 'high'
+                              ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800'
+                              : rule.priority === 'medium'
+                              ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                              : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600'
+                          }`}>
+                            {rule.priority || 'low'}
+                          </span>
+                          <span className="text-xs text-gray-400 dark:text-gray-500">
+                            {rule.timesMatched ?? 0}× träff
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                  {contacts.length > 20 && (
-                    <div className="px-5 py-2.5 text-xs text-gray-400 text-center">
-                      + {contacts.length - 20} fler kontakter
-                    </div>
-                  )}
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* KONTAKTER */}
+            {activeTab === 'contacts' && (
+              <div className="space-y-3">
+                {contacts.length === 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 p-8 text-center">
+                    <Users size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">Inga kontakter inlärda ännu</p>
+                    <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">Synca mail i inkorgen för att börja lära kontakter</p>
+                  </div>
+                ) : (
+                  contacts
+                    .sort((a: any, b: any) => (b.totalEmails ?? 0) - (a.totalEmails ?? 0))
+                    .map((contact: any) => {
+                      const initials = (contact.emailAddress ?? 'U').slice(0, 2).toUpperCase();
+                      const colors = ['bg-violet-400', 'bg-blue-400', 'bg-emerald-400', 'bg-amber-400', 'bg-rose-400'];
+                      let hash = 0;
+                      for (const c of (contact.emailAddress ?? '')) hash = (hash * 31 + c.charCodeAt(0)) & 0xffff;
+                      const color = colors[hash % colors.length];
+                      return (
+                        <div key={contact.id ?? contact.emailAddress} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 ${color} rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0`}>
+                              {initials}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {contact.displayName || contact.emailAddress}
+                              </div>
+                              {contact.displayName && (
+                                <div className="text-xs text-gray-400 dark:text-gray-500 truncate">{contact.emailAddress}</div>
+                              )}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className="text-sm font-semibold text-gray-700 dark:text-gray-300">{contact.totalEmails ?? 0}</div>
+                              <div className="text-xs text-gray-400 dark:text-gray-500">mejl</div>
+                            </div>
+                          </div>
+                          {(contact.relationship || contact.language || contact.notes) && (
+                            <div className="mt-2.5 pt-2.5 border-t border-gray-100 dark:border-gray-700 flex items-center gap-2 flex-wrap">
+                              {contact.relationship && (
+                                <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
+                                  {contact.relationship}
+                                </span>
+                              )}
+                              {contact.language && (
+                                <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">
+                                  {contact.language.toUpperCase()}
+                                </span>
+                              )}
+                              {contact.notes && (
+                                <span className="text-xs text-gray-400 dark:text-gray-500 truncate flex-1">{contact.notes}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Cleanup section */}
+        <div className="mt-8 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 bg-red-50 dark:bg-red-900/20 rounded-xl flex items-center justify-center shrink-0">
+              <Trash2 size={16} className="text-red-500 dark:text-red-400" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">Rensa test-data</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                Ta bort test-learning events (prefix "test:"). Riktiga events behålls.
+              </p>
+              {cleanMsg && (
+                <div className="mb-3 text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700">
+                  {cleanMsg}
                 </div>
               )}
-            </Section>
-
+              <button
+                onClick={handleCleanup}
+                disabled={cleaning}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {cleaning ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {cleaning ? 'Rensar…' : 'Rensa test-data'}
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Seed instructions */}
+        <div className="mt-4 bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-2xl p-4">
+          <div className="flex items-start gap-2.5">
+            <Zap size={14} className="text-indigo-500 dark:text-indigo-400 mt-0.5 shrink-0" />
+            <div>
+              <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Brain Core inte seedat?</div>
+              <div className="text-xs text-indigo-600 dark:text-indigo-400">
+                Kör <code className="bg-indigo-100 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded font-mono">npm run seed:brain-core</code> en gång i Render Shell efter deploy för att ladda skrivstilar och röstattribut.
+              </div>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   );

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { MessageCircle, X, Send, RefreshCw, WifiOff, Loader, AlertCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useChatContext } from '@/lib/chat-context';
@@ -19,6 +20,99 @@ interface ChatMessage {
   timestamp: Date;
   queued?: boolean; // true = sent while offline, waiting for flush
 }
+
+// ── Intent system ─────────────────────────────────────────────────────────────
+interface Intent {
+  pattern: RegExp;
+  description: string;
+  execute: (match: RegExpMatchArray, text: string) => Promise<{ type: string; message: string; data?: any }>;
+}
+
+const INTENTS: Intent[] = [
+  {
+    pattern: /^(kolla\s*mail|briefing|inbox|olästa|vad har jag|morgon|sammanfatt)/i,
+    description: 'Hämtar inbox-briefing',
+    execute: async () => {
+      return api.chatAsk('ge mig en detaljerad inbox-briefing med prioriterade mail');
+    },
+  },
+  {
+    pattern: /^(klassificera|sortera|triage|analysera\s*(alla|mail))/i,
+    description: 'Klassificerar mail med AI',
+    execute: async () => {
+      const result = await api.bulkClassify(10);
+      const lines = result.results.map((r) => {
+        const icon =
+          r.priority === 'high' ? '🔴' : r.priority === 'medium' ? '🟡' : '🟢';
+        return `${icon} ${r.subject ?? '(inget ämne)'} → **${r.classification}**`;
+      });
+      const summary = `_${result.ai_calls} AI-anrop, ${result.results.length - result.ai_calls} regelmatchningar_`;
+      const message =
+        lines.length > 0
+          ? lines.join('\n') + '\n\n' + summary
+          : `Inga oanalyserade trådar hittades. ${summary}`;
+      return { type: 'bulk_classify', message };
+    },
+  },
+  {
+    pattern: /^(synca|hämta\s*nya|uppdatera|refresh|sync)/i,
+    description: 'Syncar mail från Gmail',
+    execute: async () => {
+      return api.chatAsk('synca och hämta nya mail från Gmail');
+    },
+  },
+  {
+    pattern: /^(brain|status|statistik|learning|vad har du lärt)/i,
+    description: 'Hämtar Brain Core-status',
+    execute: async () => {
+      return api.chatAsk('visa brain core statistik, writing modes och learning status');
+    },
+  },
+  {
+    pattern: /^(sök|hitta|leta|search)\s+(.+)/i,
+    description: 'Söker i mail',
+    execute: async (match) => {
+      return api.chatAsk('sök i mina mail efter: ' + match[2]);
+    },
+  },
+  {
+    pattern: /^(svara|reply|skriv\s*svar)/i,
+    description: 'Letar mail som behöver svar',
+    execute: async () => {
+      return api.chatAsk('vilka mail behöver jag svara på?');
+    },
+  },
+  {
+    pattern: /^(utkast|drafts|väntande utkast)/i,
+    description: 'Hämtar väntande utkast',
+    execute: async () => {
+      return api.chatAsk('visa mina väntande utkast');
+    },
+  },
+  {
+    pattern: /^(rensa|städa|arkivera\s*skräp|clean)/i,
+    description: 'Analyserar vad som kan rensas',
+    execute: async () => {
+      return api.chatAsk('vad bör jag rensa och arkivera i inkorgen?');
+    },
+  },
+  {
+    pattern: /^(notis|alert|varning|vad har hänt)/i,
+    description: 'Hämtar senaste notiser',
+    execute: async () => {
+      return api.chatAsk('visa senaste notiser och viktiga händelser');
+    },
+  },
+];
+
+// ── Quick action chips ────────────────────────────────────────────────────────
+const QUICK_ACTIONS = [
+  { label: '📬 Kolla mail', cmd: 'kolla mail' },
+  { label: '🤖 Klassificera', cmd: 'klassificera alla' },
+  { label: '🔄 Synca', cmd: 'synca' },
+  { label: '🧠 Brain Core', cmd: 'brain status' },
+  { label: '📝 Utkast', cmd: 'utkast' },
+];
 
 // ── Connection status badge shown inside the chat header ──────────────────
 function ConnectionBadge({
@@ -67,6 +161,7 @@ export default function ChatWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [thinkingLabel, setThinkingLabel] = useState('');
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -144,30 +239,8 @@ export default function ChatWidget() {
       const message = commandMap[cmd];
       if (message) {
         setTimeout(() => {
-          setInput(message);
           setTimeout(() => {
-            setInput('');
-            const userMsg: ChatMessage = {
-              id: `u-${Date.now()}`,
-              role: 'user',
-              content: message,
-              timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, userMsg]);
-            setLoading(true);
-            api.chatAsk(message).then((result) => {
-              setMessages((prev) => [
-                ...prev,
-                {
-                  id: `a-${Date.now()}`,
-                  role: 'assistant',
-                  content: result.message,
-                  type: result.type,
-                  data: result.data,
-                  timestamp: new Date(),
-                },
-              ]);
-            }).catch(() => {}).finally(() => setLoading(false));
+            doSend(message);
           }, 100);
         }, 600);
       }
@@ -190,10 +263,8 @@ export default function ChatWidget() {
     if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
-  async function handleSend() {
-    const text = input.trim();
-    if (!text || loading) return;
-
+  // ── Core send logic ──────────────────────────────────────────────────────
+  async function doSend(text: string) {
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       role: 'user',
@@ -202,9 +273,9 @@ export default function ChatWidget() {
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    setInput('');
+    navigator.vibrate?.(30);
 
-    // ── Offline: queue the command ────────────────────────────────────────
+    // ── Offline: queue the command ──────────────────────────────────────────
     if (!networkStatus.online) {
       await commandQueue.add(text);
       const n = await commandQueue.count();
@@ -223,14 +294,30 @@ export default function ChatWidget() {
       return;
     }
 
-    // ── Online: send normally ─────────────────────────────────────────────
+    // ── Online: match intent or fall back to chatAsk ────────────────────────
     setLoading(true);
 
     try {
-      const result = await api.chatAsk(
-        text,
-        selectedThreadIds.length > 0 ? selectedThreadIds : undefined
-      );
+      let result: { type: string; message: string; data?: any } | undefined;
+
+      // Try each intent in order — first match wins
+      for (const intent of INTENTS) {
+        const match = text.match(intent.pattern);
+        if (match) {
+          setThinkingLabel(intent.description);
+          result = await intent.execute(match, text);
+          setThinkingLabel('');
+          break;
+        }
+      }
+
+      // Fall back to generic chatAsk
+      if (!result) {
+        result = await api.chatAsk(
+          text,
+          selectedThreadIds.length > 0 ? selectedThreadIds : undefined
+        );
+      }
 
       const assistantMsg: ChatMessage = {
         id: `a-${Date.now()}`,
@@ -242,8 +329,9 @@ export default function ChatWidget() {
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err: any) {
-      const rawMsg: string = err?.message || '';
+    } catch (err: unknown) {
+      setThinkingLabel('');
+      const rawMsg: string = err instanceof Error ? err.message : '';
       const friendlyMsg = /prisma|database|500|connection/i.test(rawMsg)
         ? 'Något gick fel. Testa igen om en stund.'
         : rawMsg || 'Något gick fel. Testa igen.';
@@ -260,6 +348,13 @@ export default function ChatWidget() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSend() {
+    const text = input.trim();
+    if (!text || loading) return;
+    setInput('');
+    doSend(text);
   }
 
   const handleVoiceTranscript = useCallback((text: string) => {
@@ -320,10 +415,7 @@ export default function ChatWidget() {
         {actions.map((a) => (
           <button
             key={a.command}
-            onClick={() => {
-              setInput(a.command);
-              setTimeout(() => handleSend(), 50);
-            }}
+            onClick={() => doSend(a.command)}
             className="px-2.5 py-1 rounded-full bg-brand-100 text-brand-700 text-xs font-medium hover:bg-brand-200 transition-colors"
           >
             {a.label}
@@ -421,26 +513,41 @@ export default function ChatWidget() {
                         ? 'bg-red-50 text-red-700 border border-red-200 rounded-bl-md'
                         : msg.type === 'info' || msg.queued
                           ? 'bg-amber-50 text-amber-700 border border-amber-200 rounded-bl-md'
-                          : 'bg-gray-100 text-gray-800 rounded-bl-md'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-md'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap leading-relaxed break-words">
-                    {msg.content.split('**').map((part, i) =>
-                      i % 2 === 1 ? <strong key={i}>{part}</strong> : part
-                    )}
-                  </div>
+                  {msg.role === 'user' ? (
+                    <div className="whitespace-pre-wrap leading-relaxed break-words">
+                      {msg.content}
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap leading-relaxed break-words">
+                      <ReactMarkdown
+                        components={{
+                          p: ({ children }) => <p className="mb-1 last:mb-0 leading-relaxed">{children}</p>,
+                          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                          em: ({ children }) => <em className="text-xs text-gray-400 not-italic">{children}</em>,
+                          ul: ({ children }) => <ul className="mt-1 space-y-0.5">{children}</ul>,
+                          li: ({ children }) => <li className="flex gap-1.5"><span className="shrink-0 text-gray-400">•</span><span>{children}</span></li>,
+                          code: ({ children }) => <code className="bg-gray-200 dark:bg-gray-600 text-xs px-1 rounded">{children}</code>,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    </div>
+                  )}
 
                   {/* Thread list — render clickable links */}
                   {msg.type === 'thread_list' && Array.isArray(msg.data) && msg.data.length > 0 && (
-                    <div className="mt-2.5 space-y-1.5 border-t border-gray-200 pt-2.5">
+                    <div className="mt-2.5 space-y-1.5 border-t border-gray-200 dark:border-gray-600 pt-2.5">
                       {msg.data.slice(0, 8).map((thread: any) => (
                         <Link
                           key={thread.id}
                           href={`/threads/${thread.id}`}
-                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 hover:border-brand-300 hover:bg-brand-50/40 transition-all group"
+                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 hover:border-brand-300 dark:hover:border-brand-600 hover:bg-brand-50/40 dark:hover:bg-brand-900/20 transition-all group"
                         >
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-medium text-gray-800 truncate group-hover:text-brand-700">
+                            <div className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate group-hover:text-brand-700 dark:group-hover:text-brand-300">
                               {thread.subject || t.chat.noSubject}
                             </div>
                             <div className="text-xs text-gray-400 truncate">{thread.sender}</div>
@@ -474,17 +581,34 @@ export default function ChatWidget() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
+                <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl rounded-bl-md px-4 py-3">
                   <div className="flex gap-1">
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                     <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                   </div>
+                  {thinkingLabel && (
+                    <p className="text-xs text-gray-400 italic mt-1">{thinkingLabel}…</p>
+                  )}
                 </div>
               </div>
             )}
 
             <div ref={messagesEndRef} />
+          </div>
+
+          {/* Quick actions */}
+          <div className="flex gap-2 px-3 py-1.5 overflow-x-auto scrollbar-hide border-t border-gray-100 dark:border-gray-700/50 shrink-0">
+            {QUICK_ACTIONS.map((a) => (
+              <button
+                key={a.cmd}
+                onClick={() => doSend(a.cmd)}
+                disabled={loading}
+                className="whitespace-nowrap text-xs px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 hover:border-brand-300 dark:hover:border-brand-700 hover:text-brand-700 dark:hover:text-brand-300 transition-colors disabled:opacity-40 shrink-0"
+              >
+                {a.label}
+              </button>
+            ))}
           </div>
 
           {/* Input */}

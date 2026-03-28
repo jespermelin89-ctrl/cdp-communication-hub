@@ -63,6 +63,7 @@ export default function BottomNav() {
   return (
     // Only visible on mobile — desktop uses sidebar / TopBar
     <nav
+      aria-label="Navigering"
       className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 flex items-stretch"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >

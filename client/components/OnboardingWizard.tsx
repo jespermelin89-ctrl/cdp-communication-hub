@@ -57,7 +57,12 @@ export default function OnboardingWizard() {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-end sm:items-center justify-center px-4 pb-safe-bottom">
+    <div
+      className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-end sm:items-center justify-center px-4 pb-safe-bottom"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboarding-title"
+    >
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-sm overflow-hidden">
         {/* Step indicator */}
         <div className="flex gap-1 px-5 pt-5 pb-0">
@@ -76,7 +81,7 @@ export default function OnboardingWizard() {
               {current.icon}
             </div>
           </div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">{current.title}</h2>
+          <h2 id="onboarding-title" className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">{current.title}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{current.body}</p>
         </div>
 

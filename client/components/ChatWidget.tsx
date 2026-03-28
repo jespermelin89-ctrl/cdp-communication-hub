@@ -432,7 +432,7 @@ export default function ChatWidget() {
         onClick={() => setIsOpen(!isOpen)}
         className={`fixed bottom-6 right-6 z-50 w-14 h-14 bg-brand-500 hover:bg-brand-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-105 ${isOpen ? 'hidden sm:flex' : 'flex'}`}
         style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))' }}
-        title="Öppna chatt"
+        aria-label={isOpen ? 'Stäng chatt' : 'Öppna chatt'}
       >
         {isOpen ? <X size={22} /> : (
           <div className="relative">
@@ -470,7 +470,7 @@ export default function ChatWidget() {
             </div>
             <button
               onClick={resetChat}
-              title="Starta om chatten"
+              aria-label="Starta om chatten"
               className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
             >
               <RefreshCw size={14} />
@@ -478,7 +478,7 @@ export default function ChatWidget() {
             {/* Close button — only visible on mobile where FAB is hidden */}
             <button
               onClick={() => setIsOpen(false)}
-              title="Stäng"
+              aria-label="Stäng chatt"
               className="sm:hidden p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
             >
               <X size={16} />
@@ -634,7 +634,7 @@ export default function ChatWidget() {
                       ? 'bg-brand-500 text-white hover:bg-brand-600'
                       : 'bg-amber-500 text-white hover:bg-amber-600'
                   }`}
-                  title={networkStatus.online ? 'Skicka' : 'Kö meddelande (offline)'}
+                  aria-label={networkStatus.online ? 'Skicka meddelande' : 'Kö meddelande (offline)'}
                 >
                   <Send className="w-4 h-4" />
                 </button>

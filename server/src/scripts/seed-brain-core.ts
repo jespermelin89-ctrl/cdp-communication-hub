@@ -1,10 +1,11 @@
 /**
- * Seed Brain Core tables from Jesper's writing profile.
+ * Seed Brain Core — Email workflow rules, writing profile, and known contacts.
  *
- * Run: npx ts-node src/scripts/seed-brain-core.ts
+ * Run: npm run seed:brain-core
+ * (or: npx ts-node src/scripts/seed-brain-core.ts)
  *
- * Idempotent — uses upsert so safe to run multiple times.
- * Requires DATABASE_URL in .env and a valid userId.
+ * Idempotent — uses upsert, safe to run multiple times.
+ * Requires DATABASE_URL in environment.
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -15,293 +16,303 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const prisma = new PrismaClient();
 
-// The owner's userId — fetched by email at runtime
-const OWNER_EMAIL = 'jesper.melin89@gmail.com';
-
-async function main() {
-  const user = await prisma.user.findUnique({ where: { email: OWNER_EMAIL } });
-  if (!user) {
-    console.error(`User not found: ${OWNER_EMAIL}`);
+async function seed() {
+  // Resolve userId from first active account (single-owner deployment)
+  const account = await prisma.emailAccount.findFirst({ where: { isActive: true } });
+  if (!account) {
+    console.error('Inget aktivt konto hittades. Lägg till ett konto i CDP-gränssnittet först.');
     process.exit(1);
   }
+  const userId = account.userId;
+  console.log(`\nSeeding Brain Core for userId: ${userId}\n`);
 
-  const userId = user.id;
-  console.log(`Seeding Brain Core for userId: ${userId}`);
-
-  // ============================================================
-  // Writing Modes (5 modes from JESPER-WRITING-PROFILE.md)
-  // ============================================================
+  // ── WRITING MODES ─────────────────────────────────────────────────────────
   const writingModes = [
     {
-      modeKey: 'mode_a',
-      name: 'Casual Swedish',
-      description: 'Team/internal communication — Sanna, collaborators, friends',
-      characteristics: {
-        sentenceLength: 'short',
-        formality: 'casual',
-        lists: 'numbered',
-        emoji: 'rarely',
-        language: 'swedish_with_english_terms',
-      },
+      modeKey: 'casual_sv',
+      name: 'Svenska vardaglig',
+      description: 'Direkt, varm, inga korporativa fraser. Korta meningar. "du" inte "ni".',
       examplePhrases: [
-        'Vi kör igång med dagligt content',
-        'Snabb heads up:',
-        'Kan du filma en kort story-sekvens?',
-        'Behöver de poleras/justeras innan vi postar?',
+        'Hej! Tack för att du hörde av dig.',
+        'Absolut, vi kör på det. Hojta om du behöver nåt.',
+        'Perfekt, jag tittar på det imorgon.',
       ],
-      signOff: '/J',
-      openerStyle: 'Hej [name]!',
+      signOff: '/Jesper',
+      openerStyle: 'Hej!',
+      characteristics: { formality: 'casual', language: 'sv', sentences: 'short' },
     },
     {
-      modeKey: 'mode_b',
-      name: 'Formal Swedish',
-      description: 'Government/institutional correspondence — Skatteverket, Kronofogden, lawyers',
-      characteristics: {
-        sentenceLength: 'full',
-        formality: 'formal',
-        lists: 'numbered',
-        emoji: 'never',
-        language: 'swedish_formal',
-        structure: 'identification + background + request',
-      },
+      modeKey: 'formal_sv',
+      name: 'Svenska formell',
+      description: 'Fortfarande direkt men polerad. För myndigheter och affärskontakter.',
       examplePhrases: [
-        'Jag skriver till er för att jag önskar få en fullständig sammanställning',
-        'Det har aldrig funnits någon avsikt att undvika betalning',
-        'Jag nås enklast via e-post på denna adress',
+        'Tack för informationen. Jag återkommer inom kort.',
+        'Jag bifogar de efterfrågade dokumenten.',
+        'Med anledning av ovanstående önskar jag...',
       ],
-      signOff: 'Med vänliga hälsningar, Jesper Melin',
-      openerStyle: 'Full identification: name, personnummer, address',
+      signOff: 'Med vänlig hälsning,\nJesper Melin',
+      openerStyle: 'Hej,',
+      characteristics: { formality: 'formal', language: 'sv', sentences: 'full' },
     },
     {
-      modeKey: 'mode_c',
-      name: 'English Partnership Pitches',
-      description: 'Brand pitches — Goodr, NoBull, Whoop, TRX, LMNT, Gymshark, etc.',
-      characteristics: {
-        sentenceLength: 'short_paragraphs',
-        formality: 'direct_professional',
-        lists: 'bullet',
-        emoji: 'never',
-        language: 'english',
-        numbers: 'always_concrete',
-        cta: 'bold_questions',
-      },
+      modeKey: 'english',
+      name: 'English',
+      description: 'Confident, slightly informal. For international contacts and pitches.',
       examplePhrases: [
-        'No algorithms. No content theater. Just real training, real people, real results.',
-        'This isn\'t influencer marketing.',
-        'We\'re not asking for a sponsorship deal. We\'re asking if you want to be part of a movement.',
-        'Data doesn\'t lie. Neither do we.',
+        'Hey! Thanks for reaching out.',
+        'Sounds great — let me know how you want to move forward.',
+        'Quick question:',
       ],
-      signOff: 'Jesper / Captain J',
-      openerStyle: 'Hey, or Hi [name],',
-    },
-    {
-      modeKey: 'mode_d',
-      name: 'Swedish Partnership Pitches',
-      description: 'Swedish brand pitches — NOCCO, Barebells, Craft',
-      characteristics: {
-        sentenceLength: 'short',
-        formality: 'direct_casual',
-        lists: 'bullet',
-        emoji: 'never',
-        language: 'swedish_with_english_terms',
-        identity: 'swedish_connection',
-      },
-      examplePhrases: [
-        'Barebells är svenskt. Vi är svenska.',
-        'Inte influencer-marketing. Det är en gemenskap.',
-      ],
-      signOff: 'Jesper / Captain J',
-      openerStyle: 'Direct opener connecting to Swedish identity',
-    },
-    {
-      modeKey: 'mode_e',
-      name: 'Spanish Business',
-      description: 'Local Spanish partnerships — Hyrox España, ISDIN, local businesses',
-      characteristics: {
-        sentenceLength: 'medium',
-        formality: 'professional_not_overly_formal',
-        lists: 'bullet',
-        language: 'spanish',
-        angle: 'community_international',
-      },
-      examplePhrases: [
-        '42 países representados en nuestra comunidad',
-        'Presencia física en el Paseo Marítimo de Torrevieja',
-      ],
-      signOff: 'Jesper Melin / Captain J',
-      openerStyle: 'Community-focused with international appeal',
+      signOff: 'Best,\nJesper',
+      openerStyle: 'Hey / Hi [name],',
+      characteristics: { formality: 'semi-formal', language: 'en', sentences: 'short' },
     },
   ];
 
   for (const mode of writingModes) {
     await prisma.writingMode.upsert({
       where: { userId_modeKey: { userId, modeKey: mode.modeKey } },
-      create: { userId, ...mode },
       update: mode,
+      create: { userId, ...mode },
     });
-    console.log(`  ✓ WritingMode: ${mode.modeKey}`);
+    console.log(`  [OK] WritingMode: ${mode.modeKey}`);
   }
 
-  // ============================================================
-  // Voice Attributes (from section 3)
-  // ============================================================
+  // ── VOICE ATTRIBUTES ──────────────────────────────────────────────────────
   const voiceAttributes = [
     {
-      attribute: 'directness',
+      attribute: 'tone',
       score: 0.9,
-      description: 'Gets to the point immediately. No warming up.',
-      examples: ['No algorithms. No content theater.', 'Data doesn\'t lie. Neither do we.'],
+      description: 'Direkt och varm — aldrig korporativ',
+      examples: ['Vi kör!', 'Hojta om du behöver nåt.'],
     },
     {
-      attribute: 'authenticity',
+      attribute: 'formality',
+      score: 0.3,
+      description: 'Informell som default, formell för myndigheter',
+      examples: ['Hej!', 'Med vänlig hälsning, Jesper Melin'],
+    },
+    {
+      attribute: 'greeting',
       score: 1.0,
-      description: 'Never corporate-speak. Always real.',
-      examples: ['Om du får ett mail från mig som känns lite \'strukturerat\' — det är assistenten'],
+      description: 'Hej / Hey — aldrig "Bästa" eller "Kära"',
+      examples: ['Hej!', 'Hey!'],
     },
     {
-      attribute: 'confidence',
-      score: 0.8,
-      description: 'Bold claims backed by numbers. Not arrogant.',
-      examples: ['1,500+ members', '42 countries', '50-100 people daily'],
+      attribute: 'closing',
+      score: 1.0,
+      description: '"Mvh" eller "/Jesper" — ALDRIG "Med vänliga hälsningar"',
+      examples: ['/Jesper', 'Mvh', 'Best,\nJesper'],
     },
     {
-      attribute: 'vulnerability',
-      score: 0.7,
-      description: 'Shares struggle openly when relevant. Not performative.',
-      examples: ['Det har aldrig funnits någon avsikt att undvika betalning'],
-    },
-    {
-      attribute: 'energy',
+      attribute: 'style',
       score: 0.9,
-      description: 'High-energy, forward-moving.',
-      examples: ['Vi kör!', 'Are you in?', 'Vill du ändra världen tillsammans?'],
+      description: 'Korta meningar. Rak på sak. Ingen onödig fyllnadstext.',
+      examples: ['Tack för att du hörde av dig.', 'Jag återkommer imorgon.'],
     },
     {
-      attribute: 'warmth',
-      score: 0.6,
-      description: 'Warm with team, cooler with strangers.',
-      examples: ['Hej Sanna!', 'Hey,'],
+      attribute: 'apology',
+      score: 0.2,
+      description: 'Aldrig överdrivet ursäktande. Rakt och ärligt.',
+      examples: ['Tyvärr kan jag inte...', 'Det stämmer inte — jag förklarar gärna.'],
     },
   ];
 
   for (const attr of voiceAttributes) {
     await prisma.voiceAttribute.upsert({
       where: { userId_attribute: { userId, attribute: attr.attribute } },
-      create: { userId, ...attr },
       update: attr,
+      create: { userId, ...attr },
     });
-    console.log(`  ✓ VoiceAttribute: ${attr.attribute}`);
+    console.log(`  [OK] VoiceAttribute: ${attr.attribute}`);
   }
 
-  // ============================================================
-  // Classification Rules (from section 5)
-  // ============================================================
+  // ── CLASSIFICATION RULES ──────────────────────────────────────────────────
   const classificationRules = [
+    // AUTO/LÅGPRIO
     {
-      categoryKey: 'partnership_pitch',
-      categoryName: 'Partnership Pitch',
-      description: 'Outgoing sponsorship/collaboration pitches to brands',
-      priority: 'high',
-      action: 'track_responses',
-      senderPatterns: [],
-      subjectPatterns: ['partnership', 'collaboration', 'sponsorship', 'sponsor'],
-      bodyPatterns: ['Are you in?', 'movement', 'community', 'ambassador'],
-    },
-    {
-      categoryKey: 'team_coordination',
-      categoryName: 'Team Coordination',
-      description: 'Internal communication with Sanna, coaches, team',
-      priority: 'high',
-      action: 'respond_or_delegate',
-      senderPatterns: ['zannatrollstierna@gmail.com'],
+      categoryKey: 'noreply_auto',
+      categoryName: 'Noreply automatisk',
+      description: 'Automatiska noreply-mail → auto/low',
+      priority: 'low',
+      action: 'auto_archive',
+      senderPatterns: ['noreply@*', 'no-reply@*'],
       subjectPatterns: [],
       bodyPatterns: [],
     },
     {
-      categoryKey: 'myndigheter',
-      categoryName: 'Myndigheter',
-      description: 'Swedish government/institutional correspondence',
-      priority: 'high',
-      action: 'flag_for_review',
-      senderPatterns: ['*@skatteverket.se', '*@kronofogden.se', '*@forsakringskassan.se'],
-      subjectPatterns: ['skatteverket', 'kronofogden', 'försäkringskassan', 'folkbokföring'],
-      bodyPatterns: [],
-    },
-    {
-      categoryKey: 'community_skool',
-      categoryName: 'Community (Skool)',
-      description: 'Skool notifications, new members, comments',
-      priority: 'medium',
-      action: 'summarize_daily',
-      senderPatterns: ['noreply@skool.com'],
-      subjectPatterns: ['New customer', 'New member', 'commented', 'liked'],
-      bodyPatterns: [],
-    },
-    {
-      categoryKey: 'dev_ops',
-      categoryName: 'DevOps',
-      description: 'Vercel, Render, GitHub deploy notifications',
+      categoryKey: 'github_notifications',
+      categoryName: 'GitHub Notiser',
+      description: 'GitHub-notiser → gruppera och sammanfatta',
       priority: 'low',
-      action: 'auto_archive_unless_failure',
-      senderPatterns: ['notifications@vercel.com', 'no-reply@render.com', 'no-reply@github.com'],
-      subjectPatterns: ['deployment', 'build', 'deploy', 'pipeline'],
+      action: 'group_and_summarize',
+      senderPatterns: ['notifications@github.com'],
+      subjectPatterns: [],
       bodyPatterns: [],
     },
     {
-      categoryKey: 'marketing_tools',
-      categoryName: 'Marketing Tools',
-      description: 'SaaS onboarding, newsletters, product updates',
+      categoryKey: 'render_deploy_ok',
+      categoryName: 'Render Deploy OK',
+      description: 'Render deploy OK → auto/low',
+      priority: 'low',
+      action: 'auto_archive',
+      senderPatterns: ['no-reply@render.com'],
+      subjectPatterns: [],
+      bodyPatterns: ['deployed successfully', 'Deploy succeeded'],
+    },
+    {
+      categoryKey: 'skool_notifications',
+      categoryName: 'Skool Notiser',
+      description: 'Skool community-notiser',
+      priority: 'low',
+      action: 'group_and_summarize',
+      senderPatterns: ['*@skool.com'],
+      subjectPatterns: [],
+      bodyPatterns: [],
+    },
+    {
+      categoryKey: 'newsletter',
+      categoryName: 'Nyhetsbrev',
+      description: 'Nyhetsbrev och marknadsföringsmail',
       priority: 'low',
       action: 'auto_archive',
       senderPatterns: [],
-      subjectPatterns: ['newsletter', 'product update', 'onboarding', 'getting started'],
-      bodyPatterns: ['unsubscribe', 'manage preferences'],
+      subjectPatterns: ['newsletter', 'nyhetsbrev'],
+      bodyPatterns: ['unsubscribe', 'avregistrera'],
     },
+    // BRA ATT VETA
     {
-      categoryKey: 'delivery_failures',
-      categoryName: 'Delivery Failures',
-      description: 'Bounced emails, delivery status notifications',
+      categoryKey: 'render_deploy_fail',
+      categoryName: 'Render Deploy Misslyckades',
+      description: 'Render deploy FAILED → bra att veta',
       priority: 'medium',
-      action: 'flag_and_suggest_fix',
-      senderPatterns: ['mailer-daemon@googlemail.com', 'postmaster@*'],
-      subjectPatterns: ['Delivery Status Notification', 'Mail Delivery Failed', 'Undeliverable'],
+      action: 'notify',
+      senderPatterns: ['no-reply@render.com'],
+      subjectPatterns: ['failed', 'Failed', 'error'],
       bodyPatterns: [],
     },
     {
-      categoryKey: 'security_alerts',
-      categoryName: 'Security Alerts',
-      description: 'Login alerts, password changes, 2FA',
+      categoryKey: 'github_ci_fail',
+      categoryName: 'GitHub CI Misslyckades',
+      description: 'GitHub CI failure → bra att veta',
+      priority: 'medium',
+      action: 'notify',
+      senderPatterns: ['notifications@github.com'],
+      subjectPatterns: ['failed', 'failing', 'Run failed'],
+      bodyPatterns: [],
+    },
+    // HÖG PRIORITET — MYNDIGHETER
+    {
+      categoryKey: 'kronofogden',
+      categoryName: 'Kronofogden',
+      description: 'Kronofogden — ALLTID hög prio',
       priority: 'high',
       action: 'flag_immediately',
-      senderPatterns: ['no-reply@accounts.google.com', 'security@mail.instagram.com'],
-      subjectPatterns: ['sign-in', 'new device', 'security alert', 'password changed'],
+      senderPatterns: ['*@kronofogden.se'],
+      subjectPatterns: [],
       bodyPatterns: [],
     },
     {
-      categoryKey: 'personal',
-      categoryName: 'Personal',
-      description: 'Personal conversations, friends, family',
+      categoryKey: 'forsakringskassan',
+      categoryName: 'Försäkringskassan',
+      description: 'Försäkringskassan — ALLTID hög prio',
       priority: 'high',
-      action: 'flag_for_review',
-      senderPatterns: [],
+      action: 'flag_immediately',
+      senderPatterns: ['*@forsakringskassan.se'],
       subjectPatterns: [],
       bodyPatterns: [],
+    },
+    {
+      categoryKey: 'skatteverket',
+      categoryName: 'Skatteverket',
+      description: 'Skatteverket — ALLTID hög prio',
+      priority: 'high',
+      action: 'flag_immediately',
+      senderPatterns: ['*@skatteverket.se'],
+      subjectPatterns: [],
+      bodyPatterns: [],
+    },
+    {
+      categoryKey: 'skuldsanering_keyword',
+      categoryName: 'Skuldsanering',
+      description: 'Skuldsaneringsärenden',
+      priority: 'high',
+      action: 'flag_immediately',
+      senderPatterns: [],
+      subjectPatterns: ['skuldsanering'],
+      bodyPatterns: ['skuldsanering'],
+    },
+    {
+      categoryKey: 'sjukersattning_keyword',
+      categoryName: 'Sjukersättning',
+      description: 'Sjukersättning-relaterat',
+      priority: 'high',
+      action: 'flag_immediately',
+      senderPatterns: [],
+      subjectPatterns: ['sjukersättning', 'sjukersattning'],
+      bodyPatterns: ['sjukersättning'],
+    },
+    {
+      categoryKey: 'vardskada_keyword',
+      categoryName: 'Vårdskada',
+      description: 'Vårdskadeärenden och patientnämnd',
+      priority: 'high',
+      action: 'flag_immediately',
+      senderPatterns: [],
+      subjectPatterns: ['vårdskada', 'patientnämnd', 'vardskada'],
+      bodyPatterns: ['vårdskada', 'patientnämnd'],
+    },
+    // KRÄVER SVAR
+    {
+      categoryKey: 'direct_question',
+      categoryName: 'Direkt fråga',
+      description: 'Direkt fråga som kräver svar (AI-detekterad)',
+      priority: 'high',
+      action: 'reply_required',
+      senderPatterns: [],
+      subjectPatterns: [],
+      bodyPatterns: ['AI_DETECT:direct_question'],
     },
   ];
 
   for (const rule of classificationRules) {
     await prisma.classificationRule.upsert({
       where: { userId_categoryKey: { userId, categoryKey: rule.categoryKey } },
-      create: { userId, ...rule },
       update: rule,
+      create: { userId, ...rule },
     });
-    console.log(`  ✓ ClassificationRule: ${rule.categoryKey}`);
+    console.log(`  [OK] ClassificationRule: ${rule.categoryKey}`);
   }
 
-  console.log('\n✅ Brain Core seed complete.');
+  // ── CONTACT PROFILES ──────────────────────────────────────────────────────
+  const contacts = [
+    {
+      emailAddress: 'no-reply@render.com',
+      displayName: 'Render',
+      relationship: 'service',
+      notes: 'Deploy-notiser. OK = ignorera. Failed = kolla omedelbart.',
+    },
+    {
+      emailAddress: 'notifications@github.com',
+      displayName: 'GitHub',
+      relationship: 'service',
+      notes: 'CI/CD-notiser. Gruppera. Failures = bra att veta.',
+    },
+  ];
+
+  for (const contact of contacts) {
+    await prisma.contactProfile.upsert({
+      where: { userId_emailAddress: { userId, emailAddress: contact.emailAddress } },
+      update: contact,
+      create: { userId, ...contact },
+    });
+    console.log(`  [OK] Contact: ${contact.emailAddress}`);
+  }
+
+  console.log('\nBrain Core seedad!\n');
 }
 
-main()
+seed()
   .catch((e) => {
     console.error(e);
     process.exit(1);

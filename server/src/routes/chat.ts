@@ -213,6 +213,109 @@ export default async function chatRoutes(app: FastifyInstance) {
         return chatCommandService.getFilteredThreads(req.userId!, { unreadOnly: true, limit: 20 });
       }
 
+      // ── Stats ─────────────────────────────────────────────────────────────
+      if (msg.includes('statistik') || msg.includes('stats') || msg.includes('hur många') ||
+          msg.includes('antal') || msg.includes('how many')) {
+        const accounts = await prisma.emailAccount.findMany({
+          where: { userId: req.userId!, isActive: true },
+          select: { id: true, emailAddress: true, lastSyncAt: true },
+        });
+        const accountIds = accounts.map((a) => a.id);
+        const now = new Date();
+
+        const [unread, highPrio, snoozed, pendingDrafts] = await Promise.all([
+          prisma.emailThread.count({ where: { accountId: { in: accountIds }, isRead: false, labels: { has: 'INBOX' } } }),
+          prisma.aIAnalysis.count({ where: { thread: { accountId: { in: accountIds } }, priority: 'high' } }),
+          prisma.emailThread.count({ where: { accountId: { in: accountIds }, snoozedUntil: { gt: now } } }),
+          prisma.draft.count({ where: { userId: req.userId!, status: 'pending' } }),
+        ]);
+
+        const lastSync = accounts
+          .map((a) => a.lastSyncAt)
+          .filter(Boolean)
+          .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime())[0];
+
+        const lastSyncLabel = lastSync
+          ? new Date(lastSync).toLocaleString('sv-SE', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })
+          : 'aldrig';
+
+        return {
+          type: 'info',
+          message: `**Din inkorgsöversikt:**\n\n📬 Olästa: **${unread}**\n⚡ Hög prioritet: **${highPrio}**\n⏰ Snoozade: **${snoozed}**\n📝 Utkast att granska: **${pendingDrafts}**\n\n_Senast synkad: ${lastSyncLabel}_`,
+        };
+      }
+
+      // ── Snooze selected threads ───────────────────────────────────────────
+      if ((msg.includes('snooze') || msg.includes('påminn') || msg.includes('vänta') || msg.includes('snooza')) &&
+          thread_ids && thread_ids.length > 0) {
+        // Parse duration
+        let until: Date | null = null;
+        const hourMatch = msg.match(/(\d+)\s*timm?[ae]?r?/);
+        const dayMatch = msg.match(/(\d+)\s*dag(ar)?/);
+        const weekMatch = msg.match(/(\d+)\s*veck[ao]/);
+        if (hourMatch) {
+          until = new Date(Date.now() + Number(hourMatch[1]) * 3600 * 1000);
+        } else if (dayMatch) {
+          until = new Date(Date.now() + Number(dayMatch[1]) * 86400 * 1000);
+        } else if (weekMatch) {
+          until = new Date(Date.now() + Number(weekMatch[1]) * 7 * 86400 * 1000);
+        } else if (msg.includes('imorgon') || msg.includes('tomorrow')) {
+          const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(9, 0, 0, 0);
+          until = tomorrow;
+        } else if (msg.includes('måndag') || msg.includes('monday')) {
+          const d = new Date(); const day = d.getDay(); const diff = (day <= 1 ? 1 - day : 8 - day);
+          d.setDate(d.getDate() + diff); d.setHours(9, 0, 0, 0); until = d;
+        } else {
+          // Default: 3 hours
+          until = new Date(Date.now() + 3 * 3600 * 1000);
+        }
+
+        const threads = await prisma.emailThread.findMany({
+          where: { id: { in: thread_ids }, account: { userId: req.userId! } },
+          select: { id: true },
+        });
+        await prisma.emailThread.updateMany({
+          where: { id: { in: threads.map((t) => t.id) } },
+          data: { snoozedUntil: until },
+        });
+
+        const label = until.toLocaleString('sv-SE', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' });
+        return {
+          type: 'action_done',
+          message: `⏰ ${threads.length} tråd${threads.length !== 1 ? 'ar' : ''} snoozad${threads.length !== 1 ? 'e' : ''} tills ${label}.`,
+        };
+      }
+
+      // ── Label selected threads ────────────────────────────────────────────
+      if ((msg.includes('etikett') || msg.includes('label') || msg.includes('märk') || msg.includes('tagga')) &&
+          thread_ids && thread_ids.length > 0) {
+        // Extract label name — look for quoted string or word after key phrase
+        const quotedMatch = msg.match(/["']([^"']+)["']/);
+        const phraseMatch = msg.match(/(?:etikett|label|märk|tagga)\s+(?:med\s+)?(\S+)/i);
+        const labelName = (quotedMatch?.[1] || phraseMatch?.[1] || '').toUpperCase().replace(/[^A-Z0-9_-]/g, '');
+
+        if (!labelName) {
+          return { type: 'info', message: 'Vilket etikettnamn vill du använda? T.ex. "etikett VIKTIG".' };
+        }
+
+        const threads = await prisma.emailThread.findMany({
+          where: { id: { in: thread_ids }, account: { userId: req.userId! } },
+          select: { id: true, labels: true },
+        });
+
+        await Promise.all(threads.map((t) =>
+          prisma.emailThread.update({
+            where: { id: t.id },
+            data: { labels: [...new Set([...(t.labels as string[]), labelName])] },
+          })
+        ));
+
+        return {
+          type: 'action_done',
+          message: `🏷️ Etikett **${labelName}** tillagd på ${threads.length} tråd${threads.length !== 1 ? 'ar' : ''}.`,
+        };
+      }
+
       // ── AI fallback — natural language conversation with optional thread context ──
       let threadContext = '';
       if (thread_ids && thread_ids.length > 0) {
@@ -249,8 +352,18 @@ export default async function chatRoutes(app: FastifyInstance) {
       const amandaSystemPrompt = `Du är Amanda, en AI-mailassistent för CDP Communication Hub.
 Du hjälper användaren med deras e-post på ett personligt, vänligt och professionellt sätt.
 Du kan svara på frågor om e-post, ge råd om kommunikation och hjälpa till med formuleringar.
+
+Tillgängliga snabbkommandon du kan tipsa om:
+- "statistik" — visa inkorgsstatistik
+- "visa viktiga" — hög-prioriterade trådar
+- "visa olästa" — olästa trådar
+- "snooze 3 timmar" (med valda trådar) — snooze valda trådar
+- "etikett NAMN" (med valda trådar) — sätt etikett
+- "sammanfatta" (med valda trådar) — AI-sammanfattning
+- "sammanfatta inkorgen" — veckoöversikt
+
 VIKTIGT: Du KAN INTE skicka mail, ta bort mail eller utföra åtgärder på egen hand — du föreslår, användaren bestämmer.
-Svara alltid på svenska om inget annat anges. Håll svaren koncisa (max 3-4 meningar).${threadContext}`;
+Svara alltid på svenska om inget annat anges. Håll svaren koncisa (max 3-4 meningar). Använd markdown för listor.${threadContext}`;
 
       const aiReply = await aiService.chat(amandaSystemPrompt, message);
 

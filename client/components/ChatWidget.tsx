@@ -122,7 +122,9 @@ const INTENTS: Intent[] = [
 
 // ── Quick action chips ────────────────────────────────────────────────────────
 const QUICK_ACTIONS = [
+  { label: '📊 Statistik', cmd: 'statistik' },
   { label: '📬 Kolla mail', cmd: 'kolla mail' },
+  { label: '⚡ Viktiga', cmd: 'visa viktiga mail' },
   { label: '🤖 Klassificera', cmd: 'klassificera alla' },
   { label: '🔄 Synca', cmd: 'synca' },
   { label: '🧠 Brain Core', cmd: 'brain status' },
@@ -509,9 +511,27 @@ export default function ChatWidget() {
 
           {/* Selected threads banner */}
           {selectedThreadIds.length > 0 && (
-            <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 flex items-center gap-1.5">
-              <span className="font-medium">{selectedThreadIds.length} trådar markerade</span>
-              <span className="text-amber-500">— skickas med nästa meddelande</span>
+            <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="font-medium">{selectedThreadIds.length} trådar markerade</span>
+                <span className="text-amber-500">— skickas med nästa meddelande</span>
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {[
+                  { label: '📋 Sammanfatta', cmd: 'sammanfatta' },
+                  { label: '⏰ Snooze 3h', cmd: 'snooze 3 timmar' },
+                  { label: '🏷️ Etikett', cmd: 'etikett VIKTIG' },
+                ].map((a) => (
+                  <button
+                    key={a.cmd}
+                    onClick={() => doSend(a.cmd)}
+                    disabled={loading}
+                    className="px-2 py-0.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 transition-colors disabled:opacity-50"
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

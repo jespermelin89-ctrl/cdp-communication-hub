@@ -68,6 +68,8 @@ const en: Translations = {
     confidence: 'Confidence',
     model: 'Model',
     draftSuggestion: 'Draft suggestion',
+    snoozed: 'Snoozed',
+    allLabels: 'All labels',
   },
 
   drafts: {
@@ -170,6 +172,21 @@ const en: Translations = {
     inTrash: 'This thread is in the trash',
     restore: 'Restore',
     restoreSuccess: 'Thread restored to inbox',
+    archived: 'Thread archived',
+    trashed: 'Thread trashed',
+    undo: 'Undo',
+    prevThread: 'Previous thread',
+    nextThread: 'Next thread',
+    snooze: 'Snooze',
+    snoozedUntil: 'Snoozed until',
+    unsnooze: 'Cancel snooze',
+    snoozeSuccess: 'Thread snoozed',
+    unsnoozeSuccess: 'Snooze cancelled',
+    snooze1h: 'In 1 hour',
+    snooze3h: 'In 3 hours',
+    snoozeTomorrow: 'Tomorrow 9:00',
+    snoozeNextMonday: 'Next Monday 9:00',
+    snooze1w: 'In 1 week',
   },
 
   draftDetail: {

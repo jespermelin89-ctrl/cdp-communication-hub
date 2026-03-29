@@ -68,6 +68,8 @@ const es: Translations = {
     confidence: 'Confianza',
     model: 'Modelo',
     draftSuggestion: 'Borrador sugerido',
+    snoozed: 'Pospuestos',
+    allLabels: 'Todas las etiquetas',
   },
 
   drafts: {
@@ -170,6 +172,21 @@ const es: Translations = {
     inTrash: 'Este hilo está en la papelera',
     restore: 'Restaurar',
     restoreSuccess: 'Hilo restaurado a la bandeja de entrada',
+    archived: 'Hilo archivado',
+    trashed: 'Hilo eliminado',
+    undo: 'Deshacer',
+    prevThread: 'Hilo anterior',
+    nextThread: 'Siguiente hilo',
+    snooze: 'Posponer',
+    snoozedUntil: 'Pospuesto hasta',
+    unsnooze: 'Cancelar posponer',
+    snoozeSuccess: 'Hilo pospuesto',
+    unsnoozeSuccess: 'Posponer cancelado',
+    snooze1h: 'En 1 hora',
+    snooze3h: 'En 3 horas',
+    snoozeTomorrow: 'Mañana 9:00',
+    snoozeNextMonday: 'Próximo lunes 9:00',
+    snooze1w: 'En 1 semana',
   },
 
   draftDetail: {

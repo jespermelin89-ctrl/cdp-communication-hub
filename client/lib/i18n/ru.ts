@@ -68,6 +68,8 @@ const ru: Translations = {
     confidence: 'Уверенность',
     model: 'Модель',
     draftSuggestion: 'Черновик предложения',
+    snoozed: 'Отложенные',
+    allLabels: 'Все метки',
   },
 
   drafts: {
@@ -170,6 +172,21 @@ const ru: Translations = {
     inTrash: 'Эта цепочка находится в корзине',
     restore: 'Восстановить',
     restoreSuccess: 'Цепочка восстановлена во входящие',
+    archived: 'Цепочка архивирована',
+    trashed: 'Цепочка удалена',
+    undo: 'Отменить',
+    prevThread: 'Предыдущая цепочка',
+    nextThread: 'Следующая цепочка',
+    snooze: 'Отложить',
+    snoozedUntil: 'Отложено до',
+    unsnooze: 'Отменить откладывание',
+    snoozeSuccess: 'Цепочка отложена',
+    unsnoozeSuccess: 'Откладывание отменено',
+    snooze1h: 'Через 1 час',
+    snooze3h: 'Через 3 часа',
+    snoozeTomorrow: 'Завтра в 9:00',
+    snoozeNextMonday: 'В следующий понедельник 9:00',
+    snooze1w: 'Через 1 неделю',
   },
 
   draftDetail: {

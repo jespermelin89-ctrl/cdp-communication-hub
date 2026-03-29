@@ -22,6 +22,7 @@ import { useChatContext } from '@/lib/chat-context';
 import { useNotifications } from '@/lib/use-notifications';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { useUndoAction } from '@/hooks/useUndoAction';
 import type { EmailThread, Account } from '@/lib/types';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
@@ -96,6 +97,7 @@ export default function InboxPage() {
   const { setSelectedThreadIds } = useChatContext();
   const { notifyNewHighPriority } = useNotifications();
   const { online } = useNetworkStatus();
+  const { execute: undoAction } = useUndoAction();
 
   // Debounce search input — only fire SWR after 400ms idle
   useEffect(() => {
@@ -199,9 +201,12 @@ export default function InboxPage() {
   async function handleArchive(threadId: string) {
     setArchivingIds((prev) => new Set(prev).add(threadId));
     try {
-      await api.archiveThread(threadId);
+      await undoAction({
+        action: async () => { await api.archiveThread(threadId); },
+        undo: async () => { await api.restoreThread(threadId); },
+        message: t.thread.archived,
+      });
       await mutateThreads();
-      toast.success('Tråd arkiverad');
     } catch (err: any) {
       if (isDev) console.error('Archive failed:', err);
       toast.error('Arkivering misslyckades');
@@ -211,13 +216,17 @@ export default function InboxPage() {
   }
 
   async function handleTrash(threadId: string) {
+    setTrashConfirmId(null);
     try {
-      await api.trashThread(threadId);
+      await undoAction({
+        action: async () => { await api.trashThread(threadId); },
+        undo: async () => { await api.restoreThread(threadId); },
+        message: t.thread.trashed,
+      });
       await mutateThreads();
     } catch (err: any) {
       if (isDev) console.error('Trash failed:', err);
-    } finally {
-      setTrashConfirmId(null);
+      toast.error('Kunde inte flytta till papperskorgen');
     }
   }
 
@@ -344,6 +353,7 @@ export default function InboxPage() {
     },
     r: () => {
       if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        sessionStorage.setItem('cdp-thread-list', JSON.stringify(visibleThreads.map((th) => th.id)));
         router.push(`/threads/${visibleThreads[focusedIndex].id}`);
       }
     },
@@ -640,7 +650,10 @@ export default function InboxPage() {
                   <div key={thread.id} data-thread-index={threadIndex}>
                   <SwipeableThread
                     onSwipeLeft={() => handleArchive(thread.id)}
-                    onSwipeRight={() => router.push(`/threads/${thread.id}`)}
+                    onSwipeRight={() => {
+                      sessionStorage.setItem('cdp-thread-list', JSON.stringify(visibleThreads.map((th) => th.id)));
+                      router.push(`/threads/${thread.id}`);
+                    }}
                     leftLabel="Arkivera"
                     rightLabel="Öppna"
                   >
@@ -811,7 +824,10 @@ export default function InboxPage() {
                         <Link
                           href={`/threads/${thread.id}`}
                           className="btn-secondary text-xs"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            sessionStorage.setItem('cdp-thread-list', JSON.stringify(visibleThreads.map((th) => th.id)));
+                          }}
                         >
                           {t.inbox.open}
                         </Link>

@@ -69,6 +69,8 @@ const sv = {
     confidence: 'Konfidens',
     model: 'Modell',
     draftSuggestion: 'Utkastsförslag',
+    snoozed: 'Snoozade',
+    allLabels: 'Alla etiketter',
   },
 
   // Drafts
@@ -151,6 +153,21 @@ const sv = {
     inTrash: 'Denna tråd ligger i papperskorgen',
     restore: 'Återställ',
     restoreSuccess: 'Tråd återställd till inkorgen',
+    archived: 'Tråd arkiverad',
+    trashed: 'Tråd slängd',
+    undo: 'Ångra',
+    prevThread: 'Föregående tråd',
+    nextThread: 'Nästa tråd',
+    snooze: 'Snooze',
+    snoozedUntil: 'Snoozad till',
+    unsnooze: 'Avbryt snooze',
+    snoozeSuccess: 'Tråd snoozad',
+    unsnoozeSuccess: 'Snooze avbruten',
+    snooze1h: 'Om 1 timme',
+    snooze3h: 'Om 3 timmar',
+    snoozeTomorrow: 'Imorgon 09:00',
+    snoozeNextMonday: 'Nästa måndag 09:00',
+    snooze1w: 'Om 1 vecka',
   },
 
   // Draft detail

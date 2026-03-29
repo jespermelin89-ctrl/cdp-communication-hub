@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -52,6 +52,20 @@ export default function ThreadDetailPage() {
   const router = useRouter();
   const threadId = params.id as string;
   const { t } = useI18n();
+
+  // Prev/next navigation from inbox thread list stored in sessionStorage
+  const threadList = useMemo<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = sessionStorage.getItem('cdp-thread-list');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+  const currentIndex = threadList.indexOf(threadId);
+  const prevId = currentIndex > 0 ? threadList[currentIndex - 1] : null;
+  const nextId = currentIndex < threadList.length - 1 ? threadList[currentIndex + 1] : null;
 
   const { data: threadData, isLoading: loading, mutate: mutateThread } = useSWR(
     threadId ? `/threads/${threadId}` : null,
@@ -346,6 +360,18 @@ export default function ThreadDetailPage() {
     }
   }
 
+  // j/k/u keyboard navigation
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'j' && nextId) router.push(`/threads/${nextId}`);
+      if (e.key === 'k' && prevId) router.push(`/threads/${prevId}`);
+      if (e.key === 'u' || e.key === 'Escape') router.push('/inbox');
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [nextId, prevId, router]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -376,13 +402,38 @@ export default function ThreadDetailPage() {
       <TopBar />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        {/* Back */}
-        <button
-          onClick={() => router.back()}
-          className="text-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 mb-5 inline-flex items-center gap-1"
-        >
-          {t.thread.back}
-        </button>
+        {/* Back + prev/next nav */}
+        <div className="flex items-center justify-between mb-5">
+          <button
+            onClick={() => router.push('/inbox')}
+            className="text-sm text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 inline-flex items-center gap-1"
+          >
+            {t.thread.back}
+          </button>
+          {threadList.length > 0 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => prevId && router.push(`/threads/${prevId}`)}
+                disabled={!prevId}
+                title={`${t.thread.prevThread} (k)`}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronUp size={18} className="text-gray-500 dark:text-gray-400" />
+              </button>
+              <span className="text-xs text-gray-400 tabular-nums">
+                {currentIndex + 1} / {threadList.length}
+              </span>
+              <button
+                onClick={() => nextId && router.push(`/threads/${nextId}`)}
+                disabled={!nextId}
+                title={`${t.thread.nextThread} (j)`}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronDown size={18} className="text-gray-500 dark:text-gray-400" />
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Inline error */}
         {error && (

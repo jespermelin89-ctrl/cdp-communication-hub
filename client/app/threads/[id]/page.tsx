@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -77,6 +77,12 @@ export default function ThreadDetailPage() {
   const [writingModes, setWritingModes] = useState<any[]>([]);
   const [selectedMode, setSelectedMode] = useState('');
 
+  // Labels
+  const [threadLabels, setThreadLabels] = useState<string[]>([]);
+  const [labelInput, setLabelInput] = useState('');
+  const [savingLabels, setSavingLabels] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
   // Classification override
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overridePriority, setOverridePriority] = useState('');
@@ -100,6 +106,9 @@ export default function ThreadDetailPage() {
       api.markThreadAsRead(threadId).catch(() => {});
     }
     loadContactForThread(thread);
+    // Sync custom labels (exclude Gmail system labels)
+    const custom = (thread.labels ?? []).filter((l: string) => !['INBOX','UNREAD','STARRED','SENT','DRAFT','SPAM','TRASH','IMPORTANT'].includes(l));
+    setThreadLabels(custom);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread?.id]);
 
@@ -189,6 +198,57 @@ export default function ThreadDetailPage() {
       toast.error('Kunde inte markera som oläst');
     } finally {
       setMarkingUnread(false);
+    }
+  }
+
+  async function handleDownloadAttachment(msg: any, att: any) {
+    const key = `${msg.id}:${att.attachmentId}`;
+    setDownloadingId(key);
+    try {
+      const blob = await api.downloadAttachment(threadId, msg.gmailMessageId ?? msg.id, att.attachmentId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.filename || 'attachment';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Kunde inte ladda ner bilagan');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  async function handleAddLabel(label: string) {
+    const trimmed = label.trim();
+    if (!trimmed || threadLabels.includes(trimmed)) return;
+    const next = [...threadLabels, trimmed];
+    setSavingLabels(true);
+    try {
+      await api.updateThread(threadId, { labels: [...(thread?.labels ?? []).filter((l: string) => ['INBOX','UNREAD','STARRED','SENT','DRAFT','SPAM','TRASH','IMPORTANT'].includes(l)), ...next] });
+      setThreadLabels(next);
+      setLabelInput('');
+      await mutateThread();
+    } catch {
+      toast.error('Kunde inte spara etikett');
+    } finally {
+      setSavingLabels(false);
+    }
+  }
+
+  async function handleRemoveLabel(label: string) {
+    const next = threadLabels.filter(l => l !== label);
+    setSavingLabels(true);
+    try {
+      await api.updateThread(threadId, { labels: [...(thread?.labels ?? []).filter((l: string) => ['INBOX','UNREAD','STARRED','SENT','DRAFT','SPAM','TRASH','IMPORTANT'].includes(l)), ...next] });
+      setThreadLabels(next);
+      await mutateThread();
+    } catch {
+      toast.error('Kunde inte ta bort etikett');
+    } finally {
+      setSavingLabels(false);
     }
   }
 
@@ -445,18 +505,28 @@ export default function ThreadDetailPage() {
                   {/* Attachment pills */}
                   {msg.attachments && msg.attachments.length > 0 && (
                     <div className="px-5 pb-4 flex flex-wrap gap-2 border-t border-gray-100 dark:border-gray-700 pt-3">
-                      {msg.attachments.map((att: any, i: number) => (
-                        <div
+                      {msg.attachments.map((att: any, i: number) => {
+                        const key = `${msg.id}:${att.attachmentId}`;
+                        const isDownloading = downloadingId === key;
+                        return (
+                        <button
                           key={i}
-                          className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-600 dark:text-gray-300"
+                          onClick={() => handleDownloadAttachment(msg, att)}
+                          disabled={isDownloading}
+                          title={`Ladda ner ${att.filename}`}
+                          className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-600 dark:text-gray-300 hover:border-brand-300 dark:hover:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors disabled:opacity-60"
                         >
-                          <Paperclip size={12} className="text-gray-400 shrink-0" />
+                          {isDownloading
+                            ? <span className="w-3 h-3 border border-gray-400 border-t-brand-500 rounded-full animate-spin shrink-0" />
+                            : <Paperclip size={12} className="text-gray-400 shrink-0" />}
                           <span className="truncate max-w-[200px]">{att.filename || 'Bilaga'}</span>
                           {att.size > 0 && (
                             <span className="text-gray-400 shrink-0">{formatFileSize(att.size)}</span>
                           )}
-                        </div>
-                      ))}
+                          <Download size={11} className="text-gray-400 shrink-0 ml-0.5" />
+                        </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -580,6 +650,49 @@ export default function ThreadDetailPage() {
 
           {/* Sidebar — 1/3 */}
           <div className="space-y-4">
+            {/* Custom Labels */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-4">
+              <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                <Tag size={12} />
+                Etiketter
+              </h3>
+              <div className="flex flex-wrap gap-1.5 mb-2.5">
+                {threadLabels.map((label) => (
+                  <span key={label} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-full text-xs text-brand-700 dark:text-brand-300">
+                    {label}
+                    <button
+                      onClick={() => handleRemoveLabel(label)}
+                      disabled={savingLabels}
+                      className="text-brand-400 hover:text-brand-600 dark:hover:text-brand-200 ml-0.5"
+                    >
+                      <X size={10} />
+                    </button>
+                  </span>
+                ))}
+                {threadLabels.length === 0 && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500">Inga etiketter</span>
+                )}
+              </div>
+              <div className="flex gap-1.5">
+                <input
+                  type="text"
+                  value={labelInput}
+                  onChange={e => setLabelInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && labelInput.trim()) { e.preventDefault(); handleAddLabel(labelInput); } }}
+                  placeholder="Lägg till etikett..."
+                  maxLength={32}
+                  className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-1 focus:ring-brand-500 outline-none"
+                />
+                <button
+                  onClick={() => handleAddLabel(labelInput)}
+                  disabled={!labelInput.trim() || savingLabels}
+                  className="px-2.5 py-1.5 text-xs btn-primary rounded-lg"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
             {/* AI Analysis */}
             {analysis ? (
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-5">

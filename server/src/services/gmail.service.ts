@@ -395,6 +395,35 @@ export class GmailService {
       id: gmailThreadId,
     });
   }
+
+  /**
+   * Fetch attachment binary data from Gmail.
+   * Returns base64-encoded data (standard base64, not base64url).
+   */
+  async getAttachment(accountId: string, gmailMessageId: string, attachmentId: string): Promise<string> {
+    const gmail = await this.getClient(accountId);
+    const response = await gmail.users.messages.attachments.get({
+      userId: 'me',
+      messageId: gmailMessageId,
+      id: attachmentId,
+    });
+    // Gmail returns base64url — convert to standard base64
+    return (response.data.data || '').replace(/-/g, '+').replace(/_/g, '/');
+  }
+
+  /**
+   * Search Gmail messages by query string.
+   * Returns Gmail message stubs (id + threadId).
+   */
+  async searchMessages(accountId: string, query: string, maxResults = 10): Promise<Array<{ id: string; threadId?: string }>> {
+    const gmail = await this.getClient(accountId);
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: query,
+      maxResults,
+    });
+    return (response.data.messages || []) as Array<{ id: string; threadId?: string }>;
+  }
 }
 
 // Singleton instance

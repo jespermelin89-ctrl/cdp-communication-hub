@@ -283,6 +283,21 @@ class ApiClient {
     return this.request('POST', '/threads/batch', { threadIds, action });
   }
 
+  async updateThread(id: string, data: { labels?: string[] }) {
+    return this.request<{ thread: any }>('PATCH', `/threads/${id}`, data);
+  }
+
+  async downloadAttachment(threadId: string, messageId: string, attachmentId: string): Promise<Blob> {
+    if (typeof window === 'undefined') throw new Error('Browser only');
+    const url = new URL(`${API_BASE}/threads/${threadId}/messages/${messageId}/attachments/${attachmentId}`, window.location.origin);
+    const token = this.getToken();
+    const resp = await fetch(url.toString(), {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) throw new Error('Download failed');
+    return resp.blob();
+  }
+
   // Drafts
   async getDrafts(params?: { status?: string; account_id?: string; page?: number }) {
     const query: Record<string, string> = {};

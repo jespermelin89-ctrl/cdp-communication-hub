@@ -51,33 +51,79 @@ export async function threadRoutes(fastify: FastifyInstance) {
       where.labels = { has: label };
     }
 
-    const [threads, total] = await Promise.all([
-      prisma.emailThread.findMany({
-        where,
-        include: {
-          account: { select: { emailAddress: true } },
-          analyses: {
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-            select: {
-              summary: true,
-              classification: true,
-              priority: true,
-              suggestedAction: true,
-            },
+    const threadSelect = {
+      where,
+      include: {
+        account: { select: { id: true, emailAddress: true, provider: true } },
+        analyses: {
+          orderBy: { createdAt: 'desc' } as const,
+          take: 1,
+          select: {
+            summary: true,
+            classification: true,
+            priority: true,
+            suggestedAction: true,
           },
         },
-        orderBy: { lastMessageAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
+      },
+      orderBy: { lastMessageAt: 'desc' } as const,
+      skip: (page - 1) * limit,
+      take: limit,
+    };
+
+    let [threads, total] = await Promise.all([
+      prisma.emailThread.findMany(threadSelect),
       prisma.emailThread.count({ where }),
     ]);
+
+    // Gmail search fallback: if local results are sparse, query Gmail API and sync missing threads
+    if (search && threads.length < 5) {
+      try {
+        // Find all Gmail accounts in scope
+        const gmailAccounts = await prisma.emailAccount.findMany({
+          where: {
+            userId: request.userId,
+            provider: 'gmail',
+            isActive: true,
+            ...(account_id ? { id: account_id } : {}),
+          },
+          select: { id: true },
+        });
+
+        const localGmailThreadIds = new Set(threads.map((t) => t.gmailThreadId));
+
+        await Promise.allSettled(
+          gmailAccounts.map(async (acc) => {
+            const gmailMessages = await gmailService.searchMessages(acc.id, search, 10);
+            // Deduplicate by threadId and sync only threads not already local
+            const seenThreadIds = new Set<string>();
+            for (const msg of gmailMessages) {
+              const gmailThreadId = msg.threadId ?? msg.id;
+              if (!gmailThreadId || seenThreadIds.has(gmailThreadId) || localGmailThreadIds.has(gmailThreadId)) continue;
+              seenThreadIds.add(gmailThreadId);
+              try {
+                await emailProviderFactory.fetchMessages(acc.id, gmailThreadId);
+              } catch {
+                // Non-fatal: skip individual thread sync failures
+              }
+            }
+          })
+        );
+
+        // Re-fetch after sync
+        [threads, total] = await Promise.all([
+          prisma.emailThread.findMany(threadSelect),
+          prisma.emailThread.count({ where }),
+        ]);
+      } catch {
+        // Non-fatal: return whatever local results we have
+      }
+    }
 
     return {
       threads: threads.map((t) => ({
         ...t,
-        latestAnalysis: t.analyses[0] || null,
+        latestAnalysis: (t.analyses as any[])[0] || null,
         analyses: undefined,
       })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -424,4 +470,69 @@ export async function threadRoutes(fastify: FastifyInstance) {
       failed,
     };
   });
+
+  /**
+   * PATCH /threads/:id — Update thread metadata (e.g. custom labels).
+   */
+  fastify.patch('/threads/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { labels } = request.body as { labels?: string[] };
+
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    const updated = await prisma.emailThread.update({
+      where: { id },
+      data: { ...(labels !== undefined && { labels }) },
+    });
+    return { thread: updated };
+  });
+
+  /**
+   * GET /threads/:threadId/messages/:messageId/attachments/:attachmentId
+   * Download attachment binary — authenticated, streams base64 as binary.
+   */
+  fastify.get(
+    '/threads/:threadId/messages/:messageId/attachments/:attachmentId',
+    async (request, reply) => {
+      const { threadId, messageId, attachmentId } = request.params as {
+        threadId: string;
+        messageId: string;
+        attachmentId: string;
+      };
+
+      const message = await prisma.emailMessage.findFirst({
+        where: { id: messageId, threadId },
+        include: { thread: { include: { account: { select: { id: true, userId: true, provider: true } } } } },
+      });
+
+      if (!message || message.thread.account.userId !== request.userId) {
+        return reply.code(404).send({ error: 'Not found' });
+      }
+
+      const attachments = (message.attachments as any[]) ?? [];
+      const att = attachments.find((a: any) => a.attachmentId === attachmentId);
+
+      try {
+        const base64Data = await emailProviderFactory.getAttachment(
+          message.thread.account.id,
+          message.gmailMessageId,
+          attachmentId
+        );
+        const buffer = Buffer.from(base64Data, 'base64');
+        const filename = att?.filename || 'download';
+        const mimeType = att?.mimeType || 'application/octet-stream';
+
+        reply
+          .header('Content-Type', mimeType)
+          .header('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`)
+          .header('Content-Length', buffer.length)
+          .send(buffer);
+      } catch (err: any) {
+        return reply.code(502).send({ error: `Failed to fetch attachment: ${err.message}` });
+      }
+    }
+  );
 }

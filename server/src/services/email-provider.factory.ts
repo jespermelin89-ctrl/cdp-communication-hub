@@ -167,6 +167,24 @@ export class EmailProviderFactory {
   }
 
   /**
+   * Fetch attachment binary (base64) from the provider.
+   */
+  async getAttachment(accountId: string, gmailMessageId: string, attachmentId: string): Promise<string> {
+    const provider = await this.getProvider(accountId);
+
+    switch (provider) {
+      case 'gmail':
+        return gmailService.getAttachment(accountId, gmailMessageId, attachmentId);
+
+      case 'imap':
+        throw new Error('Attachment download is not yet supported for IMAP accounts.');
+
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
+    }
+  }
+
+  /**
    * Test connection for any provider type
    */
   async testConnection(

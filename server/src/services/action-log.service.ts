@@ -16,7 +16,10 @@ type ActionType =
   | 'draft_discarded'
   | 'analysis_run'
   | 'account_connected'
-  | 'account_disconnected';
+  | 'account_disconnected'
+  | 'token_revoked'
+  | 'token_refreshed'
+  | 'reauth_completed';
 
 export class ActionLogService {
   /**

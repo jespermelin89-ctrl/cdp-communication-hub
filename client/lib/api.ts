@@ -137,7 +137,21 @@ class ApiClient {
     }
     clearTimeout(timeoutId);
 
+    // JWT auto-renew: backend piggybacks a fresh token when the current one is near expiry
+    const refreshedToken = response.headers.get('X-Refreshed-Token');
+    if (refreshedToken) {
+      this.setToken(refreshedToken);
+    }
+
     if (response.status === 401) {
+      let body: any = {};
+      try { body = await response.json(); } catch { /* ignore parse error */ }
+
+      // REAUTH: OAuth token revoked for a Gmail account — do NOT log out the session
+      if (body.reauth) {
+        throw new Error(`REAUTH_REQUIRED:${body.email || ''}`);
+      }
+
       this.clearToken();
       // Guard against multiple simultaneous 401s triggering redirect race
       if (!this.isRedirecting) {

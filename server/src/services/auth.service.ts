@@ -25,6 +25,15 @@ export class AuthService {
   }
 
   /**
+   * Generate an OAuth re-authentication URL for an existing account.
+   * The state embeds the accountId so the callback can restore the account.
+   */
+  getReauthUrl(accountId: string): string {
+    const state = JSON.stringify({ mode: 'reauth', accountId });
+    return getAuthUrl(state);
+  }
+
+  /**
    * Generate OAuth consent URL for a specific email address.
    * Detects the provider and includes login_hint for Google.
    * If existingToken is provided, it's embedded in OAuth state so the callback
@@ -75,9 +84,11 @@ export class AuthService {
       throw new Error('Could not get email from Google account.');
     }
 
-    // Check if this is an "add account" flow (existing user adding a new email)
+    // Check if this is an "add account" or "reauth" flow
     let existingUserId: string | null = null;
     let isAddAccountMode = false;
+    let isReauthMode = false;
+    let reauthAccountId: string | null = null;
 
     if (state) {
       try {
@@ -86,6 +97,9 @@ export class AuthService {
           const decoded = this.verifyJwt(parsed.token);
           existingUserId = decoded.userId;
           isAddAccountMode = true;
+        } else if (parsed.mode === 'reauth' && parsed.accountId) {
+          isReauthMode = true;
+          reauthAccountId = parsed.accountId;
         }
       } catch {
         // Invalid state — fall through to normal login flow
@@ -94,6 +108,38 @@ export class AuthService {
 
     let user;
     let returnToken: string;
+
+    if (isReauthMode && reauthAccountId) {
+      // REAUTH MODE: restore tokens for a previously-revoked account
+      const account = await prisma.emailAccount.findUniqueOrThrow({
+        where: { id: reauthAccountId },
+      });
+      const user = await prisma.user.findUniqueOrThrow({ where: { id: account.userId } });
+
+      await prisma.emailAccount.update({
+        where: { id: reauthAccountId },
+        data: {
+          accessTokenEncrypted: encrypt(tokens.access_token),
+          refreshTokenEncrypted: encrypt(tokens.refresh_token),
+          tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
+          isActive: true,
+          syncError: null,
+        },
+      });
+
+      await actionLogService.log(user.id, 'reauth_completed', 'account', reauthAccountId, {
+        email: userInfo.data.email,
+      });
+
+      const returnToken = this.generateJwt(user.id, user.email);
+      return {
+        token: returnToken,
+        user: { id: user.id, email: user.email, name: user.name },
+        account: { id: account.id, email: account.emailAddress },
+        addedAccount: false,
+        reauthed: true,
+      };
+    }
 
     if (isAddAccountMode && existingUserId) {
       // ADD ACCOUNT MODE: Link the new email to the existing user

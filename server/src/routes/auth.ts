@@ -38,8 +38,13 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       if (result.addedAccount) {
         // Add-account mode: redirect to accounts page with success indicator
-        // Keep the existing session token
         const frontendCallback = `${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(result.token)}&added=${encodeURIComponent(result.account.email)}`;
+        return reply.redirect(frontendCallback);
+      }
+
+      if ((result as any).reauthed) {
+        // Reauth mode: account restored — redirect with fresh token
+        const frontendCallback = `${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(result.token)}&reauthed=${encodeURIComponent(result.account.email)}`;
         return reply.redirect(frontendCallback);
       }
 
@@ -50,6 +55,20 @@ export async function authRoutes(fastify: FastifyInstance) {
       const frontendError = `${env.FRONTEND_URL}/auth/callback?error=${encodeURIComponent(error.message)}`;
       return reply.redirect(frontendError);
     }
+  });
+
+  /**
+   * GET /auth/google/reauth - Re-authenticate a revoked Gmail account.
+   * No auth required — the user may have lost their session.
+   * Redirects to Google OAuth with reauth state so the callback can restore the account.
+   */
+  fastify.get('/auth/google/reauth', async (request, reply) => {
+    const { account_id } = request.query as { account_id?: string };
+    if (!account_id) {
+      return reply.code(400).send({ error: 'Missing account_id parameter' });
+    }
+    const url = authService.getReauthUrl(account_id);
+    return reply.redirect(url);
   });
 
   /**

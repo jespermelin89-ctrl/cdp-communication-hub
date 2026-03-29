@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Mail, Settings, Inbox, Info } from 'lucide-react';
+import { Mail, Settings, Inbox, Info, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import TopBar from '@/components/TopBar';
@@ -296,6 +296,22 @@ export default function AccountsSettingsPage() {
                         </button>
                       </div>
                     </div>
+
+                    {/* Re-auth banner — shown when OAuth token has been revoked */}
+                    {!account.isActive && account.syncError?.includes('OAuth token revoked') && (
+                      <div className="flex items-center gap-3 px-5 py-3 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-100 dark:border-amber-800">
+                        <AlertTriangle size={16} className="text-amber-500 shrink-0" />
+                        <span className="text-sm text-amber-800 dark:text-amber-200 flex-1">
+                          OAuth-token återkallad för <strong>{account.emailAddress}</strong>.
+                        </span>
+                        <a
+                          href={`/api/v1/auth/google/reauth?account_id=${account.id}`}
+                          className="text-sm font-medium text-amber-700 dark:text-amber-300 hover:underline shrink-0"
+                        >
+                          Koppla om →
+                        </a>
+                      </div>
+                    )}
 
                     {/* Inline edit panel */}
                     {editingAccount === account.id && (

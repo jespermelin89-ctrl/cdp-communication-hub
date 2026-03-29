@@ -3,6 +3,7 @@
  */
 
 import { FastifyRequest, FastifyReply } from 'fastify';
+import jwt from 'jsonwebtoken';
 import { authService } from '../services/auth.service';
 import { prisma } from '../config/database';
 import { env } from '../config/env';
@@ -50,6 +51,16 @@ export async function authMiddleware(
 
     request.userId = payload.userId;
     request.userEmail = payload.email;
+
+    // JWT auto-renew: if the token expires within 24 hours, piggyback a fresh one
+    const decoded = jwt.decode(token) as any;
+    if (decoded?.exp) {
+      const secondsUntilExpiry = decoded.exp - Math.floor(Date.now() / 1000);
+      if (secondsUntilExpiry < 86400) {
+        const freshToken = authService.generateJwt(payload.userId, payload.email);
+        reply.header('X-Refreshed-Token', freshToken);
+      }
+    }
   } catch (error: any) {
     return reply.code(401).send({
       error: 'Unauthorized',

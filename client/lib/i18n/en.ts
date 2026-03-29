@@ -119,6 +119,10 @@ const en: Translations = {
     optional: 'Optional',
     egWork: 'e.g. Work',
     advanced: 'Advanced',
+    appearance: 'Appearance',
+    themeLight: 'Light',
+    themeDark: 'Dark',
+    themeSystem: 'System',
   },
 
   activity: {
@@ -163,6 +167,9 @@ const en: Translations = {
     summary: 'Summary',
     type: 'Type',
     messages: 'messages',
+    inTrash: 'This thread is in the trash',
+    restore: 'Restore',
+    restoreSuccess: 'Thread restored to inbox',
   },
 
   draftDetail: {

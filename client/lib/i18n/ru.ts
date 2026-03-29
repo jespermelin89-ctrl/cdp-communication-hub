@@ -119,6 +119,10 @@ const ru: Translations = {
     optional: 'Необязательно',
     egWork: 'напр. Работа',
     advanced: 'Дополнительно',
+    appearance: 'Внешний вид',
+    themeLight: 'Светлая',
+    themeDark: 'Тёмная',
+    themeSystem: 'Системная',
   },
 
   activity: {
@@ -163,6 +167,9 @@ const ru: Translations = {
     summary: 'Краткое содержание',
     type: 'Тип',
     messages: 'сообщений',
+    inTrash: 'Эта цепочка находится в корзине',
+    restore: 'Восстановить',
+    restoreSuccess: 'Цепочка восстановлена во входящие',
   },
 
   draftDetail: {

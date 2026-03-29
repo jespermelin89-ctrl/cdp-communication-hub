@@ -7,6 +7,7 @@ import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { api } from '@/lib/api';
 import { useI18n, LOCALES, type Locale } from '@/lib/i18n';
+import { useTheme, type Theme } from '@/components/ThemeProvider';
 import type { User, Account } from '@/lib/types';
 
 const FLAG_MAP: Record<Locale, string> = {
@@ -26,6 +27,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const { t, locale, setLocale } = useI18n();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     loadAll();
@@ -148,6 +150,31 @@ export default function SettingsPage() {
               <div className="space-y-2 text-sm">
                 <div><span className="text-gray-500">{t.settings.name}:</span> {user.name || t.settings.notSet}</div>
                 <div><span className="text-gray-500">{t.settings.email}:</span> {user.email}</div>
+              </div>
+            </div>
+
+            {/* Appearance */}
+            <div className="card">
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.settings.appearance}</h2>
+              <div className="flex gap-2">
+                {([
+                  { value: 'light' as Theme, label: t.settings.themeLight, icon: '☀️' },
+                  { value: 'dark' as Theme, label: t.settings.themeDark, icon: '🌙' },
+                  { value: 'system' as Theme, label: t.settings.themeSystem, icon: '💻' },
+                ]).map(({ value, label, icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => setTheme(value)}
+                    className={`flex-1 flex flex-col items-center gap-1.5 py-3 rounded-xl border-2 text-sm font-medium transition-all ${
+                      theme === value
+                        ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 ring-2 ring-violet-500/20'
+                        : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <span className="text-lg">{icon}</span>
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
 

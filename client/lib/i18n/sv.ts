@@ -122,6 +122,10 @@ const sv = {
     optional: 'Valfritt',
     egWork: 't.ex. Arbete',
     advanced: 'Avancerat',
+    appearance: 'Utseende',
+    themeLight: 'Ljust',
+    themeDark: 'Mörkt',
+    themeSystem: 'System',
   },
 
   // Thread detail
@@ -144,6 +148,9 @@ const sv = {
     summary: 'Sammanfattning',
     type: 'Typ',
     messages: 'meddelanden',
+    inTrash: 'Denna tråd ligger i papperskorgen',
+    restore: 'Återställ',
+    restoreSuccess: 'Tråd återställd till inkorgen',
   },
 
   // Draft detail

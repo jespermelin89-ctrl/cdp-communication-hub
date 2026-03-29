@@ -1,53 +1,70 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 
-type Theme = 'light' | 'dark';
+export type Theme = 'system' | 'light' | 'dark';
 
 interface ThemeContextValue {
   theme: Theme;
+  setTheme: (t: Theme) => void;
+  resolvedTheme: 'light' | 'dark';
+  /** Legacy helper — cycles light ↔ dark (ignores system). Used by TopBar toggle. */
   toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: 'light',
+  theme: 'system',
+  setTheme: () => {},
+  resolvedTheme: 'light',
   toggleTheme: () => {},
 });
 
-export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light');
+export function useTheme() {
+  return useContext(ThemeContext);
+}
 
+export function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>('system');
+  const [resolvedTheme, setResolved] = useState<'light' | 'dark'>('light');
+
+  // Restore saved preference on mount
   useEffect(() => {
-    const stored = localStorage.getItem('cdp_theme') as Theme | null;
-    const initial = stored ?? 'light';
-    setTheme(initial);
-    applyTheme(initial);
+    const saved = localStorage.getItem('cdp-theme') as Theme | null;
+    if (saved === 'light' || saved === 'dark' || saved === 'system') {
+      setThemeState(saved);
+    }
   }, []);
 
-  function applyTheme(t: Theme) {
-    if (t === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+  // Apply theme whenever the preference or system preference changes
+  useEffect(() => {
+    localStorage.setItem('cdp-theme', theme);
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+
+    function apply() {
+      const isDark = theme === 'dark' || (theme === 'system' && mq.matches);
+      document.documentElement.classList.toggle('dark', isDark);
+      setResolved(isDark ? 'dark' : 'light');
     }
+
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [theme]);
+
+  function setTheme(t: Theme) {
+    setThemeState(t);
   }
 
   function toggleTheme() {
-    setTheme((prev) => {
-      const next: Theme = prev === 'light' ? 'dark' : 'light';
-      localStorage.setItem('cdp_theme', next);
-      applyTheme(next);
+    setThemeState((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
       return next;
     });
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme() {
-  return useContext(ThemeContext);
 }

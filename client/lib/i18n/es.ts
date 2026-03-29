@@ -119,6 +119,10 @@ const es: Translations = {
     optional: 'Opcional',
     egWork: 'ej. Trabajo',
     advanced: 'Avanzado',
+    appearance: 'Apariencia',
+    themeLight: 'Claro',
+    themeDark: 'Oscuro',
+    themeSystem: 'Sistema',
   },
 
   activity: {
@@ -163,6 +167,9 @@ const es: Translations = {
     summary: 'Resumen',
     type: 'Tipo',
     messages: 'mensajes',
+    inTrash: 'Este hilo está en la papelera',
+    restore: 'Restaurar',
+    restoreSuccess: 'Hilo restaurado a la bandeja de entrada',
   },
 
   draftDetail: {

@@ -38,6 +38,7 @@ export default function SearchPage() {
   const [searched, setSearched] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [quickFilter, setQuickFilter] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -58,6 +59,14 @@ export default function SearchPage() {
       let threads = res.threads ?? [];
       if (priorityFilter) {
         threads = threads.filter((t: any) => t.latestAnalysis?.priority === priorityFilter);
+      }
+      if (quickFilter === 'unread') {
+        threads = threads.filter((t: any) => !t.isRead);
+      } else if (quickFilter === 'attachment') {
+        threads = threads.filter((t: any) => t.messages?.some((m: any) => m.attachments?.length > 0));
+      } else if (quickFilter === 'week') {
+        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+        threads = threads.filter((t: any) => t.lastMessageAt && new Date(t.lastMessageAt).getTime() > weekAgo);
       }
       setResults(threads);
     } catch {
@@ -113,10 +122,10 @@ export default function SearchPage() {
           </button>
         </div>
 
-        {/* Priority filter */}
-        <div className="flex gap-2 mb-5">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2 mb-5">
           {[
-            { key: '', label: 'Alla' },
+            { key: '', label: 'Alla prio' },
             { key: 'high', label: '🔴 Hög' },
             { key: 'medium', label: '🟡 Medium' },
             { key: 'low', label: '⚪ Låg' },
@@ -127,6 +136,25 @@ export default function SearchPage() {
               className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                 priorityFilter === f.key
                   ? 'bg-brand-500 text-white border-brand-500'
+                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+          <div className="w-px bg-gray-200 dark:bg-gray-700 self-stretch mx-1" />
+          {[
+            { key: '', label: 'Alla' },
+            { key: 'unread', label: '● Olästa' },
+            { key: 'attachment', label: '📎 Med bilaga' },
+            { key: 'week', label: '📅 Senaste veckan' },
+          ].map(f => (
+            <button
+              key={f.key}
+              onClick={() => setQuickFilter(f.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                quickFilter === f.key
+                  ? 'bg-indigo-500 text-white border-indigo-500'
                   : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >

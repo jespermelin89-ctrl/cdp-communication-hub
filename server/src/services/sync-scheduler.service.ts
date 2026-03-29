@@ -21,6 +21,7 @@ import { sendPushToUser } from './push.service';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;      // 5 minutes
 const AI_INTERVAL_MS = 10 * 60 * 1000;        // 10 minutes
+const SNOOZE_INTERVAL_MS = 60 * 1000;         // 1 minute
 const MAX_THREADS_PER_SYNC = 20;
 const MAX_THREADS_TO_CLASSIFY = 10;
 const MAX_FAILURES_BEFORE_BACKOFF = 3;
@@ -37,6 +38,7 @@ const failureCounts = new Map<string, number>();
 
 let syncInterval: ReturnType<typeof setInterval> | null = null;
 let aiInterval: ReturnType<typeof setInterval> | null = null;
+let snoozeInterval: ReturnType<typeof setInterval> | null = null;
 
 // ──────────────────────────────────────────────
 // Helper: extract display name from email address
@@ -418,6 +420,65 @@ async function classifyUnanalyzedThreads(): Promise<void> {
 }
 
 // ──────────────────────────────────────────────
+// Snooze wake — run every minute
+// ──────────────────────────────────────────────
+
+async function wakeSnoozedThreads(): Promise<void> {
+  const now = new Date();
+  let snoozed: Array<{
+    id: string;
+    subject: string | null;
+    snoozedUntil: Date | null;
+    account: { userId: string };
+  }> = [];
+
+  try {
+    snoozed = await prisma.emailThread.findMany({
+      where: { snoozedUntil: { lte: now } },
+      select: {
+        id: true,
+        subject: true,
+        snoozedUntil: true,
+        account: { select: { userId: true } },
+      },
+    });
+  } catch {
+    return; // DB unavailable — skip
+  }
+
+  if (snoozed.length === 0) return;
+
+  for (const thread of snoozed) {
+    try {
+      await prisma.emailThread.update({
+        where: { id: thread.id },
+        data: { snoozedUntil: null, isRead: false },
+      });
+
+      sendPushToUser(thread.account.userId, {
+        title: `⏰ ${thread.subject || 'Påminnelse'}`,
+        body: 'Snoozad tråd är tillbaka',
+        url: `/threads/${thread.id}`,
+      }).catch(() => {});
+
+      await prisma.actionLog.create({
+        data: {
+          userId: thread.account.userId,
+          actionType: 'snooze_wake',
+          targetType: 'thread',
+          targetId: thread.id,
+          metadata: {},
+        },
+      });
+
+      console.log(`[Snooze] Woke thread ${thread.id} for user ${thread.account.userId}`);
+    } catch (err: any) {
+      console.warn(`[Snooze] Failed to wake thread ${thread.id}: ${err?.message}`);
+    }
+  }
+}
+
+// ──────────────────────────────────────────────
 // Lifecycle
 // ──────────────────────────────────────────────
 
@@ -440,6 +501,10 @@ export function startSyncScheduler(): void {
   aiInterval = setInterval(() => {
     classifyUnanalyzedThreads().catch((e) => console.error('[Scheduler] Classify error:', e));
   }, AI_INTERVAL_MS);
+
+  snoozeInterval = setInterval(() => {
+    wakeSnoozedThreads().catch((e) => console.error('[Snooze] Wake error:', e));
+  }, SNOOZE_INTERVAL_MS);
 }
 
 /**
@@ -459,6 +524,10 @@ export function stopSyncScheduler(): void {
   if (aiInterval) {
     clearInterval(aiInterval);
     aiInterval = null;
+  }
+  if (snoozeInterval) {
+    clearInterval(snoozeInterval);
+    snoozeInterval = null;
   }
   console.log('[Scheduler] Stopped');
 }

@@ -89,6 +89,7 @@ export default function InboxPage() {
   const [batchTrashPending, setBatchTrashPending] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<'date' | 'priority' | 'unanalyzed'>('date');
   const [starredOnly, setStarredOnly] = useState(false);
+  const [showSnoozed, setShowSnoozed] = useState(false);
   const [labelFilter, setLabelFilter] = useState('');
   const [starringIds, setStarringIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
@@ -108,7 +109,7 @@ export default function InboxPage() {
   // Reset pagination when search/filter changes
   useEffect(() => {
     setDisplayLimit(20);
-  }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey, starredOnly, labelFilter]);
+  }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey, starredOnly, labelFilter, showSnoozed]);
 
   // SWR — threads revalidate automatically when filters change
   const { data: threadData, isLoading: loading, mutate: mutateThreads } = useSWR(
@@ -326,7 +327,11 @@ export default function InboxPage() {
   )
     .filter((th) => !priorityFilter || th.latestAnalysis?.priority === priorityFilter)
     .filter((th) => !starredOnly || th.labels.includes('STARRED'))
-    .filter((th) => !labelFilter || th.labels.some((l) => l.toLowerCase() === labelFilter.toLowerCase()));
+    .filter((th) => !labelFilter || th.labels.some((l) => l.toLowerCase() === labelFilter.toLowerCase()))
+    .filter((th) => {
+      const isSnoozed = th.snoozedUntil && new Date(th.snoozedUntil) > new Date();
+      return showSnoozed ? isSnoozed : !isSnoozed;
+    });
 
   const visibleThreads = filteredThreads.slice(0, displayLimit);
 
@@ -545,10 +550,20 @@ export default function InboxPage() {
           </div>
         )}
 
-        {/* Label Filter */}
+        {/* Label Filter + Snooze toggle */}
         <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-none">
+          <button
+            onClick={() => { setShowSnoozed((s) => !s); setLabelFilter(''); }}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all shrink-0 ${
+              showSnoozed
+                ? 'bg-amber-500 text-white border-amber-500'
+                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            ⏰ {t.inbox.snoozed}
+          </button>
           {[
-            { id: '', name: 'Alla etiketter' },
+            { id: '', name: t.inbox.allLabels },
             { id: 'personal', name: 'Personligt' },
             { id: 'business', name: 'Business' },
             { id: 'cdp', name: 'CDP' },
@@ -558,7 +573,7 @@ export default function InboxPage() {
           ].map((lf) => (
             <button
               key={lf.id}
-              onClick={() => setLabelFilter(lf.id)}
+              onClick={() => { setLabelFilter(lf.id); setShowSnoozed(false); }}
               className={`px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap transition-all shrink-0 ${
                 labelFilter === lf.id
                   ? 'bg-violet-500 text-white border-violet-500'

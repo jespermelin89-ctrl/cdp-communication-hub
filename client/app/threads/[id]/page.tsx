@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock } from 'lucide-react';
 import { sanitizeHtml } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -75,6 +75,8 @@ export default function ThreadDetailPage() {
   const thread = threadData?.thread ?? null;
 
   const [analyzing, setAnalyzing] = useState(false);
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [snoozing, setSnoozing] = useState(false);
   const [markingUnread, setMarkingUnread] = useState(false);
   const [starring, setStarring] = useState(false);
   const [generatingDraft, setGeneratingDraft] = useState(false);
@@ -360,6 +362,68 @@ export default function ThreadDetailPage() {
     }
   }
 
+  function computeSnoozeDate(opt: { hours?: number; tomorrow9?: boolean; nextMonday?: boolean; days?: number }): string {
+    const now = new Date();
+    if (opt.hours) {
+      now.setHours(now.getHours() + opt.hours);
+      return now.toISOString();
+    }
+    if (opt.tomorrow9) {
+      now.setDate(now.getDate() + 1);
+      now.setHours(9, 0, 0, 0);
+      return now.toISOString();
+    }
+    if (opt.nextMonday) {
+      const daysUntilMonday = (8 - now.getDay()) % 7 || 7;
+      now.setDate(now.getDate() + daysUntilMonday);
+      now.setHours(9, 0, 0, 0);
+      return now.toISOString();
+    }
+    if (opt.days) {
+      now.setDate(now.getDate() + opt.days);
+      return now.toISOString();
+    }
+    return now.toISOString();
+  }
+
+  async function handleSnooze(until: string) {
+    setSnoozing(true);
+    setSnoozeOpen(false);
+    try {
+      await api.snoozeThread(threadId, until);
+      toast.success(t.thread.snoozeSuccess);
+      await mutateThread();
+    } catch {
+      toast.error('Kunde inte snooze tråden');
+    } finally {
+      setSnoozing(false);
+    }
+  }
+
+  async function handleUnsnooze() {
+    setSnoozing(true);
+    try {
+      await api.unsnoozeThread(threadId);
+      toast.success(t.thread.unsnoozeSuccess);
+      await mutateThread();
+    } catch {
+      toast.error('Kunde inte avbryta snooze');
+    } finally {
+      setSnoozing(false);
+    }
+  }
+
+  // Close snooze dropdown on outside click
+  useEffect(() => {
+    if (!snoozeOpen) return;
+    function close(e: MouseEvent) {
+      const target = e.target as Element;
+      if (!target.closest('[data-snooze-dropdown]')) setSnoozeOpen(false);
+    }
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [snoozeOpen]);
+
   // j/k/u keyboard navigation
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -443,6 +507,18 @@ export default function ThreadDetailPage() {
           </div>
         )}
 
+        {/* Snooze banner */}
+        {(thread as any).snoozedUntil && new Date((thread as any).snoozedUntil) > new Date() && (
+          <div className="mb-4 flex items-center justify-between px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+            <span className="text-sm text-amber-700 dark:text-amber-300">
+              {t.thread.snoozedUntil}: {new Date((thread as any).snoozedUntil).toLocaleString('sv-SE')}
+            </span>
+            <button onClick={handleUnsnooze} className="text-sm font-medium text-amber-700 dark:text-amber-300 hover:underline ml-4 shrink-0">
+              {t.thread.unsnooze}
+            </button>
+          </div>
+        )}
+
         {/* Trash banner */}
         {thread.labels?.includes('TRASH') && (
           <div className="mb-4 flex items-center justify-between px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
@@ -507,6 +583,49 @@ export default function ThreadDetailPage() {
               {archiving ? <span className="w-3.5 h-3.5 border border-gray-400 border-t-brand-500 rounded-full animate-spin" /> : <Archive size={14} />}
               Arkivera
             </button>
+            {/* Snooze dropdown */}
+            <div className="relative" data-snooze-dropdown>
+              {(thread as any).snoozedUntil && new Date((thread as any).snoozedUntil) > new Date() ? (
+                <button
+                  onClick={handleUnsnooze}
+                  disabled={snoozing}
+                  className="btn-secondary text-sm flex items-center gap-1.5 border-amber-300 dark:border-amber-700 text-amber-600 dark:text-amber-400"
+                >
+                  <Clock size={14} />
+                  {t.thread.unsnooze}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setSnoozeOpen((s) => !s)}
+                    disabled={snoozing}
+                    className="btn-secondary text-sm flex items-center gap-1.5"
+                  >
+                    <Clock size={14} />
+                    {t.thread.snooze}
+                  </button>
+                  {snoozeOpen && (
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden min-w-[180px]">
+                      {[
+                        { label: t.thread.snooze1h, opt: { hours: 1 } },
+                        { label: t.thread.snooze3h, opt: { hours: 3 } },
+                        { label: t.thread.snoozeTomorrow, opt: { tomorrow9: true as const } },
+                        { label: t.thread.snoozeNextMonday, opt: { nextMonday: true as const } },
+                        { label: t.thread.snooze1w, opt: { days: 7 } },
+                      ].map(({ label, opt }) => (
+                        <button
+                          key={label}
+                          onClick={() => handleSnooze(computeSnoozeDate(opt))}
+                          className="w-full text-left text-sm px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-colors"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
             {/* Star toggle */}
             <button
               onClick={handleToggleStar}

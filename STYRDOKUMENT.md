@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-29 06:38:25 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-29 06:41:48 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -113,6 +113,8 @@ Prefix: `/api/v1`
 | `POST    /threads/:id/archive` | `threads` |
 | `POST    /threads/:id/trash` | `threads` |
 | `POST    /threads/:id/restore` | `threads` |
+| `POST    /threads/:id/snooze` | `threads` |
+| `DELETE  /threads/:id/snooze` | `threads` |
 | `POST    /threads/batch` | `threads` |
 | `PATCH   /threads/:id` | `threads` |
 

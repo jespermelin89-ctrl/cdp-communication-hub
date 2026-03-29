@@ -426,6 +426,59 @@ export async function threadRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /threads/:id/snooze — Snooze thread until a given datetime.
+   * Body: { until: ISO 8601 datetime string }
+   */
+  fastify.post('/threads/:id/snooze', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { until } = request.body as { until: string };
+
+    if (!until || isNaN(Date.parse(until))) {
+      return reply.code(400).send({ error: 'until must be a valid ISO 8601 datetime' });
+    }
+
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    await prisma.emailThread.update({
+      where: { id },
+      data: { snoozedUntil: new Date(until) },
+    });
+
+    await prisma.actionLog.create({
+      data: {
+        userId: request.userId,
+        actionType: 'snooze',
+        targetType: 'thread',
+        targetId: id,
+        metadata: { until },
+      },
+    });
+
+    return { message: `Thread snoozed until ${until}` };
+  });
+
+  /**
+   * DELETE /threads/:id/snooze — Unsnooze a thread immediately.
+   */
+  fastify.delete('/threads/:id/snooze', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    await prisma.emailThread.update({
+      where: { id },
+      data: { snoozedUntil: null },
+    });
+
+    return { message: 'Thread unsnoozed' };
+  });
+
+  /**
    * POST /threads/batch — Batch action on multiple threads.
    * Body: { threadIds: string[], action: 'archive' | 'trash' | 'read' | 'unread' | 'star' | 'unstar' }
    */

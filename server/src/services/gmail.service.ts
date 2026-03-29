@@ -424,6 +424,71 @@ export class GmailService {
   }
 
   /**
+   * Fetch an inline image by Content-ID (cid:) reference.
+   * Walks the MIME tree to find a part whose Content-ID matches, then fetches its binary data.
+   */
+  async getInlineImage(
+    accountId: string,
+    gmailMessageId: string,
+    cid: string,
+  ): Promise<{ data: Buffer; mimeType: string } | null> {
+    const gmail = await this.getClient(accountId);
+    const response = await gmail.users.messages.get({
+      userId: 'me',
+      id: gmailMessageId,
+      format: 'full',
+    });
+
+    // Walk the MIME tree looking for a part with a matching Content-ID
+    const normalizedCid = cid.replace(/^<|>$/g, '').toLowerCase();
+
+    function findPart(part: any): { attachmentId: string; mimeType: string; data?: string } | null {
+      if (!part) return null;
+      const contentId = (part.headers as any[] | undefined)
+        ?.find((h: any) => h.name?.toLowerCase() === 'content-id')
+        ?.value?.replace(/^<|>$/g, '')
+        .toLowerCase();
+
+      if (contentId === normalizedCid) {
+        if (part.body?.attachmentId) {
+          return { attachmentId: part.body.attachmentId, mimeType: part.mimeType ?? 'image/png' };
+        }
+        // Small inline images are embedded directly in body.data
+        if (part.body?.data) {
+          return { attachmentId: '', mimeType: part.mimeType ?? 'image/png', data: part.body.data };
+        }
+      }
+
+      if (part.parts) {
+        for (const child of part.parts as any[]) {
+          const found = findPart(child);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    const found = findPart(response.data.payload);
+    if (!found) return null;
+
+    let base64: string;
+    if (found.data) {
+      // Already embedded
+      base64 = found.data.replace(/-/g, '+').replace(/_/g, '/');
+    } else {
+      // Fetch via attachment API
+      const att = await gmail.users.messages.attachments.get({
+        userId: 'me',
+        messageId: gmailMessageId,
+        id: found.attachmentId,
+      });
+      base64 = (att.data.data || '').replace(/-/g, '+').replace(/_/g, '/');
+    }
+
+    return { data: Buffer.from(base64, 'base64'), mimeType: found.mimeType };
+  }
+
+  /**
    * Search Gmail messages by query string.
    * Returns Gmail message stubs (id + threadId).
    */

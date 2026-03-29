@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import VoiceButton from '@/components/VoiceButton';
-import { Send, Save, Wand2, X, ChevronDown, PenLine, Loader2, CornerDownLeft } from 'lucide-react';
+import { Send, Save, Wand2, X, ChevronDown, PenLine, Loader2, CornerDownLeft, CheckCircle2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
@@ -35,6 +35,9 @@ export default function ComposePage() {
   const [ccVisible, setCcVisible] = useState(false);
   const [ccInput, setCcInput] = useState('');
   const [ccAddresses, setCcAddresses] = useState<string[]>([]);
+  const [bccVisible, setBccVisible] = useState(false);
+  const [bccInput, setBccInput] = useState('');
+  const [bccAddresses, setBccAddresses] = useState<string[]>([]);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [selectedMode, setSelectedMode] = useState('');
@@ -50,6 +53,12 @@ export default function ComposePage() {
 
   // ── Signature tracking ────────────────────────────────────────────────────
   const prevAccountIdRef = useRef<string>('');
+
+  // ── Auto-save state ───────────────────────────────────────────────────────
+  const [autoSavedDraftId, setAutoSavedDraftId] = useState<string | null>(null);
+  const [autoSaveIndicator, setAutoSaveIndicator] = useState<'saved' | 'saving' | null>(null);
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutoSaveBodyRef = useRef<string>('');
 
   // ── Submit state ──────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
@@ -221,6 +230,57 @@ export default function ComposePage() {
     setCcAddresses((prev) => prev.filter((a) => a !== email));
   }
 
+  function addBccAddress(email: string) {
+    const trimmed = email.trim();
+    if (!trimmed || bccAddresses.includes(trimmed)) return;
+    setBccAddresses((prev) => [...prev, trimmed]);
+    setBccInput('');
+  }
+
+  function removeBccAddress(email: string) {
+    setBccAddresses((prev) => prev.filter((a) => a !== email));
+  }
+
+  // ── Auto-save ─────────────────────────────────────────────────────────────
+  const triggerAutoSave = useCallback(() => {
+    if (!selectedAccountId || toAddresses.length === 0 || !subject.trim()) return;
+    if (body === lastAutoSaveBodyRef.current) return;
+    lastAutoSaveBodyRef.current = body;
+
+    setAutoSaveIndicator('saving');
+    const doSave = async () => {
+      try {
+        if (autoSavedDraftId) {
+          // Update existing autosave draft — use updateDraft if available, else create new
+          await api.updateDraft(autoSavedDraftId, { body_text: body });
+        } else {
+          const result = await api.createDraft({
+            account_id: selectedAccountId,
+            to_addresses: toAddresses,
+            cc_addresses: ccAddresses.length > 0 ? ccAddresses : undefined,
+            subject: subject.trim(),
+            body_text: body,
+          });
+          setAutoSavedDraftId(result.draft.id);
+        }
+        setAutoSaveIndicator('saved');
+        setTimeout(() => setAutoSaveIndicator(null), 3000);
+      } catch {
+        setAutoSaveIndicator(null);
+      }
+    };
+    doSave();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccountId, toAddresses, subject, body, ccAddresses, autoSavedDraftId]);
+
+  // Schedule auto-save 30s after last body change
+  useEffect(() => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => triggerAutoSave(), 30_000);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [body]);
+
   // ── AI assist ─────────────────────────────────────────────────────────────
   async function handleAiGenerate() {
     if (!aiInstruction.trim() || !selectedAccountId) return;
@@ -259,13 +319,27 @@ export default function ComposePage() {
     if (!subject.trim()) { toast.error('Ange ett ämne'); return; }
     setSaving(true);
     try {
-      const result = await api.createDraft({
-        account_id: selectedAccountId,
-        to_addresses: toAddresses,
-        cc_addresses: ccAddresses.length > 0 ? ccAddresses : undefined,
-        subject: subject.trim(),
-        body_text: body,
-      });
+      const draftId = autoSavedDraftId;
+      let result: { draft: { id: string } };
+      if (draftId) {
+        await api.updateDraft(draftId, {
+          to_addresses: toAddresses,
+          cc_addresses: ccAddresses.length > 0 ? ccAddresses : undefined,
+          bcc_addresses: bccAddresses.length > 0 ? bccAddresses : undefined,
+          subject: subject.trim(),
+          body_text: body,
+        });
+        result = { draft: { id: draftId } };
+      } else {
+        result = await api.createDraft({
+          account_id: selectedAccountId,
+          to_addresses: toAddresses,
+          cc_addresses: ccAddresses.length > 0 ? ccAddresses : undefined,
+          bcc_addresses: bccAddresses.length > 0 ? bccAddresses : undefined,
+          subject: subject.trim(),
+          body_text: body,
+        });
+      }
       toast.success('Utkast sparat');
       router.push(`/drafts/${result.draft.id}`);
     } catch (err: any) {
@@ -288,6 +362,7 @@ export default function ComposePage() {
         account_id: selectedAccountId,
         to_addresses: toAddresses,
         cc_addresses: ccAddresses.length > 0 ? ccAddresses : undefined,
+        bcc_addresses: bccAddresses.length > 0 ? bccAddresses : undefined,
         subject: subject.trim(),
         body_text: body,
       });
@@ -438,12 +513,21 @@ export default function ComposePage() {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => setCcVisible(!ccVisible)}
-              className="text-xs text-gray-400 hover:text-brand-500 shrink-0 mt-1.5"
-            >
-              {ccVisible ? 'Dölj Cc' : 'Lägg till Cc'}
-            </button>
+            <div className="flex items-center gap-2 shrink-0 mt-1.5">
+              <button
+                onClick={() => setCcVisible(!ccVisible)}
+                className={`text-xs hover:text-brand-500 ${ccVisible ? 'text-brand-500' : 'text-gray-400'}`}
+              >
+                Cc
+              </button>
+              <span className="text-gray-200 dark:text-gray-600">|</span>
+              <button
+                onClick={() => setBccVisible(!bccVisible)}
+                className={`text-xs hover:text-brand-500 ${bccVisible ? 'text-brand-500' : 'text-gray-400'}`}
+              >
+                Bcc
+              </button>
+            </div>
           </div>
 
           {/* Cc */}
@@ -471,6 +555,37 @@ export default function ComposePage() {
                   }}
                   onBlur={() => { if (ccInput.trim()) addCcAddress(ccInput); }}
                   placeholder="Cc-adresser…"
+                  className="w-full text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Bcc */}
+          {bccVisible && (
+            <div className="flex items-start gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700">
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-12 shrink-0 mt-1.5">Bcc</span>
+              <div className="flex-1">
+                <div className="flex flex-wrap gap-1 mb-1">
+                  {bccAddresses.map((addr) => (
+                    <span key={addr} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 text-xs rounded-lg border border-purple-200 dark:border-purple-700">
+                      {addr}
+                      <button onClick={() => removeBccAddress(addr)} className="hover:text-red-500">×</button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={bccInput}
+                  onChange={(e) => setBccInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ',') && bccInput.trim()) {
+                      e.preventDefault();
+                      addBccAddress(bccInput);
+                    }
+                  }}
+                  onBlur={() => { if (bccInput.trim()) addBccAddress(bccInput); }}
+                  placeholder="Bcc-adresser…"
                   className="w-full text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none"
                 />
               </div>
@@ -547,6 +662,25 @@ export default function ComposePage() {
             </div>
           )}
 
+          {/* Template snippets */}
+          <div className="flex items-center gap-2 px-5 py-2 border-b border-gray-100 dark:border-gray-700 overflow-x-auto scrollbar-hide">
+            <span className="text-xs text-gray-400 shrink-0">Snabbtext:</span>
+            {[
+              { label: 'Tack', text: 'Tack för ditt meddelande! ' },
+              { label: 'Återkommer', text: 'Jag återkommer till dig så snart som möjligt. ' },
+              { label: 'Möte', text: 'Kan vi boka ett möte för att diskutera detta vidare? ' },
+              { label: 'Hej', text: 'Hej,\n\nHoppas allt är bra med dig. ' },
+            ].map(({ label, text }) => (
+              <button
+                key={label}
+                onClick={() => setBody((prev) => prev + text)}
+                className="shrink-0 px-2.5 py-1 text-xs rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-brand-50 hover:text-brand-600 dark:hover:bg-brand-900/20 dark:hover:text-brand-300 transition-colors"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Body */}
           <div className="relative">
             <textarea
@@ -567,12 +701,26 @@ export default function ComposePage() {
 
           {/* Footer actions */}
           <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
-            <button
-              onClick={() => router.back()}
-              className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            >
-              Avbryt
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                Avbryt
+              </button>
+              {autoSaveIndicator === 'saving' && (
+                <span className="flex items-center gap-1 text-xs text-gray-400">
+                  <Loader2 size={11} className="animate-spin" />
+                  Sparar…
+                </span>
+              )}
+              {autoSaveIndicator === 'saved' && (
+                <span className="flex items-center gap-1 text-xs text-green-500">
+                  <CheckCircle2 size={11} />
+                  Autosparat
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSaveDraft}

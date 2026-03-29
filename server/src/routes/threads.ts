@@ -619,4 +619,55 @@ export async function threadRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
+  /**
+   * GET /threads/:threadId/messages/:messageId/inline/:cid
+   * Proxy inline (CID) images — used when email HTML contains cid: references.
+   * Returns the image binary with correct Content-Type. Authenticated.
+   */
+  fastify.get(
+    '/threads/:threadId/messages/:messageId/inline/:cid',
+    async (request, reply) => {
+      const { threadId, messageId, cid } = request.params as {
+        threadId: string;
+        messageId: string;
+        cid: string;
+      };
+
+      // Resolve by DB message id first, fall back to gmailMessageId match
+      const message = await prisma.emailMessage.findFirst({
+        where: {
+          OR: [
+            { id: messageId, threadId },
+            { gmailMessageId: messageId, threadId },
+          ],
+        },
+        include: { thread: { include: { account: { select: { id: true, userId: true } } } } },
+      });
+
+      if (!message || message.thread.account.userId !== request.userId) {
+        return reply.code(404).send({ error: 'Not found' });
+      }
+
+      try {
+        const result = await gmailService.getInlineImage(
+          message.thread.account.id,
+          message.gmailMessageId,
+          decodeURIComponent(cid),
+        );
+
+        if (!result) {
+          return reply.code(404).send({ error: 'Inline image not found' });
+        }
+
+        reply
+          .header('Content-Type', result.mimeType)
+          .header('Cache-Control', 'private, max-age=86400')
+          .header('Content-Length', result.data.length)
+          .send(result.data);
+      } catch (err: any) {
+        return reply.code(502).send({ error: `Failed to fetch inline image: ${err.message}` });
+      }
+    }
+  );
 }

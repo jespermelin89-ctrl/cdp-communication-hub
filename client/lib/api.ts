@@ -320,6 +320,7 @@ class ApiClient {
     thread_id?: string;
     to_addresses: string[];
     cc_addresses?: string[];
+    bcc_addresses?: string[];
     subject: string;
     body_text: string;
   }) {
@@ -328,6 +329,8 @@ class ApiClient {
 
   async updateDraft(id: string, data: {
     to_addresses?: string[];
+    cc_addresses?: string[];
+    bcc_addresses?: string[];
     subject?: string;
     body_text?: string;
   }) {

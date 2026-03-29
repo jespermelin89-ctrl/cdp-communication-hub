@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import withBundleAnalyzer from '@next/bundle-analyzer';
 
 const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -20,4 +21,5 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Bundle analyzer: run with ANALYZE=true npm run build
+export default withBundleAnalyzer({ enabled: process.env.ANALYZE === 'true' })(nextConfig);

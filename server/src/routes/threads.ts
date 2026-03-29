@@ -8,6 +8,7 @@ import { emailProviderFactory } from '../services/email-provider.factory';
 import { gmailService } from '../services/gmail.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { ThreadQuerySchema } from '../utils/validators';
+import { sanitizeSearch, sanitizeLabel } from '../utils/sanitize';
 
 export async function threadRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
@@ -21,7 +22,12 @@ export async function threadRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'Invalid query', details: query.error.issues });
     }
 
-    const { account_id, page, limit, search, label } = query.data;
+    const rawQuery = query.data;
+    const account_id = rawQuery.account_id;
+    const page = rawQuery.page;
+    const limit = rawQuery.limit;
+    const search = rawQuery.search ? sanitizeSearch(rawQuery.search) : undefined;
+    const label = rawQuery.label ? sanitizeLabel(rawQuery.label) : undefined;
 
     // Build where clause
     const where: any = {};

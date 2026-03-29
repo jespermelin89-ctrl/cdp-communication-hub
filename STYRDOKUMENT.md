@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-29 07:15:34 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-29 07:17:31 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -216,7 +216,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 
 ---
 
-## Serverpaket (15 direktberoenden)
+## Serverpaket (16 direktberoenden)
 
 <details>
 <summary>Visa alla</summary>
@@ -224,6 +224,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `@anthropic-ai/sdk ^0.39.0`
 - `@fastify/cookie ^11.0.0`
 - `@fastify/cors ^10.0.0`
+- `@fastify/helmet ^13.0.2`
 - `@fastify/rate-limit ^10.2.0`
 - `@prisma/client ^6.2.0`
 - `dotenv ^16.4.0`

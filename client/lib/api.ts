@@ -127,6 +127,18 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
+    // CSRF double-submit: attach cookie value as header on mutations
+    const safeMethods = ['GET', 'HEAD', 'OPTIONS'];
+    if (!safeMethods.includes(method.toUpperCase())) {
+      const csrfToken = document.cookie
+        .split('; ')
+        .find((c) => c.startsWith('csrf_token='))
+        ?.split('=')[1];
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 

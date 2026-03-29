@@ -5,9 +5,12 @@
  * Draft-first, approval-required, logged actions, no auto-send/delete.
  */
 
+import crypto from 'crypto';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
+import helmet from '@fastify/helmet';
+import cookie from '@fastify/cookie';
 import { env } from './config/env';
 import { connectDatabase, disconnectDatabase, prisma } from './config/database';
 import { errorHandler } from './middleware/error.middleware';
@@ -43,6 +46,23 @@ async function main() {
         }
       : { level: 'info' },
   });
+
+  // Security headers
+  await fastify.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],      // needed for email rendering
+        imgSrc: ["'self'", 'data:', 'https:'],         // allow external images in emails
+        scriptSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // allow loading email images cross-origin
+  });
+
+  // Cookie plugin — required for CSRF double-submit
+  await fastify.register(cookie);
 
   // Rate limiting — 200 req/min per IP (CORS preflight + normal traffic)
   await fastify.register(rateLimit, {
@@ -87,6 +107,47 @@ async function main() {
       timestamp: new Date().toISOString(),
       version: '1.0.0',
     };
+  });
+
+  // Response time logging for slow requests (> 2s)
+  fastify.addHook('onResponse', async (request, reply) => {
+    const elapsed = reply.elapsedTime;
+    if (elapsed > 2000) {
+      request.log.warn({ method: request.method, url: request.url, ms: Math.round(elapsed) }, 'Slow request');
+    }
+  });
+
+  // CSRF double-submit cookie — set cookie on every response, validate on mutations
+  fastify.addHook('onSend', async (request, reply) => {
+    // Ensure a CSRF token cookie exists (httpOnly: false so JS can read it)
+    const existing = request.cookies?.['csrf_token'];
+    if (!existing) {
+      const token = crypto.randomUUID();
+      reply.setCookie('csrf_token', token, {
+        path: '/',
+        sameSite: 'lax',
+        secure: env.NODE_ENV === 'production',
+        httpOnly: false,
+      });
+    }
+  });
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    const safeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(request.method);
+    if (safeMethod) return;
+
+    // API-key authenticated requests (agent/Amanda) are exempt — no browser session
+    if (request.headers['x-api-key']) return;
+
+    const cookieToken = request.cookies?.['csrf_token'];
+    const headerToken = request.headers['x-csrf-token'] as string | undefined;
+
+    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
+      return reply.code(403).send({
+        error: 'Forbidden',
+        message: 'CSRF token mismatch — resend with X-CSRF-Token header',
+      });
+    }
   });
 
   // Register all routes under /api/v1

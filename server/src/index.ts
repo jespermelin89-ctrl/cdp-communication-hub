@@ -7,8 +7,9 @@
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import { env } from './config/env';
-import { connectDatabase, disconnectDatabase } from './config/database';
+import { connectDatabase, disconnectDatabase, prisma } from './config/database';
 import { errorHandler } from './middleware/error.middleware';
 import { startSyncScheduler, stopSyncScheduler } from './services/sync-scheduler.service';
 import { autoSeedBrainCore } from './utils/auto-seed';
@@ -35,6 +36,15 @@ async function main() {
     },
   });
 
+  // Rate limiting — 200 req/min per IP (CORS preflight + normal traffic)
+  await fastify.register(rateLimit, {
+    max: 200,
+    timeWindow: '1 minute',
+    // Skip rate limiting for health checks
+    skipOnError: true,
+    keyGenerator: (request) => request.ip,
+  });
+
   // CORS — support main URL + Vercel preview deploys
   await fastify.register(cors, {
     origin: (origin, cb) => {
@@ -51,21 +61,47 @@ async function main() {
   // Global error handler
   fastify.setErrorHandler(errorHandler);
 
-  // Health check
-  fastify.get('/health', async () => ({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0',
-  }));
+  // Health check (root — Render uses this)
+  fastify.get('/health', async () => {
+    let db = 'unknown';
+    let activeAccounts = 0;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      db = 'ok';
+      activeAccounts = await prisma.emailAccount.count({ where: { isActive: true } });
+    } catch {
+      db = 'error';
+    }
+    return {
+      status: db === 'ok' ? 'ok' : 'degraded',
+      db,
+      activeAccounts,
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+    };
+  });
 
   // Register all routes under /api/v1
   await fastify.register(async (api) => {
-    // Health check (also accessible through Vercel proxy)
-    api.get('/health', async () => ({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      version: '1.0.0',
-    }));
+    // Health check (also accessible through Vercel proxy at /api/v1/health)
+    api.get('/health', async () => {
+      let db = 'unknown';
+      let activeAccounts = 0;
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        db = 'ok';
+        activeAccounts = await prisma.emailAccount.count({ where: { isActive: true } });
+      } catch {
+        db = 'error';
+      }
+      return {
+        status: db === 'ok' ? 'ok' : 'degraded',
+        db,
+        activeAccounts,
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+      };
+    });
 
     await api.register(authRoutes);
     await api.register(accountRoutes);

@@ -285,10 +285,24 @@ async function syncAllAccounts(): Promise<void> {
         console.warn(`[Contacts] Error for ${account.emailAddress}:`, e?.message)
       );
     } catch (err: any) {
+      const errMsg = err.message?.substring(0, 200) ?? 'Unknown error';
+
+      // OAuth revocation — token is permanently invalid, disable the account
+      if (errMsg.includes('invalid_grant') || errMsg.includes('Token has been expired or revoked')) {
+        console.warn(`[Scheduler] OAuth token revoked for ${account.emailAddress} — disabling account`);
+        try {
+          await prisma.emailAccount.update({
+            where: { id: account.id },
+            data: { isActive: false, syncError: 'OAuth token revoked — please reconnect this account' },
+          });
+        } catch {
+          // Best-effort
+        }
+        continue;
+      }
+
       const newCount = failures + 1;
       failureCounts.set(account.id, newCount);
-
-      const errMsg = err.message?.substring(0, 200) ?? 'Unknown error';
       console.warn(`[Scheduler] Sync failed for ${account.emailAddress} (failure ${newCount}/${MAX_FAILURES_BEFORE_BACKOFF}): ${errMsg}`);
 
       try {

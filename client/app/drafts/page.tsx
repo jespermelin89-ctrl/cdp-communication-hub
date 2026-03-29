@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown, Inbox as InboxIcon, Mail } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
+import ThreadSkeleton from '@/components/ThreadSkeleton';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { toast } from 'sonner';
 import type { Draft, DraftStatus } from '@/lib/types';
@@ -258,12 +259,7 @@ export default function DraftCenterPage() {
 
         {/* Drafts list */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-              <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
-              <span className="text-sm">{t.drafts.loadingDrafts}</span>
-            </div>
-          </div>
+          <ThreadSkeleton count={4} />
         ) : visibleDrafts.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600">
             <EmptyState

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
+import ThreadSkeleton from '@/components/ThreadSkeleton';
 import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
@@ -326,8 +327,16 @@ export default function InboxPage() {
 
   // j/k navigation + e/r actions
   useKeyboardShortcuts({
-    j: () => setFocusedIndex((i) => Math.min(i + 1, visibleThreads.length - 1)),
-    k: () => setFocusedIndex((i) => Math.max(i - 1, 0)),
+    j: () => setFocusedIndex((i) => {
+      const next = Math.min(i + 1, visibleThreads.length - 1);
+      document.querySelector<HTMLElement>(`[data-thread-index="${next}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return next;
+    }),
+    k: () => setFocusedIndex((i) => {
+      const next = Math.max(i - 1, 0);
+      document.querySelector<HTMLElement>(`[data-thread-index="${next}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return next;
+    }),
     e: () => {
       if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
         handleArchive(visibleThreads[focusedIndex].id);
@@ -587,12 +596,7 @@ export default function InboxPage() {
         {/* Thread List */}
         <PullToRefresh onRefresh={async () => { await mutateThreads(); }}>
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="flex flex-col items-center gap-3 text-gray-400">
-              <div className="w-7 h-7 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
-              <span className="text-sm">{t.inbox.loadingThreads}</span>
-            </div>
-          </div>
+          <ThreadSkeleton count={6} />
         ) : visibleThreads.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
             <EmptyState
@@ -631,9 +635,10 @@ export default function InboxPage() {
                   ? sender.match(/^([^<]+)/)?.[1]?.trim() || sender
                   : sender.split('@')[0];
 
+                const threadIndex = visibleThreads.indexOf(thread);
                 return (
+                  <div key={thread.id} data-thread-index={threadIndex}>
                   <SwipeableThread
-                    key={thread.id}
                     onSwipeLeft={() => handleArchive(thread.id)}
                     onSwipeRight={() => router.push(`/threads/${thread.id}`)}
                     leftLabel="Arkivera"
@@ -862,6 +867,7 @@ export default function InboxPage() {
                     )}
                   </div>
                   </SwipeableThread>
+                  </div>
                 );
               })}
             </div>

@@ -89,6 +89,7 @@ model EmailThread {
   messageCount      Int      @default(0) @map("message_count")
   labels            String[] @default([])
   isRead            Boolean  @default(true) @map("is_read")
+  snoozedUntil      DateTime? @map("snoozed_until")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -366,6 +367,21 @@ model DailySummary {
 
   @@unique([userId, date])
   @@map("daily_summaries")
+}
+
+// ============================================================
+// WEB PUSH SUBSCRIPTIONS
+// ============================================================
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
 }
 
 // ============================================================

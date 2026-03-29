@@ -28,6 +28,11 @@ const envSchema = z.object({
 
   // External API key for Apple Shortcuts / Siri integration
   COMMAND_API_KEY: z.string().optional(),
+
+  // Web Push (VAPID)
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional().default('mailto:jesper.melin89@gmail.com'),
 });
 
 const parsed = envSchema.safeParse(process.env);

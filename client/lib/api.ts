@@ -488,6 +488,22 @@ class ApiClient {
     if (params?.limit) query.limit = String(params.limit);
     return this.requestWithRetry<{ logs: any[]; pagination: any }>('GET', '/action-logs', undefined, query);
   }
+
+  async subscribePush(data: { endpoint: string; keys: { p256dh: string; auth: string } }) {
+    return this.request<{ ok: boolean }>('POST', '/push/subscribe', data);
+  }
+
+  async unsubscribePush(endpoint: string) {
+    return this.request<{ ok: boolean }>('DELETE', '/push/subscribe', { endpoint });
+  }
+
+  async snoozeThread(id: string, until: string) {
+    return this.request<{ message: string }>('POST', `/threads/${id}/snooze`, { until });
+  }
+
+  async unsnoozeThread(id: string) {
+    return this.request<{ message: string }>('DELETE', `/threads/${id}/snooze`);
+  }
 }
 
 export const api = new ApiClient();

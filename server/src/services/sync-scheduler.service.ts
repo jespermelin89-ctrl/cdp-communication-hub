@@ -17,6 +17,7 @@ import { emailProviderFactory } from './email-provider.factory';
 import { aiService } from './ai.service';
 import { brainCoreService } from './brain-core.service';
 import { matchClassificationRule } from './rule-engine.service';
+import { sendPushToUser } from './push.service';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;      // 5 minutes
 const AI_INTERVAL_MS = 10 * 60 * 1000;        // 10 minutes
@@ -118,6 +119,12 @@ async function autoTriageNewThreads(accountId: string, userId: string): Promise<
               thread.id
             )
             .catch(() => {});
+
+          sendPushToUser(userId, {
+            title: `⚡ ${thread.subject || 'Nytt viktigt mail'}`,
+            body: `Från: ${thread.participantEmails[0] ?? 'okänd'}`,
+            url: `/threads/${thread.id}`,
+          }).catch(() => {});
         }
 
         console.log(`[Triage] Rule match for ${thread.id}: ${ruleMatch.categoryKey}/${ruleMatch.priority}`);
@@ -156,7 +163,7 @@ async function autoTriageNewThreads(accountId: string, userId: string): Promise<
         },
       });
 
-      // High-prio smart notification
+      // High-prio: push notification + smart notification
       if (analysis.priority === 'high') {
         brainCoreService
           .recordLearning(
@@ -173,6 +180,12 @@ async function autoTriageNewThreads(accountId: string, userId: string): Promise<
             thread.id
           )
           .catch(() => {});
+
+        sendPushToUser(userId, {
+          title: `⚡ ${thread.subject || 'Nytt viktigt mail'}`,
+          body: `Från: ${thread.participantEmails[0] ?? 'okänd'}`,
+          url: `/threads/${thread.id}`,
+        }).catch(() => {});
       }
 
       console.log(`[Triage] AI: ${thread.id} → ${analysis.classification}/${analysis.priority}`);

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "cdp-frontend",
-      "runtimeExecutable": "/Users/lekintejeppe/Desktop/AI/MAIL-SYS/cdp-communication-hub/client/node_modules/.bin/next",
-      "runtimeArgs": ["dev", "--turbo"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "autoPort": true,
       "cwd": "/Users/lekintejeppe/Desktop/AI/MAIL-SYS/cdp-communication-hub/client"

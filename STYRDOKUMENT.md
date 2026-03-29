@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-29 05:34:36 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-29 06:33:45 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -99,6 +99,9 @@ Prefix: `/api/v1`
 | `POST    /drafts/:id/discard` | `drafts` |
 | `POST    /providers/detect` | `providers` |
 | `GET     /providers` | `providers` |
+| `POST    /push/subscribe` | `push` |
+| `DELETE  /push/subscribe` | `push` |
+| `POST    /push/test` | `push` |
 | `GET     /threads` | `threads` |
 | `GET     /threads/:id` | `threads` |
 | `POST    /threads/sync` | `threads` |
@@ -127,13 +130,14 @@ Prefix: `/api/v1`
 - `email-provider.factory.ts`
 - `gmail.service.ts`
 - `imap.service.ts`
+- `push.service.ts`
 - `rule-engine.service.ts`
 - `smtp.service.ts`
 - `sync-scheduler.service.ts`
 
 ---
 
-## Databas — Tabeller (16 st)
+## Databas — Tabeller (17 st)
 
 - `User`
 - `EmailAccount`
@@ -150,6 +154,7 @@ Prefix: `/api/v1`
 - `ClassificationRule`
 - `LearningEvent`
 - `DailySummary`
+- `PushSubscription`
 - `UserSettings`
 
 ### Kritisk tabell: `Draft`
@@ -207,7 +212,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 
 ---
 
-## Serverpaket (14 direktberoenden)
+## Serverpaket (15 direktberoenden)
 
 <details>
 <summary>Visa alla</summary>
@@ -225,6 +230,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `mailparser ^3.7.0`
 - `nodemailer ^6.9.0`
 - `openai ^4.77.0`
+- `web-push ^3.6.7`
 - `zod ^3.24.0`
 
 </details>

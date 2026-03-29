@@ -33,9 +33,15 @@ import { docsRoutes } from './routes/docs';
 
 async function main() {
   const fastify = Fastify({
-    logger: {
-      level: env.NODE_ENV === 'development' ? 'info' : 'warn',
-    },
+    logger: env.NODE_ENV === 'development'
+      ? {
+          level: 'debug',
+          transport: {
+            target: 'pino-pretty',
+            options: { colorize: true, translateTime: 'SYS:standard', ignore: 'pid,hostname' },
+          },
+        }
+      : { level: 'info' },
   });
 
   // Rate limiting — 200 req/min per IP (CORS preflight + normal traffic)

@@ -112,7 +112,7 @@ export default function InboxPage() {
   }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey, starredOnly, labelFilter, showSnoozed]);
 
   // SWR — threads revalidate automatically when filters change
-  const { data: threadData, isLoading: loading, mutate: mutateThreads } = useSWR(
+  const { data: threadData, isLoading: loading, error: threadError, mutate: mutateThreads } = useSWR(
     ['threads', selectedAccountId, debouncedSearch],
     () => api.getThreads({
       account_id: selectedAccountId || undefined,
@@ -619,6 +619,21 @@ export default function InboxPage() {
         )}
 
         {/* Thread List */}
+        {threadError && !loading && (
+          <div className="flex items-center justify-between rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 mb-4">
+            <div className="flex items-center gap-2 text-red-700 dark:text-red-300 text-sm">
+              <AlertCircle size={16} />
+              <span>Kunde inte ladda trådar — {threadError.message}</span>
+            </div>
+            <button
+              onClick={() => mutateThreads()}
+              className="flex items-center gap-1.5 text-sm font-medium text-red-700 dark:text-red-300 hover:underline"
+            >
+              <RefreshCw size={14} />
+              Försök igen
+            </button>
+          </div>
+        )}
         <PullToRefresh onRefresh={async () => { await mutateThreads(); }}>
         {loading ? (
           <ThreadSkeleton count={6} />

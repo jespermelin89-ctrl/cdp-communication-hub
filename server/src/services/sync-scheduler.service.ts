@@ -24,7 +24,8 @@ const AI_INTERVAL_MS = 10 * 60 * 1000;        // 10 minutes
 const SNOOZE_INTERVAL_MS = 60 * 1000;         // 1 minute
 const MAX_THREADS_PER_SYNC = 20;
 const MAX_THREADS_TO_CLASSIFY = 10;
-const MAX_FAILURES_BEFORE_BACKOFF = 3;
+const MAX_FAILURES_BEFORE_BACKOFF = 5;
+const BACKOFF_DURATION_MS = 30 * 60 * 1000; // 30 minutes
 const AI_BATCH_SIZE = 5;                       // Max concurrent AI calls (Groq: 30 req/min)
 const AI_BATCH_DELAY_MS = 2000;                // 2s between batches
 
@@ -35,6 +36,8 @@ const CONTACT_MIN_EMAILS = 1;                  // upsert contact after ≥ 1 ema
 
 // Track consecutive failures per account
 const failureCounts = new Map<string, number>();
+// Backoff: accountId → timestamp when backoff expires
+const accountBackoff = new Map<string, number>();
 
 let syncInterval: ReturnType<typeof setInterval> | null = null;
 let aiInterval: ReturnType<typeof setInterval> | null = null;
@@ -273,10 +276,20 @@ async function syncAllAccounts(): Promise<void> {
   }
 
   for (const account of accounts) {
+    // Check 30-min backoff
+    const backoffUntil = accountBackoff.get(account.id) ?? 0;
+    if (backoffUntil > Date.now()) {
+      const minutesLeft = Math.ceil((backoffUntil - Date.now()) / 60000);
+      console.log(`[Scheduler] ${account.emailAddress} in backoff — ${minutesLeft}m remaining`);
+      continue;
+    }
+
     const failures = failureCounts.get(account.id) ?? 0;
     if (failures >= MAX_FAILURES_BEFORE_BACKOFF) {
-      console.log(`[Scheduler] Skipping ${account.emailAddress} after ${failures} failures (will retry next cycle)`);
+      const backoffExpiry = Date.now() + BACKOFF_DURATION_MS;
+      accountBackoff.set(account.id, backoffExpiry);
       failureCounts.set(account.id, 0);
+      console.log(`[Scheduler] ${account.emailAddress} hit ${failures} failures — backing off 30 min`);
       continue;
     }
 
@@ -290,6 +303,7 @@ async function syncAllAccounts(): Promise<void> {
       });
 
       failureCounts.set(account.id, 0);
+      accountBackoff.delete(account.id);
       console.log(`[Scheduler] Synced ${account.emailAddress}`);
 
       // ── Post-sync intelligence (fire-and-forget per account) ────────────

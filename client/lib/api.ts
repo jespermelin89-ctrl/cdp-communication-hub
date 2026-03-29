@@ -5,6 +5,10 @@
 
 const API_BASE = '/api/v1';
 
+// Circuit breaker — opens after 3 consecutive network failures, self-heals after 30s
+let consecutiveFailures = 0;
+let circuitOpenUntil = 0;
+
 class ApiClient {
   private token: string | null = null;
   private isRedirecting = false;
@@ -99,6 +103,12 @@ class ApiClient {
     if (typeof window === 'undefined') {
       throw new Error('API client can only be used in browser context');
     }
+
+    // Circuit breaker: fail fast while open
+    if (circuitOpenUntil > Date.now()) {
+      throw new Error('Tjänsten är tillfälligt otillgänglig — försök igen om en stund');
+    }
+
     const url = new URL(`${API_BASE}${path}`, window.location.origin);
     if (query) {
       Object.entries(query).forEach(([k, v]) => {
@@ -131,11 +141,22 @@ class ApiClient {
     } catch (fetchErr: any) {
       clearTimeout(timeoutId);
       if (fetchErr?.name === 'AbortError') {
+        consecutiveFailures++;
+        if (consecutiveFailures >= 3) {
+          circuitOpenUntil = Date.now() + 30000;
+        }
         throw new Error('Förfrågan tog för lång tid — försök igen');
+      }
+      // Network error (offline, DNS, etc.)
+      consecutiveFailures++;
+      if (consecutiveFailures >= 3) {
+        circuitOpenUntil = Date.now() + 30000;
       }
       throw fetchErr;
     }
     clearTimeout(timeoutId);
+    // Successful fetch — reset circuit breaker
+    consecutiveFailures = 0;
 
     // JWT auto-renew: backend piggybacks a fresh token when the current one is near expiry
     const refreshedToken = response.headers.get('X-Refreshed-Token');

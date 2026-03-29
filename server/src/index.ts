@@ -29,6 +29,7 @@ import { brainCoreRoutes } from './routes/brain-core';
 import { brainSummaryRoutes } from './routes/brain-summary';
 import agentRoutes from './routes/agent';
 import { pushRoutes } from './routes/push';
+import { docsRoutes } from './routes/docs';
 
 async function main() {
   const fastify = Fastify({
@@ -118,6 +119,7 @@ async function main() {
     await api.register(brainSummaryRoutes);
     await api.register(agentRoutes, { prefix: '/agent' });
     await api.register(pushRoutes);
+    await api.register(docsRoutes);
   }, { prefix: '/api/v1' });
 
   // Start server FIRST (so Render sees the port binding)

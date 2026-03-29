@@ -17,6 +17,7 @@ import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { useNotificationPermission } from '@/hooks/useNotificationPermission';
+import { useInstallPrompt } from '@/hooks/useInstallPrompt';
 import type { CommandCenterData, Account } from '@/lib/types';
 
 export default function DashboardPage() {
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
   const { t } = useI18n();
   const { permission: notifPermission, request: requestNotifPermission } = useNotificationPermission();
+  const { isInstallable, install } = useInstallPrompt();
 
   // Prefetch common destinations so navigation feels instant
   useEffect(() => {
@@ -235,6 +237,21 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar pendingCount={data?.overview.pending_drafts} />
+
+      {/* PWA install banner */}
+      {isInstallable && (
+        <div className="bg-violet-50 dark:bg-violet-900/20 border-b border-violet-200 dark:border-violet-800 px-4 py-2.5">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <span className="text-sm text-violet-700 dark:text-violet-300">Installera CDP Hub som app på din enhet</span>
+            <button
+              onClick={install}
+              className="text-xs font-medium px-3 py-1 rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition-colors shrink-0"
+            >
+              Installera
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Notification permission banner */}
       {notifPermission === 'default' && !notifBannerDismissed && (

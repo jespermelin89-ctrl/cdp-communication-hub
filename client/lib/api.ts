@@ -283,6 +283,10 @@ class ApiClient {
     return this.request('POST', '/threads/batch', { threadIds, action });
   }
 
+  async restoreThread(id: string) {
+    return this.request<{ message: string }>('POST', `/threads/${id}/restore`);
+  }
+
   async updateThread(id: string, data: { labels?: string[] }) {
     return this.request<{ thread: any }>('PATCH', `/threads/${id}`, data);
   }

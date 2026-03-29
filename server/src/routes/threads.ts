@@ -395,6 +395,37 @@ export async function threadRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /threads/:id/restore — Restore a trashed thread back to Inbox.
+   */
+  fastify.post('/threads/:id/restore', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    if (thread.account.provider === 'gmail') {
+      try {
+        await gmailService.restoreThread(thread.account.id, thread.gmailThreadId);
+      } catch (err: any) {
+        return reply.code(502).send({ error: `Gmail restore failed: ${err.message}` });
+      }
+    }
+
+    // Update cached labels: remove TRASH, add INBOX
+    await prisma.emailThread.update({
+      where: { id },
+      data: {
+        labels: [...thread.labels.filter((l: string) => l !== 'TRASH' && l !== 'INBOX'), 'INBOX'],
+      },
+    });
+
+    return { message: 'Thread restored to inbox.' };
+  });
+
+  /**
    * POST /threads/batch — Batch action on multiple threads.
    * Body: { threadIds: string[], action: 'archive' | 'trash' | 'read' | 'unread' | 'star' | 'unstar' }
    */

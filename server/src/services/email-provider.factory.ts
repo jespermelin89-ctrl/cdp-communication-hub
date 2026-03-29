@@ -140,6 +140,22 @@ export class EmailProviderFactory {
   }
 
   /**
+   * Restore a thread from Trash back to Inbox.
+   */
+  async restoreThread(accountId: string, gmailThreadId: string): Promise<void> {
+    const provider = await this.getProvider(accountId);
+    switch (provider) {
+      case 'gmail':
+        return gmailService.restoreThread(accountId, gmailThreadId);
+      case 'imap':
+        // IMAP has no server-side trash — just update local label cache
+        return;
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
+    }
+  }
+
+  /**
    * Get the last message ID from a thread (for reply headers).
    */
   async getLastMessageId(accountId: string, threadId: string): Promise<string | null> {

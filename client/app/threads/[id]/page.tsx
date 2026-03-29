@@ -201,6 +201,16 @@ export default function ThreadDetailPage() {
     }
   }
 
+  async function handleRestore() {
+    try {
+      await api.restoreThread(threadId);
+      toast.success(t.thread.restoreSuccess);
+      await mutateThread();
+    } catch {
+      toast.error('Kunde inte återställa tråden');
+    }
+  }
+
   async function handleDownloadAttachment(msg: any, att: any) {
     const key = `${msg.id}:${att.attachmentId}`;
     setDownloadingId(key);
@@ -379,6 +389,16 @@ export default function ThreadDetailPage() {
           <div className="mb-5 flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-sm text-red-700 dark:text-red-300">
             <span className="flex-1">{error}</span>
             <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 shrink-0">✕</button>
+          </div>
+        )}
+
+        {/* Trash banner */}
+        {thread.labels?.includes('TRASH') && (
+          <div className="mb-4 flex items-center justify-between px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+            <span className="text-sm text-amber-700 dark:text-amber-300">{t.thread.inTrash}</span>
+            <button onClick={handleRestore} className="text-sm font-medium text-amber-700 dark:text-amber-300 hover:underline ml-4 shrink-0">
+              {t.thread.restore}
+            </button>
           </div>
         )}
 

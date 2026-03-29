@@ -384,6 +384,18 @@ export class GmailService {
   }
 
   /**
+   * Restore a Gmail thread from Trash (add INBOX, remove TRASH).
+   */
+  async restoreThread(accountId: string, gmailThreadId: string): Promise<void> {
+    const gmail = await this.getClient(accountId);
+    await gmail.users.threads.modify({
+      userId: 'me',
+      id: gmailThreadId,
+      requestBody: { addLabelIds: ['INBOX'], removeLabelIds: ['TRASH'] },
+    });
+  }
+
+  /**
    * Move a Gmail thread to Trash.
    * SAFETY: Uses threads.trash — reversible within 30 days.
    * NEVER calls threads.delete (permanent — forbidden).

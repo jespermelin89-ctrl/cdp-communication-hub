@@ -170,6 +170,10 @@ export async function threadRoutes(fastify: FastifyInstance) {
         analyses: undefined,
       })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      total,
+      page,
+      pageSize: limit,
+      hasMore: page * limit < total,
       mailbox: mailbox ?? 'inbox',
     };
   });

@@ -292,7 +292,7 @@ class ApiClient {
     if (params?.limit) query.limit = String(params.limit);
     if (params?.search) query.search = params.search;
     if (params?.mailbox) query.mailbox = params.mailbox;
-    return this.requestWithRetry<{ threads: any[]; pagination: any; mailbox?: string }>('GET', '/threads', undefined, query);
+    return this.requestWithRetry<{ threads: any[]; pagination: any; total?: number; page?: number; pageSize?: number; hasMore?: boolean; mailbox?: string }>('GET', '/threads', undefined, query);
   }
 
   async getThread(id: string) {

@@ -38,5 +38,7 @@ export function sanitizeHtml(html: string): string {
   clean = clean.replace(/<\/?(?:iframe|object|embed|form|input|button|select|textarea)\b[^>]*>/gi, '');
   // Open all links in new tab for safety
   clean = clean.replace(/<a\s/gi, '<a target="_blank" rel="noopener noreferrer" ');
+  // Add lazy loading to images
+  clean = clean.replace(/<img /gi, '<img loading="lazy" ');
   return clean;
 }

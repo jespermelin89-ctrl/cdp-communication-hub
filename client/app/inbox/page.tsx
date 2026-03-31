@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import ThreadSkeleton from '@/components/ThreadSkeleton';
@@ -96,7 +96,7 @@ export default function InboxPage() {
   const [labelFilter, setLabelFilter] = useState('');
   const [starringIds, setStarringIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
-  const [displayLimit, setDisplayLimit] = useState(20);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const { t } = useI18n();
   const { setSelectedThreadIds } = useChatContext();
   const { notifyNewHighPriority } = useNotifications();
@@ -109,22 +109,53 @@ export default function InboxPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Reset pagination when search/filter changes
-  useEffect(() => {
-    setDisplayLimit(20);
-  }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey, starredOnly, labelFilter, showSnoozed, mailboxView]);
-
-  // SWR — threads revalidate automatically when filters change
-  const { data: threadData, isLoading: loading, error: threadError, mutate: mutateThreads } = useSWR(
-    ['threads', selectedAccountId, debouncedSearch, mailboxView],
-    () => api.getThreads({
-      account_id: selectedAccountId || undefined,
-      search: debouncedSearch || undefined,
-      mailbox: mailboxView,
-    }),
-    { refreshInterval: 60000, revalidateOnFocus: true }
+  // useSWRInfinite — server-side pagination
+  const getKey = useCallback(
+    (pageIndex: number, previousPageData: any) => {
+      if (previousPageData && !previousPageData.hasMore) return null;
+      return [
+        'threads-infinite',
+        selectedAccountId,
+        debouncedSearch,
+        mailboxView,
+        pageIndex + 1,
+      ];
+    },
+    [selectedAccountId, debouncedSearch, mailboxView]
   );
-  const threads: EmailThread[] = threadData?.threads ?? [];
+
+  const { data: pages, size, setSize, isLoading: loading, error: threadError, mutate: mutateThreads } = useSWRInfinite(
+    getKey,
+    ([, accountId, search, mailbox, page]) =>
+      api.getThreads({
+        account_id: (accountId as string) || undefined,
+        search: (search as string) || undefined,
+        mailbox: mailbox as string,
+        page: page as number,
+        limit: 20,
+      }),
+    { refreshInterval: 60000, revalidateOnFocus: true, revalidateFirstPage: false }
+  );
+
+  const threads: EmailThread[] = pages ? pages.flatMap((p) => p.threads ?? []) : [];
+  const hasMore = pages?.[pages.length - 1]?.hasMore ?? false;
+  const isLoadingMore = size > (pages?.length ?? 0);
+
+  // IntersectionObserver — load next page when sentinel enters view
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading && !isLoadingMore) {
+          setSize((s) => s + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, isLoadingMore, setSize]);
 
   useEffect(() => {
     loadAccounts();
@@ -136,8 +167,9 @@ export default function InboxPage() {
   }, [selectedIds]);
 
   useEffect(() => {
-    if (threadData?.threads) notifyNewHighPriority(threadData.threads);
-  }, [threadData]);
+    if (threads.length > 0) notifyNewHighPriority(threads);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages]);
 
   async function loadAccounts() {
     try {
@@ -337,7 +369,7 @@ export default function InboxPage() {
       return showSnoozed ? isSnoozed : !isSnoozed;
     });
 
-  const visibleThreads = filteredThreads.slice(0, displayLimit);
+  const visibleThreads = filteredThreads;
 
   const availableClassifications = Array.from(
     new Set(threads.map((th) => th.latestAnalysis?.classification).filter(Boolean))
@@ -966,14 +998,12 @@ export default function InboxPage() {
               })}
             </div>
 
-            {/* Load more */}
-            {filteredThreads.length > displayLimit && (
-              <button
-                onClick={() => setDisplayLimit((prev) => prev + 20)}
-                className="w-full py-3 text-sm text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-xl transition-colors mt-2"
-              >
-                Visa fler ({filteredThreads.length - displayLimit} kvar)
-              </button>
+            {/* Infinite scroll sentinel */}
+            <div ref={sentinelRef} className="h-4" />
+            {isLoadingMore && (
+              <div className="flex justify-center py-3">
+                <div className="w-5 h-5 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
+              </div>
             )}
           </>
         )}

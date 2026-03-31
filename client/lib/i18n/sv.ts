@@ -181,6 +181,7 @@ const sv = {
     amandaSuggests: 'Amanda föreslår',
     useAsDraft: 'Använd som utkast',
     dismissSuggestion: 'Ignorera',
+    expandAll: 'Expandera alla',
   },
 
   // Draft detail

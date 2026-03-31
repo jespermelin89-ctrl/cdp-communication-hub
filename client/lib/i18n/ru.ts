@@ -200,6 +200,7 @@ const ru: Translations = {
     amandaSuggests: 'Amanda предлагает',
     useAsDraft: 'Использовать как черновик',
     dismissSuggestion: 'Игнорировать',
+    expandAll: 'Развернуть все',
   },
 
   draftDetail: {

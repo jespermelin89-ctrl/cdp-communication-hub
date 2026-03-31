@@ -42,3 +42,14 @@ export function sanitizeHtml(html: string): string {
   clean = clean.replace(/<img /gi, '<img loading="lazy" ');
   return clean;
 }
+
+/**
+ * Wrap <blockquote> elements in a collapsible <details> element.
+ * Call AFTER sanitizeHtml.
+ */
+export function wrapQuotedContent(html: string): string {
+  return html.replace(
+    /(<blockquote[^>]*>)([\s\S]*?)(<\/blockquote>)/gi,
+    '$1<details class="quoted-text"><summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-600 dark:hover:text-gray-400 py-1 select-none">··· Visa citat</summary><div class="border-l-2 border-gray-200 dark:border-gray-700 pl-3 mt-1 opacity-70">$2</div></details>$3'
+  );
+}

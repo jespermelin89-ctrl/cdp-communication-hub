@@ -7,7 +7,7 @@ import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
 import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock } from 'lucide-react';
-import { sanitizeHtml, replaceCidImages } from '@/lib/sanitize-html';
+import { sanitizeHtml, replaceCidImages, wrapQuotedContent } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -75,6 +75,7 @@ export default function ThreadDetailPage() {
   const thread = threadData?.thread ?? null;
 
   const [suggestedDismissed, setSuggestedDismissed] = useState(false);
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [analyzing, setAnalyzing] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [snoozing, setSnoozing] = useState(false);
@@ -142,6 +143,29 @@ export default function ThreadDetailPage() {
     setThreadLabels(custom);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thread?.id]);
+
+  // Auto-expand first + last messages when thread has > 3 messages
+  useEffect(() => {
+    if (!thread?.messages || thread.messages.length <= 3) return;
+    const ids = new Set<string>();
+    ids.add(thread.messages[0].id);
+    ids.add(thread.messages[thread.messages.length - 1].id);
+    setExpandedMessages(ids);
+  }, [thread?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggleExpand(msgId: string) {
+    setExpandedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) next.delete(msgId);
+      else next.add(msgId);
+      return next;
+    });
+  }
+
+  function expandAll() {
+    if (!thread?.messages) return;
+    setExpandedMessages(new Set(thread.messages.map((m: any) => m.id)));
+  }
 
   async function loadContactForThread(thread: any) {
     try {
@@ -724,64 +748,117 @@ export default function ThreadDetailPage() {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Messages — 2/3 */}
           <div className="lg:col-span-2 space-y-4">
-            {thread.messages && thread.messages.length > 0 ? (
-              thread.messages.map((msg: any) => (
-                <div key={msg.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-                  <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700">
-                    <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.fromAddress)}`}>
-                      {initials(msg.fromAddress)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{msg.fromAddress}</div>
-                      <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                        {t.common.to}: {msg.toAddresses.slice(0, 2).join(', ')}
-                        {msg.toAddresses.length > 2 && ` +${msg.toAddresses.length - 2}`}
-                        {msg.ccAddresses.length > 0 && ` · Cc: ${msg.ccAddresses[0]}`}
-                      </div>
-                    </div>
-                    <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                      {new Date(msg.receivedAt).toLocaleString()}
-                    </span>
-                  </div>
-                  {msg.bodyHtml ? (
-                    <div
-                      className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed overflow-auto max-h-[600px] [&_a]:text-brand-600 [&_a]:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_strong]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_img]:max-w-full"
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(replaceCidImages(msg.bodyHtml, threadId, msg.gmailMessageId ?? msg.id)) }}
-                    />
-                  ) : (
-                    <div className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
-                      {msg.bodyText || '(No text content)'}
-                    </div>
-                  )}
-                  {/* Attachment pills */}
-                  {msg.attachments && msg.attachments.length > 0 && (
-                    <div className="px-5 pb-4 flex flex-wrap gap-2 border-t border-gray-100 dark:border-gray-700 pt-3">
-                      {msg.attachments.map((att: any, i: number) => {
-                        const key = `${msg.id}:${att.attachmentId}`;
-                        const isDownloading = downloadingId === key;
-                        return (
-                        <button
-                          key={i}
-                          onClick={() => handleDownloadAttachment(msg, att)}
-                          disabled={isDownloading}
-                          title={`Ladda ner ${att.filename}`}
-                          className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-600 dark:text-gray-300 hover:border-brand-300 dark:hover:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors disabled:opacity-60"
-                        >
-                          {isDownloading
-                            ? <span className="w-3 h-3 border border-gray-400 border-t-brand-500 rounded-full animate-spin shrink-0" />
-                            : <Paperclip size={12} className="text-gray-400 shrink-0" />}
-                          <span className="truncate max-w-[200px]">{att.filename || 'Bilaga'}</span>
-                          {att.size > 0 && (
-                            <span className="text-gray-400 shrink-0">{formatFileSize(att.size)}</span>
-                          )}
-                          <Download size={11} className="text-gray-400 shrink-0 ml-0.5" />
-                        </button>
-                        );
-                      })}
-                    </div>
-                  )}
+            {/* Thread AI summary — shown when > 5 messages and analysis exists */}
+            {thread.messages && thread.messages.length > 5 && analysis?.summary && (
+              <div className="p-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-xl">
+                <div className="flex items-center gap-2 mb-1">
+                  <Bot size={14} className="text-violet-500" />
+                  <span className="text-xs font-medium text-violet-600 dark:text-violet-400">{t.thread.summary}</span>
                 </div>
-              ))
+                <p className="text-sm text-gray-700 dark:text-gray-300">{analysis.summary}</p>
+              </div>
+            )}
+
+            {thread.messages && thread.messages.length > 0 ? (
+              <>
+                {/* Expand all — only shown when collapsed mode is active */}
+                {thread.messages.length > 3 && (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={expandAll}
+                      className="text-xs text-gray-400 dark:text-gray-500 hover:text-brand-600 dark:hover:text-brand-400 flex items-center gap-1 transition-colors"
+                    >
+                      <ChevronDown size={13} />
+                      {t.thread.expandAll}
+                    </button>
+                  </div>
+                )}
+                {thread.messages.map((msg: any) => {
+                  const shouldCollapse = thread.messages.length > 3;
+                  const isExpanded = !shouldCollapse || expandedMessages.has(msg.id);
+
+                  if (!isExpanded) {
+                    return (
+                      <div
+                        key={msg.id}
+                        onClick={() => toggleExpand(msg.id)}
+                        className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                      >
+                        <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.fromAddress)}`}>
+                          {initials(msg.fromAddress)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{msg.fromAddress}</span>
+                          <span className="text-xs text-gray-400 ml-2">{new Date(msg.receivedAt).toLocaleString()}</span>
+                        </div>
+                        <ChevronDown size={16} className="text-gray-400 shrink-0" />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div key={msg.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+                      <div
+                        className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                        onClick={() => shouldCollapse && toggleExpand(msg.id)}
+                      >
+                        <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.fromAddress)}`}>
+                          {initials(msg.fromAddress)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{msg.fromAddress}</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
+                            {t.common.to}: {msg.toAddresses.slice(0, 2).join(', ')}
+                            {msg.toAddresses.length > 2 && ` +${msg.toAddresses.length - 2}`}
+                            {msg.ccAddresses.length > 0 && ` · Cc: ${msg.ccAddresses[0]}`}
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                          {new Date(msg.receivedAt).toLocaleString()}
+                        </span>
+                        {shouldCollapse && <ChevronDown size={16} className="text-gray-400 shrink-0 rotate-180" />}
+                      </div>
+                      {msg.bodyHtml ? (
+                        <div
+                          className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed overflow-auto max-h-[600px] [&_a]:text-brand-600 [&_a]:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_strong]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_img]:max-w-full"
+                          dangerouslySetInnerHTML={{ __html: wrapQuotedContent(sanitizeHtml(replaceCidImages(msg.bodyHtml, threadId, msg.gmailMessageId ?? msg.id))) }}
+                        />
+                      ) : (
+                        <div className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                          {msg.bodyText || '(No text content)'}
+                        </div>
+                      )}
+                      {/* Attachment pills */}
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div className="px-5 pb-4 flex flex-wrap gap-2 border-t border-gray-100 dark:border-gray-700 pt-3">
+                          {msg.attachments.map((att: any, i: number) => {
+                            const key = `${msg.id}:${att.attachmentId}`;
+                            const isDownloading = downloadingId === key;
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => handleDownloadAttachment(msg, att)}
+                                disabled={isDownloading}
+                                title={`Ladda ner ${att.filename}`}
+                                className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-600 dark:text-gray-300 hover:border-brand-300 dark:hover:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors disabled:opacity-60"
+                              >
+                                {isDownloading
+                                  ? <span className="w-3 h-3 border border-gray-400 border-t-brand-500 rounded-full animate-spin shrink-0" />
+                                  : <Paperclip size={12} className="text-gray-400 shrink-0" />}
+                                <span className="truncate max-w-[200px]">{att.filename || 'Bilaga'}</span>
+                                {att.size > 0 && (
+                                  <span className="text-gray-400 shrink-0">{formatFileSize(att.size)}</span>
+                                )}
+                                <Download size={11} className="text-gray-400 shrink-0 ml-0.5" />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
             ) : (
               <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm text-center py-12">
                 <div className="flex justify-center mb-2 text-gray-300 dark:text-gray-600"><MailOpen size={36} /></div>

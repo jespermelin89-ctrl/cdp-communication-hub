@@ -200,6 +200,7 @@ const es: Translations = {
     amandaSuggests: 'Amanda sugiere',
     useAsDraft: 'Usar como borrador',
     dismissSuggestion: 'Ignorar',
+    expandAll: 'Expandir todo',
   },
 
   draftDetail: {

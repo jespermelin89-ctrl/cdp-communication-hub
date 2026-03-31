@@ -12,6 +12,38 @@ AI        Groq (default) → Anthropic → OpenAI (fallback chain)
 Auth      Google OAuth 2.0 + JWT + AES-256-GCM token encryption
 ```
 
+## Features
+
+- **Mailbox views** — Inbox, Sent, Archive, Trash, Snoozed tabs
+- **Scheduled send** — Schedule approved drafts for future delivery (1h, 3h, tomorrow, Monday, custom)
+- **Snooze threads** — Hide until a chosen time, then resurface with push notification
+- **Contact management** — Auto-learned contact profiles with relationship tagging and recent threads
+- **Infinite scroll** — IntersectionObserver-based pagination, no "Load more" button
+- **Amanda morning briefing** — AI-generated daily briefing at 07:00 with priority summary
+- **Smart reply suggestions** — AI proposes a reply for high-priority unread threads with questions
+- **Priority learning** — Tracks opens, archives, and replies to improve future classifications
+- **Dark mode** — Full dark mode via Tailwind `dark:` classes + system/light/dark toggle
+- **PWA** — Installable on iOS/Android, offline-capable service worker
+- **Keyboard shortcuts** — `j`/`k` navigate threads, `u`/`Esc` back to inbox, `Cmd+K` opens chat
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `j` | Next thread |
+| `k` | Previous thread |
+| `u` / `Esc` | Back to inbox |
+| `Cmd+K` | Open AI chat widget |
+
+## Amanda's Capabilities
+
+Amanda is an AI overlay — she suggests, never acts:
+- Morning briefing at 07:00 (DailySummary)
+- Smart reply suggestions for high-priority unread threads
+- Auto-triage: rule engine → AI classification on sync
+- Contact auto-learn from frequent senders
+- Priority learning from user open/archive/reply patterns
+
 ## Architecture
 
 ```
@@ -19,18 +51,21 @@ Gmail API
     ↑
 Backend (Fastify :3001)
     ├── Auth       Google OAuth, JWT sessions
-    ├── Accounts   Multi-account Gmail sync
-    ├── Threads    Read, classify, analyze
-    ├── Drafts     Generate → Review → Approve (DB-enforced gate)
-    ├── AI         Groq / Anthropic / OpenAI broker
+    ├── Accounts   Multi-account Gmail sync + manual sync trigger
+    ├── Threads    Read, classify, analyze, mailbox filters
+    ├── Drafts     Generate → Review → Approve → (Schedule) → Gmail Send
+    ├── AI         Groq / Anthropic / OpenAI broker with blacklist
     ├── Brain Core Writing modes, voice attributes, classification rules, learning
-    └── Chat       Command widget with 6 actions
+    ├── Scheduler  Sync (5m), AI classify (10m), snooze wake (1m), scheduled send (1m), briefing (07:00)
+    └── Chat       Command widget (analyze, summarize, draft, search, schedule, brief)
          ↑
 Frontend (Next.js :3000)
     ├── Dashboard  Stats, activity feed, AI summary
-    ├── Inbox      Threads with AI badges, bulk actions
-    ├── Drafts     Review and approve queue
-    └── Settings   Accounts, Brain Core, language
+    ├── Inbox      Mailbox tabs, infinite scroll, bulk actions, snooze
+    ├── Threads    Full thread view, Amanda suggestion banner, quick reply
+    ├── Drafts     Review/approve queue, scheduled send split-button
+    ├── Contacts   Auto-learned profiles, relationship tags, recent threads
+    └── Settings   Accounts, Brain Core, language, dark mode
 ```
 
 ## Local Setup
@@ -93,6 +128,8 @@ npm run dev
 | `cd server && npm run seed:brain-core` | Seed Brain Core defaults |
 | `cd server && npm run generate-vapid` | Generate VAPID keys for push notifications |
 | `npx tsx scripts/deploy-check.ts` | Pre-deployment checklist |
+| `cd client && npm run e2e` | Run Playwright E2E tests |
+| `cd client && npm run e2e:ui` | Run Playwright E2E tests with UI |
 
 ## Safety Rules
 

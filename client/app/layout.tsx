@@ -14,7 +14,7 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
   title: 'CDP Communication Hub',
-  description: 'AI-powered email communication hub with draft approval workflow',
+  description: 'CDP Communication Hub — AI-driven mail client',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'CDP Communication Hub',
-    description: 'AI-powered email communication hub with draft approval workflow',
+    description: 'CDP Communication Hub — AI-driven mail client',
     type: 'website',
     siteName: 'CDP Hub',
     images: [{ url: '/icons/icon-192.svg', width: 192, height: 192 }],
@@ -35,13 +35,13 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary',
     title: 'CDP Communication Hub',
-    description: 'AI-powered email communication hub with draft approval workflow',
+    description: 'CDP Communication Hub — AI-driven mail client',
     images: ['/icons/icon-192.svg'],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#6366F1',
+  themeColor: '#1A73E8',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,

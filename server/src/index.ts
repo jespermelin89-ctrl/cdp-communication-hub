@@ -16,6 +16,7 @@ import { connectDatabase, disconnectDatabase, prisma } from './config/database';
 import { errorHandler } from './middleware/error.middleware';
 import { startSyncScheduler, stopSyncScheduler } from './services/sync-scheduler.service';
 import { autoSeedBrainCore } from './utils/auto-seed';
+import { validateEnv } from './utils/env-check';
 
 // Routes
 import { authRoutes } from './routes/auth';
@@ -35,6 +36,9 @@ import { pushRoutes } from './routes/push';
 import { docsRoutes } from './routes/docs';
 
 async function main() {
+  // Validate environment before starting
+  validateEnv();
+
   const fastify = Fastify({
     logger: env.NODE_ENV === 'development'
       ? {

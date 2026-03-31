@@ -201,6 +201,12 @@ const ru: Translations = {
     useAsDraft: 'Использовать как черновик',
     dismissSuggestion: 'Игнорировать',
     expandAll: 'Развернуть все',
+    reportSpam: 'Отметить как спам',
+    blockSender: 'Заблокировать отправителя',
+    unsubscribe: 'Отписаться',
+    spamSuccess: 'Отмечено как спам',
+    blockSuccess: 'Отправитель заблокирован',
+    moreActions: 'Ещё действия',
   },
 
   draftDetail: {

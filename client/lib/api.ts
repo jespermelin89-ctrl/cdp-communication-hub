@@ -589,6 +589,17 @@ class ApiClient {
   async unsnoozeThread(id: string) {
     return this.request<{ message: string }>('DELETE', `/threads/${id}/snooze`);
   }
+
+  async reportSpam(threadId: string) {
+    return this.request<{ message: string }>('POST', `/threads/${threadId}/spam`);
+  }
+
+  async blockSender(senderPattern: string) {
+    return this.request<{ rule: any }>('POST', '/brain-core/sender-rules', {
+      senderPattern,
+      action: 'spam',
+    });
+  }
 }
 
 export const api = new ApiClient();

@@ -201,6 +201,12 @@ const en: Translations = {
     useAsDraft: 'Use as draft',
     dismissSuggestion: 'Dismiss',
     expandAll: 'Expand all',
+    reportSpam: 'Report as spam',
+    blockSender: 'Block sender',
+    unsubscribe: 'Unsubscribe',
+    spamSuccess: 'Marked as spam',
+    blockSuccess: 'Sender blocked',
+    moreActions: 'More actions',
   },
 
   draftDetail: {

@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock, MoreVertical, ShieldBan, BellOff } from 'lucide-react';
 import { sanitizeHtml, replaceCidImages, wrapQuotedContent } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -472,6 +472,40 @@ export default function ThreadDetailPage() {
     }
   }
 
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [reportingSpam, setReportingSpam] = useState(false);
+  const [blockingSpam, setBlockingSpam] = useState(false);
+
+  async function handleReportSpam() {
+    setMoreOpen(false);
+    setReportingSpam(true);
+    try {
+      await api.reportSpam(threadId);
+      toast.success(t.thread.spamSuccess);
+      router.push('/inbox');
+    } catch {
+      toast.error('Kunde inte rapportera spam');
+    } finally {
+      setReportingSpam(false);
+    }
+  }
+
+  async function handleBlockSender() {
+    if (!thread) return;
+    setMoreOpen(false);
+    const fromAddr = (thread.messages as any[])?.[0]?.fromAddress ?? (thread as any).participantEmails?.[0];
+    if (!fromAddr) return;
+    setBlockingSpam(true);
+    try {
+      await api.blockSender(fromAddr);
+      toast.success(t.thread.blockSuccess);
+    } catch {
+      toast.error('Kunde inte blockera avsändare');
+    } finally {
+      setBlockingSpam(false);
+    }
+  }
+
   // Close snooze dropdown on outside click
   useEffect(() => {
     if (!snoozeOpen) return;
@@ -482,6 +516,17 @@ export default function ThreadDetailPage() {
     document.addEventListener('click', close);
     return () => document.removeEventListener('click', close);
   }, [snoozeOpen]);
+
+  // Close more-actions dropdown on outside click
+  useEffect(() => {
+    if (!moreOpen) return;
+    function close(e: MouseEvent) {
+      const target = e.target as Element;
+      if (!target.closest('[data-more-dropdown]')) setMoreOpen(false);
+    }
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [moreOpen]);
 
   // j/k/u keyboard navigation
   useEffect(() => {
@@ -742,6 +787,47 @@ export default function ThreadDetailPage() {
               <Trash2 size={14} />
               Radera
             </button>
+            {/* More actions dropdown */}
+            <div className="relative" data-more-dropdown>
+              <button
+                onClick={() => setMoreOpen((s) => !s)}
+                disabled={reportingSpam || blockingSpam}
+                title={t.thread.moreActions}
+                className="btn-secondary text-sm flex items-center gap-1.5 px-2"
+              >
+                <MoreVertical size={14} />
+              </button>
+              {moreOpen && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden min-w-[200px]">
+                  <button
+                    onClick={handleReportSpam}
+                    className="w-full text-left text-sm px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2 transition-colors"
+                  >
+                    <ShieldBan size={14} />
+                    {t.thread.reportSpam}
+                  </button>
+                  <button
+                    onClick={handleBlockSender}
+                    className="w-full text-left text-sm px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2 transition-colors"
+                  >
+                    <BellOff size={14} />
+                    {t.thread.blockSender}
+                  </button>
+                  {(thread as any).unsubscribeUrl && (
+                    <a
+                      href={(thread as any).unsubscribeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setMoreOpen(false)}
+                      className="w-full text-left text-sm px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2 transition-colors"
+                    >
+                      <MailX size={14} />
+                      {t.thread.unsubscribe}
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

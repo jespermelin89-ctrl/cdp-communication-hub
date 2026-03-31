@@ -153,4 +153,44 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
     const stats = await brainCoreService.getLearningStats(request.userId);
     return { stats };
   });
+
+  // POST /brain-core/sender-rules — create or update a sender rule
+  fastify.post('/brain-core/sender-rules', async (request, reply) => {
+    const { senderPattern, action, subjectPattern, categoryId, priority } = request.body as {
+      senderPattern: string;
+      action: 'spam' | 'archive' | 'categorize' | 'mute' | 'star';
+      subjectPattern?: string;
+      categoryId?: string;
+      priority?: string;
+    };
+
+    if (!senderPattern || !action) {
+      return reply.code(400).send({ error: 'senderPattern and action are required' });
+    }
+
+    const { prisma } = await import('../config/database');
+    const existing = await prisma.senderRule.findFirst({
+      where: { userId: request.userId, senderPattern },
+    });
+
+    const data = {
+      action,
+      subjectPattern: subjectPattern ?? null,
+      categoryId: categoryId ?? null,
+      priority: priority ?? null,
+      confidence: 1.0,
+      isActive: true,
+    };
+
+    let rule;
+    if (existing) {
+      rule = await prisma.senderRule.update({ where: { id: existing.id }, data });
+    } else {
+      rule = await prisma.senderRule.create({
+        data: { userId: request.userId, senderPattern, ...data },
+      });
+    }
+
+    return { rule };
+  });
 }

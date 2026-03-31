@@ -225,6 +225,10 @@ export class GmailService {
       const bodyText = extractBody(msg.payload, 'text/plain');
       const bodyHtml = extractBody(msg.payload, 'text/html');
 
+      // Extract List-Unsubscribe header (RFC 2369)
+      const unsubscribeHeader = getHeader(headers, 'List-Unsubscribe');
+      const unsubscribeUrl = unsubscribeHeader?.match(/<(https?:\/\/[^>]+)>/)?.[1] ?? null;
+
       // Extract attachment metadata (IDs only — never fetch content)
       const allParts: any[] = [];
       function collectParts(part: any) {
@@ -259,6 +263,7 @@ export class GmailService {
           bodyText,
           bodyHtml,
           attachments,
+          unsubscribeUrl,
           receivedAt,
         },
         create: {
@@ -271,6 +276,7 @@ export class GmailService {
           bodyText,
           bodyHtml,
           attachments,
+          unsubscribeUrl,
           receivedAt,
         },
       });
@@ -352,6 +358,23 @@ export class GmailService {
    * Archive a Gmail thread (remove INBOX label).
    * SAFETY: Does NOT delete. Thread remains in All Mail.
    */
+  /**
+   * Modify Gmail thread labels — generic helper used by spam, archive, etc.
+   */
+  async modifyLabels(
+    accountId: string,
+    gmailThreadId: string,
+    addLabelIds: string[],
+    removeLabelIds: string[]
+  ): Promise<void> {
+    const gmail = await this.getClient(accountId);
+    await gmail.users.threads.modify({
+      userId: 'me',
+      id: gmailThreadId,
+      requestBody: { addLabelIds, removeLabelIds },
+    });
+  }
+
   async archiveThread(accountId: string, gmailThreadId: string): Promise<void> {
     const gmail = await this.getClient(accountId);
     await gmail.users.threads.modify({

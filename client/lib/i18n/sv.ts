@@ -182,6 +182,12 @@ const sv = {
     useAsDraft: 'Använd som utkast',
     dismissSuggestion: 'Ignorera',
     expandAll: 'Expandera alla',
+    reportSpam: 'Rapportera som skräp',
+    blockSender: 'Blockera avsändare',
+    unsubscribe: 'Avregistrera',
+    spamSuccess: 'Markerat som skräppost',
+    blockSuccess: 'Avsändare blockerad',
+    moreActions: 'Fler åtgärder',
   },
 
   // Draft detail

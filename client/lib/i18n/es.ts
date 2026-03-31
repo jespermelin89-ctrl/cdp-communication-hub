@@ -201,6 +201,12 @@ const es: Translations = {
     useAsDraft: 'Usar como borrador',
     dismissSuggestion: 'Ignorar',
     expandAll: 'Expandir todo',
+    reportSpam: 'Reportar como spam',
+    blockSender: 'Bloquear remitente',
+    unsubscribe: 'Cancelar suscripción',
+    spamSuccess: 'Marcado como spam',
+    blockSuccess: 'Remitente bloqueado',
+    moreActions: 'Más acciones',
   },
 
   draftDetail: {

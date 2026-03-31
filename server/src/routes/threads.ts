@@ -249,13 +249,83 @@ export async function threadRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Expose unsubscribeUrl from the most recent message that has one
+    const unsubscribeUrl =
+      [...thread.messages].reverse().find((m) => (m as any).unsubscribeUrl)?.unsubscribeUrl ?? null;
+
     return {
       thread: {
         ...thread,
         latestAnalysis,
         suggestedReply,
+        unsubscribeUrl,
       },
     };
+  });
+
+  /**
+   * POST /threads/:id/spam — Report sender as spam, move to trash, create sender rule.
+   * SAFETY: Only trashes (reversible). Never permanently deletes.
+   */
+  fastify.post('/threads/:id/spam', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const thread = await prisma.emailThread.findFirst({
+      where: { id, account: { userId: request.userId } },
+      include: {
+        account: { select: { id: true, provider: true } },
+        messages: { orderBy: { receivedAt: 'asc' }, take: 1, select: { fromAddress: true } },
+      },
+    });
+    if (!thread) return reply.code(404).send({ error: 'Thread not found' });
+
+    // Move to trash (reversible)
+    if (thread.account.provider === 'gmail') {
+      try {
+        await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
+      } catch {
+        // Non-fatal — still update DB
+      }
+    }
+    await prisma.emailThread.update({
+      where: { id },
+      data: { labels: [...thread.labels.filter((l) => l !== 'INBOX'), 'TRASH', 'SPAM'] },
+    });
+
+    // Auto-create a sender rule for the from address
+    const fromAddress = thread.messages[0]?.fromAddress ?? thread.participantEmails[0];
+    if (fromAddress) {
+      const existing = await prisma.senderRule.findFirst({
+        where: { userId: request.userId, senderPattern: fromAddress },
+      });
+      if (existing) {
+        await prisma.senderRule.update({
+          where: { id: existing.id },
+          data: { action: 'spam', isActive: true, updatedAt: new Date() },
+        });
+      } else {
+        await prisma.senderRule.create({
+          data: {
+            userId: request.userId,
+            senderPattern: fromAddress,
+            action: 'spam',
+            confidence: 1.0,
+          },
+        });
+      }
+    }
+
+    await prisma.actionLog.create({
+      data: {
+        userId: request.userId,
+        actionType: 'spam_reported',
+        targetType: 'thread',
+        targetId: id,
+        metadata: { fromAddress },
+      },
+    });
+
+    return { message: 'Thread marked as spam and moved to trash.' };
   });
 
   /**

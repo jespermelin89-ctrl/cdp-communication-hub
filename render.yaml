@@ -39,6 +39,16 @@ services:
         sync: false
       - key: AI_PROVIDER
         value: groq
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: COMMAND_API_KEY
+        sync: false
+      - key: CSRF_SECRET
+        generateValue: true
     healthCheckPath: /health
     autoDeploy: true
 

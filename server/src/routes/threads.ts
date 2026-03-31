@@ -758,6 +758,56 @@ export async function threadRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * GET /threads/export?format=csv|json — Export all threads as CSV or JSON.
+   * SAFETY: Read-only. No modifications.
+   */
+  fastify.get('/threads/export', async (request, reply) => {
+    const { format = 'csv' } = request.query as { format?: string };
+
+    const threads = await prisma.emailThread.findMany({
+      where: { account: { userId: request.userId, isActive: true } },
+      include: {
+        analyses: { orderBy: { createdAt: 'desc' }, take: 1, select: { priority: true, classification: true } },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+      take: 5000,
+    });
+
+    if (format === 'json') {
+      return reply
+        .header('Content-Type', 'application/json')
+        .header('Content-Disposition', 'attachment; filename="cdp-hub-export.json"')
+        .send(JSON.stringify(threads, null, 2));
+    }
+
+    // CSV (default)
+    const header = 'ID,Subject,From,Date,Priority,Classification,Labels,Read,Archived,Trashed\n';
+    const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const rows = threads.map((t) => {
+      const analysis = (t.analyses as any[])[0] ?? null;
+      const isArchived = !t.labels.includes('INBOX') && !t.labels.includes('TRASH');
+      const isTrashed = t.labels.includes('TRASH');
+      return [
+        t.id,
+        escape(t.subject ?? ''),
+        escape(t.participantEmails[0] ?? ''),
+        t.lastMessageAt?.toISOString() ?? '',
+        analysis?.priority ?? '',
+        analysis?.classification ?? '',
+        escape(t.labels.join(', ')),
+        t.isRead ? 'yes' : 'no',
+        isArchived ? 'yes' : 'no',
+        isTrashed ? 'yes' : 'no',
+      ].join(',');
+    });
+
+    return reply
+      .header('Content-Type', 'text/csv')
+      .header('Content-Disposition', 'attachment; filename="cdp-hub-export.csv"')
+      .send(header + rows.join('\n'));
+  });
+
+  /**
    * GET /threads/:threadId/messages/:messageId/attachments/:attachmentId
    * Download attachment binary — authenticated, streams base64 as binary.
    */

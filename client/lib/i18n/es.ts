@@ -135,6 +135,11 @@ const es: Translations = {
     themeLight: 'Claro',
     themeDark: 'Oscuro',
     themeSystem: 'Sistema',
+    dataBackup: 'Datos y copia de seguridad',
+    exportMailCsv: 'Exportar correo (CSV)',
+    exportMailJson: 'Exportar correo (JSON)',
+    exportBrainCore: 'Exportar Brain Core',
+    exportHint: 'Descarga una copia de tus datos.',
   },
 
   activity: {

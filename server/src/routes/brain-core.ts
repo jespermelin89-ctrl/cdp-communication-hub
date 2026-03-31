@@ -154,6 +154,24 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
     return { stats };
   });
 
+  // GET /brain-core/export — Export all brain core data as JSON
+  fastify.get('/brain-core/export', async (request, reply) => {
+    const { prisma } = await import('../config/database');
+    const [writingModes, contacts, rules, learningEvents, voiceAttrs, senderRules] = await Promise.all([
+      prisma.writingMode.findMany({ where: { userId: request.userId } }),
+      prisma.contactProfile.findMany({ where: { userId: request.userId } }),
+      prisma.classificationRule.findMany({ where: { userId: request.userId } }),
+      prisma.learningEvent.findMany({ where: { userId: request.userId }, take: 500, orderBy: { createdAt: 'desc' } }),
+      prisma.voiceAttribute.findMany({ where: { userId: request.userId } }),
+      prisma.senderRule.findMany({ where: { userId: request.userId } }),
+    ]);
+
+    return reply
+      .header('Content-Type', 'application/json')
+      .header('Content-Disposition', 'attachment; filename="cdp-hub-brain-export.json"')
+      .send(JSON.stringify({ writingModes, contacts, rules, learningEvents, voiceAttrs, senderRules, exportedAt: new Date().toISOString() }, null, 2));
+  });
+
   // POST /brain-core/sender-rules — create or update a sender rule
   fastify.post('/brain-core/sender-rules', async (request, reply) => {
     const { senderPattern, action, subjectPattern, categoryId, priority } = request.body as {

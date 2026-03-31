@@ -135,6 +135,11 @@ const en: Translations = {
     themeLight: 'Light',
     themeDark: 'Dark',
     themeSystem: 'System',
+    dataBackup: 'Data & Backup',
+    exportMailCsv: 'Export mail (CSV)',
+    exportMailJson: 'Export mail (JSON)',
+    exportBrainCore: 'Export Brain Core',
+    exportHint: 'Download a copy of your data.',
   },
 
   activity: {

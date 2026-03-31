@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-31 22:26:18 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-31 22:28:54 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -92,6 +92,7 @@ Prefix: `/api/v1`
 | `POST    /brain-core/daily-summary` | `brain-core` |
 | `POST    /brain-core/learn` | `brain-core` |
 | `GET     /brain-core/learning-stats` | `brain-core` |
+| `GET     /brain-core/export` | `brain-core` |
 | `POST    /brain-core/sender-rules` | `brain-core` |
 | `GET     /brain-summary` | `brain-summary` |
 | `GET     /command-center` | `command-center` |
@@ -126,6 +127,7 @@ Prefix: `/api/v1`
 | `DELETE  /threads/:id/snooze` | `threads` |
 | `POST    /threads/batch` | `threads` |
 | `PATCH   /threads/:id` | `threads` |
+| `GET     /threads/export` | `threads` |
 
 ---
 

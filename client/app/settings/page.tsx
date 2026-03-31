@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Brain, Settings2, ChevronRight, Activity, Search, LogOut } from 'lucide-react';
+import { Brain, Settings2, ChevronRight, Activity, Search, LogOut, Download } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { api } from '@/lib/api';
@@ -369,6 +369,37 @@ export default function SettingsPage() {
                   </div>
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>
+              </div>
+            </div>
+
+            {/* Data & Backup */}
+            <div className="card space-y-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-1">{t.settings.dataBackup}</h2>
+                <p className="text-xs text-gray-400 dark:text-gray-500">{t.settings.exportHint}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => window.open('/api/v1/threads/export?format=csv', '_blank')}
+                  className="btn-secondary text-sm flex items-center gap-1.5"
+                >
+                  <Download size={14} />
+                  {t.settings.exportMailCsv}
+                </button>
+                <button
+                  onClick={() => window.open('/api/v1/threads/export?format=json', '_blank')}
+                  className="btn-secondary text-sm flex items-center gap-1.5"
+                >
+                  <Download size={14} />
+                  {t.settings.exportMailJson}
+                </button>
+                <button
+                  onClick={() => window.open('/api/v1/brain-core/export', '_blank')}
+                  className="btn-secondary text-sm flex items-center gap-1.5"
+                >
+                  <Brain size={14} />
+                  {t.settings.exportBrainCore}
+                </button>
               </div>
             </div>
 

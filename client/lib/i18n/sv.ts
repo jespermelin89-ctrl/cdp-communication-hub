@@ -138,6 +138,11 @@ const sv = {
     themeLight: 'Ljust',
     themeDark: 'Mörkt',
     themeSystem: 'System',
+    dataBackup: 'Data & Backup',
+    exportMailCsv: 'Exportera mail (CSV)',
+    exportMailJson: 'Exportera mail (JSON)',
+    exportBrainCore: 'Exportera Brain Core',
+    exportHint: 'Ladda ner en kopia av din data.',
   },
 
   // Thread detail

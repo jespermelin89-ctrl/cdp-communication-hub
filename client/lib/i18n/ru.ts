@@ -135,6 +135,11 @@ const ru: Translations = {
     themeLight: 'Светлая',
     themeDark: 'Тёмная',
     themeSystem: 'Системная',
+    dataBackup: 'Данные и резервное копирование',
+    exportMailCsv: 'Экспорт почты (CSV)',
+    exportMailJson: 'Экспорт почты (JSON)',
+    exportBrainCore: 'Экспорт Brain Core',
+    exportHint: 'Скачайте копию своих данных.',
   },
 
   activity: {

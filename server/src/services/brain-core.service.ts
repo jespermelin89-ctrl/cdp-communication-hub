@@ -29,9 +29,17 @@ export class BrainCoreService {
   /**
    * Get contact profiles for a user.
    */
-  async getContacts(userId: string, limit = 50) {
+  async getContacts(userId: string, limit = 100, search?: string) {
     return prisma.contactProfile.findMany({
-      where: { userId },
+      where: search
+        ? {
+            userId,
+            OR: [
+              { emailAddress: { contains: search, mode: 'insensitive' } },
+              { displayName: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : { userId },
       orderBy: { lastContactAt: 'desc' },
       take: limit,
     });

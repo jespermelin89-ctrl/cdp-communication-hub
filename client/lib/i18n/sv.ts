@@ -382,6 +382,37 @@ const sv = {
     syncStale: 'Synk dröjer — kontrollera anslutning',
   },
 
+  // Contacts
+  contacts: {
+    title: 'Kontakter',
+    search: 'Sök kontakter...',
+    loading: 'Laddar kontakter...',
+    noContacts: 'Inga kontakter ännu.',
+    emails: 'mail',
+    lastContact: 'Senast kontakt',
+    never: 'Aldrig',
+    sendMail: 'Skicka mail',
+    editContact: 'Redigera kontakt',
+    displayName: 'Visningsnamn',
+    relationship: 'Relation',
+    preferredMode: 'Föredraget läge',
+    language: 'Språk',
+    notes: 'Anteckningar',
+    save: 'Spara',
+    cancel: 'Avbryt',
+    recentThreads: 'Senaste konversationer',
+    noThreads: 'Inga konversationer ännu.',
+    relationships: {
+      unknown: 'Okänd',
+      colleague: 'Kollega',
+      partner: 'Partner',
+      client: 'Klient',
+      lead: 'Lead',
+      personal: 'Personlig',
+      vendor: 'Leverantör',
+    },
+  },
+
   // Languages
   languages: {
     sv: 'Svenska',

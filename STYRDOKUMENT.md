@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-31 21:19:12 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-31 21:23:02 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -83,6 +83,8 @@ Prefix: `/api/v1`
 | `GET     /brain-core/writing-profile` | `brain-core` |
 | `PATCH   /brain-core/writing-mode/:key` | `brain-core` |
 | `GET     /brain-core/contacts` | `brain-core` |
+| `PATCH   /brain-core/contacts/:id` | `brain-core` |
+| `GET     /brain-core/contacts/:id/threads` | `brain-core` |
 | `PATCH   /brain-core/contact/:email` | `brain-core` |
 | `GET     /brain-core/classification` | `brain-core` |
 | `GET     /brain-core/daily-summary` | `brain-core` |
@@ -185,6 +187,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `/auth/callback`
 - `/categories`
 - `/compose`
+- `/contacts`
 - `/drafts`
 - `/drafts/[id]`
 - `/inbox`

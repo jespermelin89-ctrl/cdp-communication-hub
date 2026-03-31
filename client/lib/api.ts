@@ -527,8 +527,17 @@ class ApiClient {
     return this.requestWithRetry<{ profile: { modes: any[]; attributes: any[] } }>('GET', '/brain-core/writing-profile');
   }
 
-  async getContacts() {
-    return this.requestWithRetry<{ contacts: any[] }>('GET', '/brain-core/contacts');
+  async getContacts(search?: string) {
+    const url = search ? `/brain-core/contacts?search=${encodeURIComponent(search)}` : '/brain-core/contacts';
+    return this.requestWithRetry<{ contacts: any[] }>('GET', url);
+  }
+
+  async updateContact(id: string, data: { displayName?: string; relationship?: string; preferredMode?: string; language?: string; notes?: string }) {
+    return this.request<{ contact: any }>('PATCH', `/brain-core/contacts/${id}`, data);
+  }
+
+  async getContactThreads(id: string) {
+    return this.request<{ threads: any[] }>('GET', `/brain-core/contacts/${id}/threads`);
   }
 
   async getClassificationRules() {

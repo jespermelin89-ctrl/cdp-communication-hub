@@ -38,13 +38,68 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // GET /brain-core/contacts
+  // GET /brain-core/contacts?search=query
   fastify.get('/brain-core/contacts', async (request) => {
-    const contacts = await brainCoreService.getContacts(request.userId);
+    const { search } = request.query as { search?: string };
+    const contacts = await brainCoreService.getContacts(request.userId, 100, search);
     return { contacts };
   });
 
-  // PATCH /brain-core/contact/:email
+  // PATCH /brain-core/contacts/:id — update contact by ID
+  fastify.patch('/brain-core/contacts/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as any;
+
+    try {
+      const { prisma } = await import('../config/database');
+      const existing = await prisma.contactProfile.findFirst({
+        where: { id, userId: request.userId },
+      });
+      if (!existing) return reply.code(404).send({ error: 'Contact not found' });
+
+      const allowed = ['displayName', 'relationship', 'preferredMode', 'language', 'notes'];
+      const updateData: Record<string, string> = {};
+      for (const key of allowed) {
+        if (body[key] !== undefined) updateData[key] = body[key];
+      }
+
+      const contact = await prisma.contactProfile.update({
+        where: { id },
+        data: updateData,
+      });
+      return { contact };
+    } catch (error: any) {
+      return reply.code(500).send({ error: error.message });
+    }
+  });
+
+  // GET /brain-core/contacts/:id/threads — recent 5 threads with this contact
+  fastify.get('/brain-core/contacts/:id/threads', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    try {
+      const { prisma } = await import('../config/database');
+      const contact = await prisma.contactProfile.findFirst({
+        where: { id, userId: request.userId },
+      });
+      if (!contact) return reply.code(404).send({ error: 'Contact not found' });
+
+      const threads = await prisma.emailThread.findMany({
+        where: {
+          account: { userId: request.userId },
+          participantEmails: { has: contact.emailAddress },
+        },
+        orderBy: { lastMessageAt: 'desc' },
+        take: 5,
+        select: { id: true, subject: true, lastMessageAt: true, messageCount: true, isRead: true },
+      });
+      return { threads };
+    } catch (error: any) {
+      return reply.code(500).send({ error: error.message });
+    }
+  });
+
+  // PATCH /brain-core/contact/:email (legacy — kept for backwards compat)
   fastify.patch('/brain-core/contact/:email', async (request) => {
     const { email } = request.params as { email: string };
     const body = request.body as any;

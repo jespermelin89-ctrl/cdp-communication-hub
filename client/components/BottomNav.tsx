@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Inbox, FileText, Bell, Settings, PenSquare } from 'lucide-react';
+import { Inbox, FileText, Bell, Settings, PenSquare, Users } from 'lucide-react';
 import useSWR from 'swr';
 import { api } from '@/lib/api';
 
@@ -122,11 +122,10 @@ export default function BottomNav() {
       {/* Empty slot — FAB sits here visually */}
       <div className="flex-1" aria-hidden />
       <NavItem
-        href="/notifications"
-        icon={<Bell size={20} />}
-        label="Notiser"
-        badge={unreadAlerts}
-        active={pathname === '/notifications'}
+        href="/contacts"
+        icon={<Users size={20} />}
+        label="Kontakter"
+        active={pathname === '/contacts' || pathname.startsWith('/contacts/')}
       />
       <NavItem
         href="/settings"

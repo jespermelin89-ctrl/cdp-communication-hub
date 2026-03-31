@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, BellOff, ChevronDown } from 'lucide-react';
+import { Bell, BellOff, ChevronDown, X } from 'lucide-react';
 import useSWR from 'swr';
 import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useNotifications } from '@/lib/use-notifications';
+import { useNotificationPermission } from '@/hooks/useNotificationPermission';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useTheme } from './ThemeProvider';
 import type { Account } from '@/lib/types';
@@ -24,13 +25,20 @@ function emailColor(email: string): string {
   return `hsl(${hue}, 60%, 50%)`;
 }
 
+const NOTIF_PERM_DISMISSED_KEY = 'cdp-notif-perm-dismissed';
+
 export default function TopBar({ pendingCount: pendingCountProp, userEmail }: TopBarProps) {
   const pathname = usePathname();
   const { t } = useI18n();
   const { theme, toggleTheme } = useTheme();
-  const { permission, requestPermission } = useNotifications();
+  const { permission: legacyPermission, requestPermission } = useNotifications();
+  const { permission, request: requestPushPermission } = useNotificationPermission();
   const [fetchedCount, setFetchedCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [bellOpen, setBellOpen] = useState(false);
+  const [recentLogs, setRecentLogs] = useState<any[]>([]);
+  const [permBannerVisible, setPermBannerVisible] = useState(false);
+  const bellRef = useRef<HTMLDivElement>(null);
 
   // Fetch accounts for active-account indicator
   const { data: accountsData } = useSWR(
@@ -41,7 +49,6 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
   const accounts: Account[] = (accountsData as any)?.accounts ?? [];
   const activeAccount = accounts.find((a) => a.isDefault) ?? accounts[0] ?? null;
 
-  // True when any connected account hasn't synced in the last 10 minutes
   const isSyncStale = accounts.some((a) => {
     if (!a.lastSyncAt) return false;
     return Date.now() - new Date(a.lastSyncAt).getTime() > 10 * 60 * 1000;
@@ -70,6 +77,49 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
     const id = setInterval(fetchCounts, 60_000);
     return () => { cancelled = true; clearInterval(id); };
   }, [pendingCountProp]);
+
+  // Show permission banner if permission not yet decided and not dismissed
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (permission !== 'default') return;
+    const dismissed = localStorage.getItem(NOTIF_PERM_DISMISSED_KEY);
+    if (!dismissed) setPermBannerVisible(true);
+  }, [permission]);
+
+  // Close bell dropdown on outside click
+  useEffect(() => {
+    if (!bellOpen) return;
+    function handle(e: MouseEvent) {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
+        setBellOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [bellOpen]);
+
+  // Load recent action logs when bell opens
+  async function openBell() {
+    setBellOpen((v) => !v);
+    if (!bellOpen && api.isAuthenticated()) {
+      try {
+        const result = await api.getActionLogs({ limit: 5 });
+        setRecentLogs(result.logs ?? []);
+      } catch {
+        setRecentLogs([]);
+      }
+    }
+  }
+
+  async function handleAllowNotifications() {
+    await requestPushPermission();
+    setPermBannerVisible(false);
+  }
+
+  function dismissPermBanner() {
+    setPermBannerVisible(false);
+    localStorage.setItem(NOTIF_PERM_DISMISSED_KEY, '1');
+  }
 
   const pendingCount = pendingCountProp ?? fetchedCount;
 
@@ -123,14 +173,13 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
 
           {/* User Info + Language + Theme */}
           <div className="flex items-center gap-2">
-            {/* Active account indicator — shows dot + email, links to /settings/accounts */}
+            {/* Active account indicator */}
             {activeAccount && (
               <Link
                 href="/settings/accounts"
                 className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group"
                 title={isSyncStale ? 'Synk dröjer — klicka för att kontrollera konton' : 'Aktiva konton — klicka för att hantera'}
               >
-                {/* Sync stale warning dot */}
                 {isSyncStale && (
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse shrink-0" title="Synk dröjer" />
                 )}
@@ -149,25 +198,75 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
                 <ChevronDown size={11} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors" />
               </Link>
             )}
-            {/* Notification bell */}
-            <button
-              onClick={requestPermission}
-              disabled={permission === 'denied'}
-              className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              title={
-                permission === 'granted'
-                  ? 'Notifieringar aktiverade'
-                  : permission === 'denied'
-                  ? 'Notifieringar blockerade i webbläsaren'
-                  : 'Aktivera notifieringar'
-              }
-            >
-              {permission === 'granted' ? (
-                <Bell className="w-4 h-4 text-brand-500" />
-              ) : (
-                <BellOff className="w-4 h-4" />
+
+            {/* Notification bell with dropdown */}
+            <div className="relative" ref={bellRef}>
+              <button
+                onClick={openBell}
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                title={
+                  legacyPermission === 'granted'
+                    ? 'Notifieringar aktiverade'
+                    : legacyPermission === 'denied'
+                    ? 'Notifieringar blockerade i webbläsaren'
+                    : 'Notifieringar'
+                }
+              >
+                {legacyPermission === 'granted' ? (
+                  <Bell className="w-4 h-4 text-brand-500" />
+                ) : (
+                  <BellOff className="w-4 h-4" />
+                )}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Dropdown */}
+              {bellOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-lg overflow-hidden z-50">
+                  <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Senaste aktivitet</span>
+                    <Link
+                      href="/notifications"
+                      className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
+                      onClick={() => setBellOpen(false)}
+                    >
+                      Visa alla
+                    </Link>
+                  </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
+                    {recentLogs.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-gray-400">
+                        Ingen aktivitet ännu
+                      </div>
+                    ) : (
+                      recentLogs.slice(0, 5).map((log: any) => (
+                        <div key={log.id} className="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{log.action}</div>
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            {new Date(log.createdAt).toLocaleString('sv-SE', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {legacyPermission !== 'granted' && (
+                    <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-700">
+                      <button
+                        onClick={async () => { await requestPermission(); setBellOpen(false); }}
+                        className="w-full text-xs text-center py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors"
+                      >
+                        Aktivera push-notifieringar
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
-            </button>
+            </div>
+
             {/* Dark mode toggle */}
             <button
               onClick={toggleTheme}
@@ -195,6 +294,32 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
           </div>
         </div>
       </div>
+
+      {/* Permission banner — shown once if permission not yet decided */}
+      {permBannerVisible && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-700 px-4 py-2.5 flex items-center justify-between gap-3">
+          <span className="text-xs text-amber-800 dark:text-amber-200">
+            Vill du få notiser för viktiga mail?
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleAllowNotifications}
+              className="text-xs px-3 py-1 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+            >
+              Tillåt
+            </button>
+            <button
+              onClick={dismissPermBanner}
+              className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200"
+            >
+              Nej tack
+            </button>
+            <button onClick={dismissPermBanner} className="text-amber-400 hover:text-amber-600">
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

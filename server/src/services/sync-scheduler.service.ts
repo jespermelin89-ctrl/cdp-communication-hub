@@ -18,10 +18,12 @@ import { aiService } from './ai.service';
 import { brainCoreService } from './brain-core.service';
 import { matchClassificationRule } from './rule-engine.service';
 import { sendPushToUser } from './push.service';
+import { draftService } from './draft.service';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;      // 5 minutes
 const AI_INTERVAL_MS = 10 * 60 * 1000;        // 10 minutes
 const SNOOZE_INTERVAL_MS = 60 * 1000;         // 1 minute
+const SCHEDULED_SEND_INTERVAL_MS = 60 * 1000; // 1 minute
 const MAX_THREADS_PER_SYNC = 20;
 const MAX_THREADS_TO_CLASSIFY = 10;
 const MAX_FAILURES_BEFORE_BACKOFF = 5;
@@ -42,6 +44,7 @@ const accountBackoff = new Map<string, number>();
 let syncInterval: ReturnType<typeof setInterval> | null = null;
 let aiInterval: ReturnType<typeof setInterval> | null = null;
 let snoozeInterval: ReturnType<typeof setInterval> | null = null;
+let scheduledSendInterval: ReturnType<typeof setInterval> | null = null;
 
 // ──────────────────────────────────────────────
 // Helper: extract display name from email address
@@ -493,6 +496,62 @@ async function wakeSnoozedThreads(): Promise<void> {
 }
 
 // ──────────────────────────────────────────────
+// Scheduled send — run every minute
+// ──────────────────────────────────────────────
+
+async function sendScheduledDrafts(): Promise<void> {
+  const now = new Date();
+  let ready: Array<{ id: string; subject: string; account: { userId: string } }> = [];
+
+  try {
+    ready = await prisma.draft.findMany({
+      where: {
+        scheduledAt: { lte: now },
+        status: 'approved',
+      },
+      select: { id: true, subject: true, account: { select: { userId: true } } },
+    });
+  } catch {
+    return; // DB unavailable — skip
+  }
+
+  if (ready.length === 0) return;
+
+  for (const draft of ready) {
+    try {
+      await draftService.send(draft.id, draft.account.userId);
+
+      await prisma.actionLog.create({
+        data: {
+          userId: draft.account.userId,
+          actionType: 'scheduled_send',
+          targetType: 'draft',
+          targetId: draft.id,
+          metadata: { subject: draft.subject },
+        },
+      });
+
+      console.log(`[ScheduledSend] Sent draft ${draft.id}: ${draft.subject}`);
+    } catch (err: any) {
+      // Mark as failed — do not auto-retry
+      try {
+        await prisma.draft.update({
+          where: { id: draft.id },
+          data: {
+            status: 'failed',
+            errorMessage: err?.message ?? 'Scheduled send failed',
+            scheduledAt: null,
+          },
+        });
+      } catch {
+        // best-effort
+      }
+      console.warn(`[ScheduledSend] Failed draft ${draft.id}: ${err?.message}`);
+    }
+  }
+}
+
+// ──────────────────────────────────────────────
 // Lifecycle
 // ──────────────────────────────────────────────
 
@@ -519,6 +578,10 @@ export function startSyncScheduler(): void {
   snoozeInterval = setInterval(() => {
     wakeSnoozedThreads().catch((e) => console.error('[Snooze] Wake error:', e));
   }, SNOOZE_INTERVAL_MS);
+
+  scheduledSendInterval = setInterval(() => {
+    sendScheduledDrafts().catch((e) => console.error('[ScheduledSend] Error:', e));
+  }, SCHEDULED_SEND_INTERVAL_MS);
 }
 
 /**
@@ -542,6 +605,10 @@ export function stopSyncScheduler(): void {
   if (snoozeInterval) {
     clearInterval(snoozeInterval);
     snoozeInterval = null;
+  }
+  if (scheduledSendInterval) {
+    clearInterval(scheduledSendInterval);
+    scheduledSendInterval = null;
   }
   console.log('[Scheduler] Stopped');
 }

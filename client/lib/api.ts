@@ -397,6 +397,14 @@ class ApiClient {
     return this.request<{ draft: any }>('POST', `/drafts/${id}/discard`);
   }
 
+  async scheduleDraft(id: string, sendAt: string) {
+    return this.request<{ draft: any; message: string }>('POST', `/drafts/${id}/schedule`, { send_at: sendAt });
+  }
+
+  async cancelSchedule(id: string) {
+    return this.request<{ draft: any; message: string }>('DELETE', `/drafts/${id}/schedule`);
+  }
+
   // AI
   async analyzeThread(threadId: string) {
     return this.request<{ analysis: any; draft: any; message: string }>('POST', '/ai/analyze-thread', {

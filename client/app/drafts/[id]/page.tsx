@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { ChevronDown, X } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import StatusBadge from '@/components/StatusBadge';
@@ -33,7 +34,10 @@ export default function DraftDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [customSchedule, setCustomSchedule] = useState('');
   const [accountSignature, setAccountSignature] = useState<string | null>(null);
+  const scheduleDropdownRef = useRef<HTMLDivElement>(null);
 
   const [subject, setSubject] = useState('');
   const [bodyText, setBodyText] = useState('');
@@ -159,6 +163,54 @@ export default function DraftDetailPage() {
 
   function handleDiscard() {
     setDiscardConfirmOpen(true);
+  }
+
+  function buildScheduleDate(offsetMs: number): string {
+    return new Date(Date.now() + offsetMs).toISOString();
+  }
+
+  function nextMonday8am(): string {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun … 6=Sat
+    const daysUntilMonday = day === 0 ? 1 : 8 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + daysUntilMonday);
+    monday.setHours(8, 0, 0, 0);
+    return monday.toISOString();
+  }
+
+  function tomorrowAt8(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(8, 0, 0, 0);
+    return d.toISOString();
+  }
+
+  async function handleSchedule(sendAt: string) {
+    setScheduleOpen(false);
+    setError(null);
+    setActioning(true);
+    try {
+      const result = await api.scheduleDraft(draftId, sendAt);
+      setDraft(result.draft);
+    } catch (err: any) {
+      setError(`Schedule failed: ${err.message}`);
+    } finally {
+      setActioning(false);
+    }
+  }
+
+  async function handleCancelSchedule() {
+    setError(null);
+    setActioning(true);
+    try {
+      const result = await api.cancelSchedule(draftId);
+      setDraft(result.draft);
+    } catch (err: any) {
+      setError(`Cancel schedule failed: ${err.message}`);
+    } finally {
+      setActioning(false);
+    }
   }
 
   if (loading) {
@@ -356,9 +408,82 @@ export default function DraftDetailPage() {
             )}
 
             {draft.status === 'approved' && (
-              <button onClick={handleSend} disabled={actioning} className="btn-success text-sm">
-                {t.drafts.sendNow}
-              </button>
+              <>
+                {/* Scheduled info banner */}
+                {draft.scheduledAt && (
+                  <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                    <span className="flex-1">
+                      {t.draftDetail.scheduledAt}: {new Date(draft.scheduledAt).toLocaleString()}
+                    </span>
+                    <button
+                      onClick={handleCancelSchedule}
+                      disabled={actioning}
+                      className="flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-200"
+                    >
+                      <X size={12} />
+                      {t.draftDetail.cancelSchedule}
+                    </button>
+                  </div>
+                )}
+
+                {/* Split button: Send now | Schedule */}
+                {!draft.scheduledAt && (
+                  <div className="relative flex" ref={scheduleDropdownRef}>
+                    <button
+                      onClick={handleSend}
+                      disabled={actioning}
+                      className="btn-success text-sm rounded-r-none border-r border-emerald-600"
+                    >
+                      {t.drafts.sendNow}
+                    </button>
+                    <button
+                      onClick={() => setScheduleOpen((o) => !o)}
+                      disabled={actioning}
+                      className="btn-success text-sm rounded-l-none px-2"
+                      aria-label={t.draftDetail.scheduleFor}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+
+                    {scheduleOpen && (
+                      <div className="absolute bottom-full mb-1 right-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg min-w-[200px] py-1 text-sm">
+                        {[
+                          { label: t.draftDetail.scheduleIn1h, sendAt: () => buildScheduleDate(60 * 60 * 1000) },
+                          { label: t.draftDetail.scheduleIn3h, sendAt: () => buildScheduleDate(3 * 60 * 60 * 1000) },
+                          { label: t.draftDetail.scheduleTomorrow, sendAt: tomorrowAt8 },
+                          { label: t.draftDetail.scheduleMonday, sendAt: nextMonday8am },
+                        ].map(({ label, sendAt }) => (
+                          <button
+                            key={label}
+                            onClick={() => handleSchedule(sendAt())}
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                        <div className="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1 px-3 pb-2">
+                          <p className="text-xs text-gray-400 mb-1">{t.draftDetail.scheduleCustom}</p>
+                          <div className="flex gap-2">
+                            <input
+                              type="datetime-local"
+                              value={customSchedule}
+                              onChange={(e) => setCustomSchedule(e.target.value)}
+                              className="flex-1 text-xs border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                            />
+                            <button
+                              onClick={() => customSchedule && handleSchedule(new Date(customSchedule).toISOString())}
+                              disabled={!customSchedule}
+                              className="text-xs btn-primary px-2 py-1 disabled:opacity-40"
+                            >
+                              OK
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

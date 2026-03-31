@@ -212,6 +212,14 @@ const en: Translations = {
     sentAt: 'Sent at',
     sendConfirm: 'Send this email? This action cannot be undone.',
     discardConfirm: 'Discard this draft?',
+    scheduleFor: 'Schedule',
+    scheduledAt: 'Scheduled',
+    cancelSchedule: 'Cancel schedule',
+    scheduleIn1h: 'In 1 hour',
+    scheduleIn3h: 'In 3 hours',
+    scheduleTomorrow: 'Tomorrow 08:00',
+    scheduleMonday: 'Monday 08:00',
+    scheduleCustom: 'Pick time...',
   },
 
   categories: {

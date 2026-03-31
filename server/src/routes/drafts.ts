@@ -135,6 +135,87 @@ export async function draftRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /drafts/:id/schedule — Schedule a draft for future delivery
+   * Body: { send_at: ISO datetime string }
+   * Requires draft to be in 'approved' status.
+   */
+  fastify.post('/drafts/:id/schedule', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { send_at?: string };
+
+    if (!body?.send_at) {
+      return reply.code(400).send({ error: 'send_at is required (ISO datetime string)' });
+    }
+
+    const sendAt = new Date(body.send_at);
+    if (isNaN(sendAt.getTime())) {
+      return reply.code(400).send({ error: 'send_at must be a valid ISO datetime' });
+    }
+    if (sendAt <= new Date()) {
+      return reply.code(400).send({ error: 'send_at must be in the future' });
+    }
+
+    try {
+      const { prisma } = await import('../config/database');
+      const draft = await prisma.draft.findFirst({
+        where: { id, userId: request.userId },
+      });
+      if (!draft) return reply.code(404).send({ error: 'Draft not found' });
+      if (draft.status !== 'approved') {
+        return reply.code(400).send({ error: 'Draft must be approved before scheduling' });
+      }
+
+      const updated = await prisma.draft.update({
+        where: { id },
+        data: { scheduledAt: sendAt },
+        include: { account: { select: { emailAddress: true, id: true } }, thread: { select: { id: true, subject: true } } },
+      });
+
+      await prisma.actionLog.create({
+        data: {
+          userId: request.userId!,
+          actionType: 'draft_scheduled',
+          targetType: 'draft',
+          targetId: id,
+          metadata: { send_at: sendAt.toISOString() },
+        },
+      });
+
+      return {
+        draft: updated,
+        message: `Schemalagt för ${sendAt.toLocaleString('sv-SE')}`,
+      };
+    } catch (error: any) {
+      return reply.code(500).send({ error: error.message });
+    }
+  });
+
+  /**
+   * DELETE /drafts/:id/schedule — Cancel scheduled send
+   */
+  fastify.delete('/drafts/:id/schedule', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    try {
+      const { prisma } = await import('../config/database');
+      const draft = await prisma.draft.findFirst({
+        where: { id, userId: request.userId },
+      });
+      if (!draft) return reply.code(404).send({ error: 'Draft not found' });
+
+      const updated = await prisma.draft.update({
+        where: { id },
+        data: { scheduledAt: null },
+        include: { account: { select: { emailAddress: true, id: true } }, thread: { select: { id: true, subject: true } } },
+      });
+
+      return { draft: updated, message: 'Schemaläggning avbruten' };
+    } catch (error: any) {
+      return reply.code(500).send({ error: error.message });
+    }
+  });
+
+  /**
    * POST /drafts/:id/discard - Discard a draft
    */
   fastify.post('/drafts/:id/discard', async (request, reply) => {

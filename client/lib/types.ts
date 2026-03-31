@@ -99,6 +99,7 @@ export interface Draft {
   gmailMessageId: string | null;
   approvedAt: string | null;
   sentAt: string | null;
+  scheduledAt: string | null;
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;

@@ -167,6 +167,7 @@ model Draft {
   gmailMessageId String?   @map("gmail_message_id") // set after successful send
   approvedAt     DateTime? @map("approved_at")
   sentAt         DateTime? @map("sent_at")
+  scheduledAt    DateTime? @map("scheduled_at")
   errorMessage   String?   @map("error_message")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")

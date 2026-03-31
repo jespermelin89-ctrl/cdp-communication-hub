@@ -212,6 +212,14 @@ const es: Translations = {
     sentAt: 'Enviado a las',
     sendConfirm: '¿Enviar este correo? Esta acción no se puede deshacer.',
     discardConfirm: '¿Descartar este borrador?',
+    scheduleFor: 'Programar',
+    scheduledAt: 'Programado',
+    cancelSchedule: 'Cancelar programación',
+    scheduleIn1h: 'En 1 hora',
+    scheduleIn3h: 'En 3 horas',
+    scheduleTomorrow: 'Mañana 08:00',
+    scheduleMonday: 'Lunes 08:00',
+    scheduleCustom: 'Elegir hora...',
   },
 
   categories: {

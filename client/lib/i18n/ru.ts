@@ -212,6 +212,14 @@ const ru: Translations = {
     sentAt: 'Отправлено',
     sendConfirm: 'Отправить это письмо? Действие нельзя отменить.',
     discardConfirm: 'Удалить этот черновик?',
+    scheduleFor: 'Запланировать',
+    scheduledAt: 'Запланировано',
+    cancelSchedule: 'Отменить планирование',
+    scheduleIn1h: 'Через 1 час',
+    scheduleIn3h: 'Через 3 часа',
+    scheduleTomorrow: 'Завтра 08:00',
+    scheduleMonday: 'Понедельник 08:00',
+    scheduleCustom: 'Выбрать время...',
   },
 
   categories: {

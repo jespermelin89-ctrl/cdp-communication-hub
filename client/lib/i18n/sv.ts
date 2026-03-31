@@ -194,6 +194,14 @@ const sv = {
     sentAt: 'Skickat',
     sendConfirm: 'Skicka detta mejl? Åtgärden kan inte ångras.',
     discardConfirm: 'Radera detta utkast?',
+    scheduleFor: 'Schemalägg',
+    scheduledAt: 'Schemalagt',
+    cancelSchedule: 'Avbryt schemaläggning',
+    scheduleIn1h: 'Om 1 timme',
+    scheduleIn3h: 'Om 3 timmar',
+    scheduleTomorrow: 'Imorgon 08:00',
+    scheduleMonday: 'Måndag 08:00',
+    scheduleCustom: 'Välj tid...',
   },
 
   // Categories & Rules

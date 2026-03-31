@@ -27,6 +27,7 @@ export interface Account {
   lastSyncAt: string | null;
   syncError: string | null;
   createdAt: string;
+  threadCount?: number;
 }
 
 export interface UserSettings {

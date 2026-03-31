@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Mail, Settings, Inbox, Info, AlertTriangle } from 'lucide-react';
+import { Mail, Settings, Inbox, Info, AlertTriangle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import TopBar from '@/components/TopBar';
@@ -29,6 +29,7 @@ export default function AccountsSettingsPage() {
   });
   const [disconnectAccount, setDisconnectAccount] = useState<Account | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -127,6 +128,19 @@ export default function AccountsSettingsPage() {
       toast.error(err.message || 'Kunde inte spara ändringar');
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  async function handleSyncAccount(accountId: string) {
+    setSyncingId(accountId);
+    try {
+      await api.syncAccount(accountId);
+      toast.success('Synkronisering startad');
+      setTimeout(loadAccounts, 3000); // Refresh after a brief delay
+    } catch (err: any) {
+      toast.error(err.message || 'Synkronisering misslyckades');
+    } finally {
+      setSyncingId(null);
     }
   }
 
@@ -256,11 +270,25 @@ export default function AccountsSettingsPage() {
                                 {t.accounts.lastSynced}: {new Date(account.lastSyncAt).toLocaleDateString()}
                               </span>
                             )}
+                            {account.threadCount != null && (
+                              <span className="text-xs text-gray-400">
+                                {account.threadCount} trådar
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={() => handleSyncAccount(account.id)}
+                          disabled={syncingId === account.id}
+                          className="text-xs px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1"
+                          title="Synka nu"
+                        >
+                          <RefreshCw size={12} className={syncingId === account.id ? 'animate-spin' : ''} />
+                          <span className="hidden sm:inline">Synka</span>
+                        </button>
                         <button
                           onClick={() => editingAccount === account.id ? setEditingAccount(null) : startEdit(account)}
                           className="text-xs px-3 py-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"

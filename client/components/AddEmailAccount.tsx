@@ -348,14 +348,52 @@ export default function AddEmailAccount({ onSuccess, onCancel, defaultEmail = ''
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Lösenord</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Lösenord / App-lösenord</label>
               <input
                 type="password"
                 value={imapForm.password}
                 onChange={(e) => updateImapField('password', e.target.value)}
-                placeholder="Använd appspecifikt lösenord om 2FA är aktiverat"
+                placeholder="Använd ett app-lösenord, inte ditt vanliga lösenord"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
               />
+              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                <strong>Viktigt:</strong> Använd ett <strong>app-lösenord</strong>, inte ditt vanliga lösenord.
+                Ditt vanliga lösenord fungerar inte om 2-faktorsautentisering är aktiverat.
+                <br />
+                <span className="text-amber-600 mt-1 block">
+                  Hur skapar jag ett app-lösenord?{' '}
+                  {detectedProvider?.provider?.id === 'google' && (
+                    <a
+                      href="https://support.google.com/accounts/answer/185833"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-amber-800"
+                    >
+                      Gmail-guide →
+                    </a>
+                  )}
+                  {detectedProvider?.provider?.id === 'microsoft' && (
+                    <a
+                      href="https://support.microsoft.com/en-us/account-billing/using-app-passwords-with-apps-that-don-t-support-two-step-verification-5896ed9b-4263-e681-128a-a6f2979a7944"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-amber-800"
+                    >
+                      Outlook-guide →
+                    </a>
+                  )}
+                  {detectedProvider?.provider?.id === 'yahoo' && (
+                    <a
+                      href="https://help.yahoo.com/kb/generate-third-party-passwords-sln15241.html"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-amber-800"
+                    >
+                      Yahoo-guide →
+                    </a>
+                  )}
+                </span>
+              </div>
             </div>
 
             {/* IMAP Server */}

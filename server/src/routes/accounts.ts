@@ -10,6 +10,7 @@ import { authMiddleware } from '../middleware/auth.middleware';
 import { encrypt } from '../utils/encryption';
 import { emailProviderFactory } from '../services/email-provider.factory';
 import { actionLogService } from '../services/action-log.service';
+import { startSyncNow } from '../services/sync-scheduler.service';
 
 // Validation schema for adding IMAP/SMTP accounts
 const AddImapAccountSchema = z.object({
@@ -64,11 +65,18 @@ export async function accountRoutes(fastify: FastifyInstance) {
         lastSyncAt: true,
         syncError: true,
         createdAt: true,
+        _count: { select: { threads: true } },
       },
       orderBy: { createdAt: 'asc' },
     });
 
-    return { accounts };
+    // Flatten _count into threadCount
+    const accountsWithCount = accounts.map(({ _count, ...a }) => ({
+      ...a,
+      threadCount: _count.threads,
+    }));
+
+    return { accounts: accountsWithCount };
   });
 
   /**
@@ -294,6 +302,22 @@ export async function accountRoutes(fastify: FastifyInstance) {
     });
 
     return { message: 'Account disconnected', email: account.emailAddress };
+  });
+
+  /**
+   * POST /accounts/:id/sync — Trigger immediate sync for a specific account
+   */
+  fastify.post('/accounts/:id/sync', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const account = await prisma.emailAccount.findFirst({
+      where: { id, userId: request.userId },
+    });
+    if (!account) return reply.code(404).send({ error: 'Account not found' });
+
+    // Trigger global sync (runs all active accounts — scoped sync not critical for this)
+    startSyncNow().catch(() => {});
+    return { message: 'Synkronisering startad' };
   });
 
   // ============================================================

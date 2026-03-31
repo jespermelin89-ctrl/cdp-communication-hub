@@ -267,6 +267,10 @@ class ApiClient {
     return this.request<{ account: any }>('PATCH', `/accounts/${id}`, data);
   }
 
+  async syncAccount(id: string) {
+    return this.request<{ message: string }>('POST', `/accounts/${id}/sync`);
+  }
+
   async deleteAccount(id: string) {
     return this.request<{ message: string }>('DELETE', `/accounts/${id}`);
   }

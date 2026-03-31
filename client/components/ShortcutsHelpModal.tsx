@@ -24,8 +24,14 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: ['J'], description: 'Nästa tråd' },
       { keys: ['K'], description: 'Föregående tråd' },
-      { keys: ['E'], description: 'Arkivera markerad tråd' },
-      { keys: ['A'], description: 'Analysera markerad tråd' },
+      { keys: ['O'], description: 'Öppna fokuserad tråd' },
+      { keys: ['E'], description: 'Arkivera fokuserad tråd' },
+      { keys: ['#'], description: 'Flytta till papperskorgen' },
+      { keys: ['S'], description: 'Stjärnmärk fokuserad tråd' },
+      { keys: ['X'], description: 'Markera/avmarkera tråd' },
+      { keys: ['U'], description: 'Markera som oläst' },
+      { keys: ['/'], description: 'Fokusera sökfältet' },
+      { keys: ['?'], description: 'Visa denna hjälp' },
     ],
   },
   {

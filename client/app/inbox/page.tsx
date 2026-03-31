@@ -97,6 +97,7 @@ export default function InboxPage() {
   const [starringIds, setStarringIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
   const { setSelectedThreadIds } = useChatContext();
   const { notifyNewHighPriority } = useNotifications();
@@ -375,7 +376,7 @@ export default function InboxPage() {
     new Set(threads.map((th) => th.latestAnalysis?.classification).filter(Boolean))
   ) as string[];
 
-  // j/k navigation + e/r actions
+  // j/k/e/r/#/s/x/u/o//?/ keyboard navigation
   useKeyboardShortcuts({
     j: () => setFocusedIndex((i) => {
       const next = Math.min(i + 1, visibleThreads.length - 1);
@@ -397,6 +398,52 @@ export default function InboxPage() {
         sessionStorage.setItem('cdp-thread-list', JSON.stringify(visibleThreads.map((th) => th.id)));
         router.push(`/threads/${visibleThreads[focusedIndex].id}`);
       }
+    },
+    o: () => {
+      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        sessionStorage.setItem('cdp-thread-list', JSON.stringify(visibleThreads.map((th) => th.id)));
+        router.push(`/threads/${visibleThreads[focusedIndex].id}`);
+      }
+    },
+    enter: () => {
+      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        sessionStorage.setItem('cdp-thread-list', JSON.stringify(visibleThreads.map((th) => th.id)));
+        router.push(`/threads/${visibleThreads[focusedIndex].id}`);
+      }
+    },
+    '#': () => {
+      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        setTrashConfirmId(visibleThreads[focusedIndex].id);
+      }
+    },
+    s: () => {
+      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        const thread = visibleThreads[focusedIndex];
+        const isStarred = thread.labels?.includes('STARRED');
+        const fn = isStarred ? api.unstarThread.bind(api) : api.starThread.bind(api);
+        fn(thread.id).then(() => mutateThreads()).catch(() => {});
+      }
+    },
+    x: () => {
+      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        const id = visibleThreads[focusedIndex].id;
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id); else next.add(id);
+          return next;
+        });
+      }
+    },
+    u: () => {
+      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+        api.markThreadAsUnread(visibleThreads[focusedIndex].id).then(() => mutateThreads()).catch(() => {});
+      }
+    },
+    '/': () => {
+      searchInputRef.current?.focus();
+    },
+    '?': () => {
+      window.dispatchEvent(new Event('cdp:shortcuts-help'));
     },
   });
 
@@ -539,6 +586,7 @@ export default function InboxPage() {
           <div className="flex-1 relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
             <input
+              ref={searchInputRef}
               type="text"
               placeholder={t.inbox.searchPlaceholder}
               value={searchInput}

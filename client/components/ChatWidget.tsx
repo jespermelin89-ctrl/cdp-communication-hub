@@ -185,6 +185,7 @@ export default function ChatWidget() {
   const [queuedCount, setQueuedCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastSentTextRef = useRef<string>('');
 
   // Lazy welcome message — avoids hydration mismatch from new Date()
   useEffect(() => {
@@ -292,6 +293,7 @@ export default function ChatWidget() {
     };
 
     setMessages((prev) => [...prev, userMsg]);
+    lastSentTextRef.current = text;
     navigator.vibrate?.(30);
 
     // ── Offline: queue the command ──────────────────────────────────────────
@@ -543,6 +545,14 @@ export default function ChatWidget() {
             </div>
           )}
 
+          {/* Offline banner */}
+          {!networkStatus.online && (
+            <div className="px-3 py-2 bg-amber-50 dark:bg-amber-900/30 border-b border-amber-200 dark:border-amber-700 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+              <WifiOff size={12} className="shrink-0" />
+              <span>Du är offline — meddelanden skickas när du är online igen</span>
+            </div>
+          )}
+
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {messages.map((msg) => (
@@ -627,21 +637,32 @@ export default function ChatWidget() {
                     </div>
                   )}
 
+                  {/* Retry button for error messages */}
+                  {msg.type === 'error' && lastSentTextRef.current && (
+                    <button
+                      onClick={() => doSend(lastSentTextRef.current)}
+                      disabled={loading}
+                      className="mt-2 flex items-center gap-1 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 disabled:opacity-50"
+                    >
+                      <RefreshCw size={11} />
+                      Försök igen
+                    </button>
+                  )}
+
                   <QuickActions message={msg} />
                 </div>
               </div>
             ))}
 
+            {/* Loading skeleton */}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl rounded-bl-md px-4 py-3">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
+                <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl rounded-bl-md px-4 py-3 w-48 space-y-2">
+                  <div className="h-2.5 bg-gray-200 dark:bg-gray-600 rounded animate-pulse w-full" />
+                  <div className="h-2.5 bg-gray-200 dark:bg-gray-600 rounded animate-pulse w-4/5" />
+                  <div className="h-2.5 bg-gray-200 dark:bg-gray-600 rounded animate-pulse w-3/5" />
                   {thinkingLabel && (
-                    <p className="text-xs text-gray-400 italic mt-1">{thinkingLabel}…</p>
+                    <p className="text-xs text-gray-400 italic pt-0.5">{thinkingLabel}…</p>
                   )}
                 </div>
               </div>

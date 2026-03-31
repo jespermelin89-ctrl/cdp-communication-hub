@@ -6,9 +6,19 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../config/database';
 import { emailProviderFactory } from '../services/email-provider.factory';
 import { gmailService } from '../services/gmail.service';
+import { brainCoreService } from '../services/brain-core.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { ThreadQuerySchema } from '../utils/validators';
 import { sanitizeSearch, sanitizeLabel } from '../utils/sanitize';
+
+export function buildMessageLookupWhere(threadId: string, messageId: string) {
+  return {
+    OR: [
+      { id: messageId, threadId },
+      { gmailMessageId: messageId, threadId },
+    ],
+  };
+}
 
 export async function threadRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
@@ -562,11 +572,15 @@ export async function threadRoutes(fastify: FastifyInstance) {
   });
 
   /**
-   * PATCH /threads/:id — Update thread metadata (e.g. custom labels).
+   * PATCH /threads/:id — Update thread metadata (labels, priority, classification).
    */
   fastify.patch('/threads/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { labels } = request.body as { labels?: string[] };
+    const { labels, priority, classification } = request.body as {
+      labels?: string[];
+      priority?: string;
+      classification?: string;
+    };
 
     const thread = await prisma.emailThread.findFirst({
       where: { id, account: { userId: request.userId } },
@@ -577,6 +591,26 @@ export async function threadRoutes(fastify: FastifyInstance) {
       where: { id },
       data: { ...(labels !== undefined && { labels }) },
     });
+
+    // If priority or classification changed, check against AI analysis and log learning
+    if (priority !== undefined || classification !== undefined) {
+      brainCoreService
+        .recordLearning(
+          request.userId!,
+          'classification:override',
+          {
+            thread_id: id,
+            subject: thread.subject,
+            new_priority: priority,
+            new_classification: classification,
+            timestamp: new Date().toISOString(),
+          },
+          'ui',
+          id
+        )
+        .catch(() => {});
+    }
+
     return { thread: updated };
   });
 
@@ -594,7 +628,7 @@ export async function threadRoutes(fastify: FastifyInstance) {
       };
 
       const message = await prisma.emailMessage.findFirst({
-        where: { id: messageId, threadId },
+        where: buildMessageLookupWhere(threadId, messageId),
         include: { thread: { include: { account: { select: { id: true, userId: true, provider: true } } } } },
       });
 
@@ -642,12 +676,7 @@ export async function threadRoutes(fastify: FastifyInstance) {
 
       // Resolve by DB message id first, fall back to gmailMessageId match
       const message = await prisma.emailMessage.findFirst({
-        where: {
-          OR: [
-            { id: messageId, threadId },
-            { gmailMessageId: messageId, threadId },
-          ],
-        },
+        where: buildMessageLookupWhere(threadId, messageId),
         include: { thread: { include: { account: { select: { id: true, userId: true } } } } },
       });
 

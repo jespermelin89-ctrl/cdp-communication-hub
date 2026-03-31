@@ -180,6 +180,7 @@ const sv = {
     saveChanges: 'Spara',
     saving: 'Sparar...',
     autoSaved: 'Autosparat',
+    signaturePreview: 'Signatur',
     sentAt: 'Skickat',
     sendConfirm: 'Skicka detta mejl? Åtgärden kan inte ångras.',
     discardConfirm: 'Radera detta utkast?',

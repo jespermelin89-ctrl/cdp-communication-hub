@@ -27,11 +27,13 @@ export default function DraftDetailPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [autoSaving, setAutoSaving] = useState(false);
   const [actioning, setActioning] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [accountSignature, setAccountSignature] = useState<string | null>(null);
 
   const [subject, setSubject] = useState('');
   const [bodyText, setBodyText] = useState('');
@@ -46,11 +48,19 @@ export default function DraftDetailPage() {
   async function loadDraft() {
     try {
       setLoading(true);
-      const result = await api.getDraft(draftId);
-      setDraft(result.draft);
-      setSubject(result.draft.subject);
-      setBodyText(result.draft.bodyText);
-      setToAddresses(result.draft.toAddresses.join(', '));
+      const [draftResult, accountsResult] = await Promise.all([
+        api.getDraft(draftId),
+        api.getAccounts().catch(() => ({ accounts: [] })),
+      ]);
+      setDraft(draftResult.draft);
+      setSubject(draftResult.draft.subject);
+      setBodyText(draftResult.draft.bodyText);
+      setToAddresses(draftResult.draft.toAddresses.join(', '));
+      // Find signature for this draft's account
+      const acc = (accountsResult.accounts || []).find(
+        (a: { id: string; signature: string | null }) => a.id === draftResult.draft.account.id
+      );
+      if (acc?.signature) setAccountSignature(acc.signature);
     } catch {
       // Show not-found state
     } finally {
@@ -58,12 +68,13 @@ export default function DraftDetailPage() {
     }
   }
 
-  // Auto-save: debounce 30s after last keystroke while in edit mode
+  // Auto-save: debounce 30s after last keystroke while in edit mode, only for pending drafts
   useEffect(() => {
-    if (!editMode || !draft) return;
+    if (!editMode || !draft || draft.status !== 'pending') return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(async () => {
       try {
+        setAutoSaving(true);
         await api.updateDraft(draftId, {
           subject,
           body_text: bodyText,
@@ -72,6 +83,8 @@ export default function DraftDetailPage() {
         setAutoSavedAt(new Date());
       } catch {
         // silent — user can still manually save
+      } finally {
+        setAutoSaving(false);
       }
     }, 30000);
     return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
@@ -266,14 +279,23 @@ export default function DraftDetailPage() {
                 />
                 <div className="flex items-center justify-between mt-1.5 text-xs text-gray-400">
                   <span>
-                    {bodyText.length} tecken · {bodyText.trim() ? bodyText.trim().split(/\s+/).length : 0} ord
+                    {bodyText.trim() ? bodyText.trim().split(/\s+/).length : 0} ord · {bodyText.length} tecken
                   </span>
-                  {autoSavedAt && (
+                  {autoSaving && (
+                    <span className="text-amber-500">{t.draftDetail.saving}…</span>
+                  )}
+                  {!autoSaving && autoSavedAt && (
                     <span className="text-emerald-500">
                       {t.draftDetail.autoSaved} {autoSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
                 </div>
+                {accountSignature && (
+                  <div className="mt-3 px-3 py-2 border border-dashed border-gray-200 dark:border-gray-600 rounded-lg text-xs text-gray-400 dark:text-gray-500 font-mono whitespace-pre-wrap">
+                    <div className="text-gray-300 dark:text-gray-600 mb-1">── {t.draftDetail.signaturePreview} ──</div>
+                    {accountSignature}
+                  </div>
+                )}
               </>
             ) : (
               <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">

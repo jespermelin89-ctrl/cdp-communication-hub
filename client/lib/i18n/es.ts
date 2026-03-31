@@ -198,6 +198,7 @@ const es: Translations = {
     saveChanges: 'Guardar',
     saving: 'Guardando...',
     autoSaved: 'Autoguardado',
+    signaturePreview: 'Firma',
     sentAt: 'Enviado a las',
     sendConfirm: '¿Enviar este correo? Esta acción no se puede deshacer.',
     discardConfirm: '¿Descartar este borrador?',

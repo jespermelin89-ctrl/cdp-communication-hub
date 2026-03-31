@@ -198,6 +198,7 @@ const ru: Translations = {
     saveChanges: 'Сохранить',
     saving: 'Сохранение...',
     autoSaved: 'Автосохранено',
+    signaturePreview: 'Подпись',
     sentAt: 'Отправлено',
     sendConfirm: 'Отправить это письмо? Действие нельзя отменить.',
     discardConfirm: 'Удалить этот черновик?',

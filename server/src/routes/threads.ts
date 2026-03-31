@@ -7,9 +7,12 @@ import { prisma } from '../config/database';
 import { emailProviderFactory } from '../services/email-provider.factory';
 import { gmailService } from '../services/gmail.service';
 import { brainCoreService } from '../services/brain-core.service';
+import { aiService } from '../services/ai.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { ThreadQuerySchema } from '../utils/validators';
 import { sanitizeSearch, sanitizeLabel } from '../utils/sanitize';
+
+const QUESTION_PATTERN = /\?|can you|could you|please|vänligen|kan du|skulle du|hjälp/i;
 
 export function buildMessageLookupWhere(threadId: string, messageId: string) {
   return {
@@ -209,10 +212,48 @@ export async function threadRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: 'Thread not found' });
     }
 
+    const latestAnalysis = thread.analyses[0] ?? null;
+
+    // ── Smart reply suggestion (7B) ──────────────────────────────────────
+    // Generate once for unread, high-priority threads with question patterns.
+    let suggestedReply: string | null = latestAnalysis?.suggestedReply ?? null;
+
+    if (
+      !suggestedReply &&
+      !thread.isRead &&
+      latestAnalysis?.priority === 'high' &&
+      thread.messages.length > 0
+    ) {
+      const lastMsg = thread.messages[thread.messages.length - 1];
+      const bodyForCheck = (lastMsg.bodyText ?? '') + ' ' + (thread.subject ?? '');
+      if (QUESTION_PATTERN.test(bodyForCheck)) {
+        try {
+          suggestedReply = await aiService.generateSmartReply({
+            subject: thread.subject,
+            messages: thread.messages.map((m) => ({
+              from: m.fromAddress,
+              body: m.bodyText ?? '',
+              date: m.receivedAt.toISOString(),
+            })),
+          });
+
+          if (suggestedReply && latestAnalysis) {
+            await prisma.aIAnalysis.update({
+              where: { id: latestAnalysis.id },
+              data: { suggestedReply },
+            }).catch(() => {});
+          }
+        } catch {
+          // Non-fatal — smart reply is best-effort
+        }
+      }
+    }
+
     return {
       thread: {
         ...thread,
-        latestAnalysis: thread.analyses[0] || null,
+        latestAnalysis,
+        suggestedReply,
       },
     };
   });

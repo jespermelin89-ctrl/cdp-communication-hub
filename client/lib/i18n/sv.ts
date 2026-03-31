@@ -178,6 +178,9 @@ const sv = {
     snoozeTomorrow: 'Imorgon 09:00',
     snoozeNextMonday: 'Nästa måndag 09:00',
     snooze1w: 'Om 1 vecka',
+    amandaSuggests: 'Amanda föreslår',
+    useAsDraft: 'Använd som utkast',
+    dismissSuggestion: 'Ignorera',
   },
 
   // Draft detail

@@ -138,6 +138,7 @@ model AIAnalysis {
   priority        String   // high|medium|low
   suggestedAction String   @map("suggested_action") // reply|ignore|review_later|archive_suggestion
   draftText       String?  @map("draft_text")
+  suggestedReply  String?  @map("suggested_reply")
   confidence      Float    @default(0)
   modelUsed       String   @map("model_used")
   createdAt       DateTime @default(now()) @map("created_at")

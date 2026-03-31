@@ -20,10 +20,11 @@ import { matchClassificationRule } from './rule-engine.service';
 import { sendPushToUser } from './push.service';
 import { draftService } from './draft.service';
 
-const SYNC_INTERVAL_MS = 5 * 60 * 1000;      // 5 minutes
-const AI_INTERVAL_MS = 10 * 60 * 1000;        // 10 minutes
-const SNOOZE_INTERVAL_MS = 60 * 1000;         // 1 minute
-const SCHEDULED_SEND_INTERVAL_MS = 60 * 1000; // 1 minute
+const SYNC_INTERVAL_MS = 5 * 60 * 1000;       // 5 minutes
+const AI_INTERVAL_MS = 10 * 60 * 1000;         // 10 minutes
+const SNOOZE_INTERVAL_MS = 60 * 1000;          // 1 minute
+const SCHEDULED_SEND_INTERVAL_MS = 60 * 1000;  // 1 minute
+const BRIEFING_CHECK_INTERVAL_MS = 60 * 1000;  // 1 minute (checks if it's 07:00)
 const MAX_THREADS_PER_SYNC = 20;
 const MAX_THREADS_TO_CLASSIFY = 10;
 const MAX_FAILURES_BEFORE_BACKOFF = 5;
@@ -45,6 +46,7 @@ let syncInterval: ReturnType<typeof setInterval> | null = null;
 let aiInterval: ReturnType<typeof setInterval> | null = null;
 let snoozeInterval: ReturnType<typeof setInterval> | null = null;
 let scheduledSendInterval: ReturnType<typeof setInterval> | null = null;
+let briefingInterval: ReturnType<typeof setInterval> | null = null;
 
 // ──────────────────────────────────────────────
 // Helper: extract display name from email address
@@ -258,6 +260,102 @@ async function autoLearnContacts(
 
   if (senderCounts.size > 0) {
     console.log(`[Scheduler] Contact auto-learn: updated ${senderCounts.size} contact(s) for account ${accountEmail}`);
+  }
+}
+
+// ──────────────────────────────────────────────
+// Morning briefing — generate at 07:00 for each user
+// ──────────────────────────────────────────────
+
+async function generateMorningBriefing(userId: string): Promise<void> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Skip if already generated today
+  const existing = await prisma.dailySummary.findFirst({
+    where: { userId, createdAt: { gte: today } },
+  }).catch(() => null);
+  if (existing) return;
+
+  // Urgent unread high-priority threads
+  const urgent = await prisma.emailThread.findMany({
+    where: {
+      account: { userId, isActive: true },
+      isRead: false,
+      NOT: { labels: { has: 'TRASH' } },
+      analyses: { some: { priority: 'high' } },
+    },
+    take: 10,
+    orderBy: { lastMessageAt: 'desc' },
+    select: {
+      subject: true,
+      snippet: true,
+      participantEmails: true,
+    },
+  }).catch(() => []);
+
+  // Yesterday's stats
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const [received, sent, classified] = await Promise.all([
+    prisma.emailMessage.count({
+      where: { thread: { account: { userId } }, receivedAt: { gte: yesterday, lt: today } },
+    }).catch(() => 0),
+    prisma.draft.count({
+      where: { account: { userId }, status: 'sent', updatedAt: { gte: yesterday, lt: today } },
+    }).catch(() => 0),
+    prisma.aIAnalysis.count({
+      where: { thread: { account: { userId } }, createdAt: { gte: yesterday, lt: today } },
+    }).catch(() => 0),
+  ]);
+
+  const summary = await aiService.generateBriefing(userId, urgent, { received, sent, classified });
+
+  await prisma.dailySummary.create({
+    data: {
+      userId,
+      date: today,
+      needsReply: summary.needsReply,
+      goodToKnow: summary.goodToKnow,
+      autoArchived: summary.autoArchived,
+      awaitingReply: summary.awaitingReply,
+      recommendation: summary.recommendation,
+      totalNew: summary.totalNew,
+      totalUnread: summary.totalUnread,
+      totalAutoSorted: summary.totalAutoSorted,
+      modelUsed: summary.modelUsed,
+    },
+  }).catch((e: any) => {
+    // Unique constraint — already created by concurrent run
+    if (!e?.message?.includes('Unique constraint')) throw e;
+  });
+
+  sendPushToUser(userId, {
+    title: '☀️ God morgon — din briefing är klar',
+    body: `${received} nya mail igår, ${urgent.length} kräver uppmärksamhet`,
+    url: '/',
+  }).catch(() => {});
+
+  console.log(`[Briefing] Morning briefing generated for user ${userId}`);
+}
+
+async function runMorningBriefings(): Promise<void> {
+  const now = new Date();
+  // Run at 07:00 local (check hour 7)
+  if (now.getHours() !== 7) return;
+
+  let users: Array<{ id: string }> = [];
+  try {
+    users = await prisma.user.findMany({ select: { id: true } });
+  } catch {
+    return;
+  }
+
+  for (const user of users) {
+    generateMorningBriefing(user.id).catch((e: any) =>
+      console.warn(`[Briefing] Error for user ${user.id}:`, e?.message)
+    );
   }
 }
 
@@ -582,6 +680,10 @@ export function startSyncScheduler(): void {
   scheduledSendInterval = setInterval(() => {
     sendScheduledDrafts().catch((e) => console.error('[ScheduledSend] Error:', e));
   }, SCHEDULED_SEND_INTERVAL_MS);
+
+  briefingInterval = setInterval(() => {
+    runMorningBriefings().catch((e) => console.error('[Briefing] Error:', e));
+  }, BRIEFING_CHECK_INTERVAL_MS);
 }
 
 /**
@@ -609,6 +711,10 @@ export function stopSyncScheduler(): void {
   if (scheduledSendInterval) {
     clearInterval(scheduledSendInterval);
     scheduledSendInterval = null;
+  }
+  if (briefingInterval) {
+    clearInterval(briefingInterval);
+    briefingInterval = null;
   }
   console.log('[Scheduler] Stopped');
 }

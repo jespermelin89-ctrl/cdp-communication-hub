@@ -74,6 +74,7 @@ export default function ThreadDetailPage() {
   );
   const thread = threadData?.thread ?? null;
 
+  const [suggestedDismissed, setSuggestedDismissed] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [snoozing, setSnoozing] = useState(false);
@@ -118,9 +119,23 @@ export default function ThreadDetailPage() {
   // Side-effects that depend on the loaded thread
   useEffect(() => {
     if (!thread) return;
-    if (!thread.isRead) {
+    const wasUnread = !thread.isRead;
+    if (wasUnread) {
       api.markThreadAsRead(threadId).catch(() => {});
     }
+    // 7D: record thread_opened for priority learning
+    api.recordLearning(
+      'thread_opened',
+      {
+        thread_id: threadId,
+        was_unread: wasUnread,
+        priority: (thread as any).latestAnalysis?.priority ?? null,
+        classification: (thread as any).latestAnalysis?.classification ?? null,
+        opened_at: new Date().toISOString(),
+      },
+      'thread',
+      threadId
+    ).catch(() => {});
     loadContactForThread(thread);
     // Sync custom labels (exclude Gmail system labels)
     const custom = (thread.labels ?? []).filter((l: string) => !['INBOX','UNREAD','STARRED','SENT','DRAFT','SPAM','TRASH','IMPORTANT'].includes(l));
@@ -175,7 +190,7 @@ export default function ThreadDetailPage() {
     setArchiving(true);
     try {
       await api.archiveThread(threadId);
-      api.recordLearning('thread_archived', { thread_id: threadId }, 'thread', threadId).catch(() => {});
+      api.recordLearning('thread_archived', { thread_id: threadId, was_read: thread?.isRead ?? false, priority: (thread as any)?.latestAnalysis?.priority ?? null }, 'thread', threadId).catch(() => {});
       toast.success('Tråd arkiverad');
       router.push('/inbox');
     } catch (err: any) {
@@ -315,6 +330,25 @@ export default function ThreadDetailPage() {
     }
   }
 
+  async function handleUseSuggestion(text: string) {
+    if (!thread) return;
+    setSendingReply(true);
+    try {
+      const result = await api.generateDraft({
+        account_id: thread.account.id!,
+        thread_id: threadId,
+        instruction: `Använd exakt detta som utkast: ${text}`,
+      });
+      setSuggestedDismissed(true);
+      toast.success(t.thread.draftCreated);
+      router.push(`/drafts/${result.draft.id}`);
+    } catch {
+      toast.error('Kunde inte skapa utkast');
+    } finally {
+      setSendingReply(false);
+    }
+  }
+
   async function handleQuickReply() {
     if (!quickReply.trim() || !thread) return;
     setSendingReply(true);
@@ -326,6 +360,7 @@ export default function ThreadDetailPage() {
         instruction: `${modePrefix}Svara kort: ${quickReply}`,
       });
       setQuickReply('');
+      api.recordLearning('thread_replied', { thread_id: threadId, priority: (thread as any)?.latestAnalysis?.priority ?? null }, 'thread', threadId).catch(() => {});
       toast.success('Utkast skapat — granska innan du skickar');
       router.push(`/drafts/${result.draft.id}`);
     } catch {
@@ -526,6 +561,32 @@ export default function ThreadDetailPage() {
             <button onClick={handleRestore} className="text-sm font-medium text-amber-700 dark:text-amber-300 hover:underline ml-4 shrink-0">
               {t.thread.restore}
             </button>
+          </div>
+        )}
+
+        {/* Amanda smart reply suggestion banner */}
+        {(thread as any).suggestedReply && !suggestedDismissed && (
+          <div className="mb-4 p-4 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <Bot size={16} className="text-violet-500" />
+              <span className="text-sm font-medium text-violet-700 dark:text-violet-300">{t.thread.amandaSuggests}</span>
+            </div>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">{(thread as any).suggestedReply}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleUseSuggestion((thread as any).suggestedReply)}
+                disabled={sendingReply}
+                className="text-xs px-3 py-1.5 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-60"
+              >
+                {t.thread.useAsDraft}
+              </button>
+              <button
+                onClick={() => setSuggestedDismissed(true)}
+                className="text-xs px-3 py-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                {t.thread.dismissSuggestion}
+              </button>
+            </div>
           </div>
         )}
 

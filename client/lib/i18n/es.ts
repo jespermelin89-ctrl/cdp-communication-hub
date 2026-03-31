@@ -197,6 +197,9 @@ const es: Translations = {
     snoozeTomorrow: 'Mañana 9:00',
     snoozeNextMonday: 'Próximo lunes 9:00',
     snooze1w: 'En 1 semana',
+    amandaSuggests: 'Amanda sugiere',
+    useAsDraft: 'Usar como borrador',
+    dismissSuggestion: 'Ignorar',
   },
 
   draftDetail: {

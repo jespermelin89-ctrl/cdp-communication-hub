@@ -197,6 +197,9 @@ const ru: Translations = {
     snoozeTomorrow: 'Завтра в 9:00',
     snoozeNextMonday: 'В следующий понедельник 9:00',
     snooze1w: 'Через 1 неделю',
+    amandaSuggests: 'Amanda предлагает',
+    useAsDraft: 'Использовать как черновик',
+    dismissSuggestion: 'Игнорировать',
   },
 
   draftDetail: {

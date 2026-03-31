@@ -424,6 +424,111 @@ Ge en kort sammanfattning.`;
 
     return response.choices[0]?.message?.content || '';
   }
+
+  /**
+   * Generate a structured morning briefing from urgent threads and yesterday's stats.
+   * Returns fields compatible with DailySummary.create data.
+   */
+  async generateBriefing(
+    _userId: string,
+    urgentThreads: Array<{ subject: string | null; participantEmails: string[]; snippet: string | null }>,
+    stats: { received: number; sent: number; classified: number }
+  ): Promise<{
+    needsReply: any[];
+    goodToKnow: any[];
+    autoArchived: any[];
+    awaitingReply: any[];
+    recommendation: string;
+    totalNew: number;
+    totalUnread: number;
+    totalAutoSorted: number;
+    modelUsed: string;
+  }> {
+    const BRIEFING_SYSTEM_PROMPT = `Du är en e-postassistent som genererar morgonbriefingar.
+Analysera de brådskande trådarna och statistiken, och returnera ett JSON-objekt med exakt dessa fält:
+- needsReply: array av { subject, sender } för trådar som kräver svar
+- goodToKnow: array av { subject, note } för viktiga informationsmail
+- autoArchived: array (kan vara tom)
+- awaitingReply: array (kan vara tom)
+- recommendation: en kort handlingsinriktad mening på svenska
+- modelUsed: modell-id
+
+CRITICAL: Returnera BARA ett JSON-objekt. Inga kodblock, ingen text utanför JSON.`;
+
+    const userMessage = `Igår: ${stats.received} mottagna, ${stats.sent} skickade, ${stats.classified} klassificerade.
+
+Brådskande trådar (${urgentThreads.length} st):
+${urgentThreads
+  .slice(0, 8)
+  .map(
+    (t, i) => `${i + 1}. Ämne: ${t.subject || '(Inget ämne)'}
+   Från: ${t.participantEmails[0] ?? 'okänd'}
+   Utdrag: ${(t.snippet ?? '').substring(0, 150)}`
+  )
+  .join('\n\n')}
+
+Generera morgonbriefing.`;
+
+    let parsed: any;
+    try {
+      const response = await this.chat(BRIEFING_SYSTEM_PROMPT, userMessage);
+      const cleaned = cleanJsonResponse(response);
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // Fallback if AI fails
+      parsed = {
+        needsReply: urgentThreads.slice(0, 3).map((t) => ({ subject: t.subject, sender: t.participantEmails[0] ?? 'okänd' })),
+        goodToKnow: [],
+        autoArchived: [],
+        awaitingReply: [],
+        recommendation: `${urgentThreads.length} trådar kräver din uppmärksamhet idag.`,
+        modelUsed: 'fallback',
+      };
+    }
+
+    return {
+      needsReply: Array.isArray(parsed.needsReply) ? parsed.needsReply : [],
+      goodToKnow: Array.isArray(parsed.goodToKnow) ? parsed.goodToKnow : [],
+      autoArchived: Array.isArray(parsed.autoArchived) ? parsed.autoArchived : [],
+      awaitingReply: Array.isArray(parsed.awaitingReply) ? parsed.awaitingReply : [],
+      recommendation: typeof parsed.recommendation === 'string' ? parsed.recommendation : '',
+      totalNew: stats.received,
+      totalUnread: urgentThreads.length,
+      totalAutoSorted: stats.classified,
+      modelUsed: typeof parsed.modelUsed === 'string' ? parsed.modelUsed : 'unknown',
+    };
+  }
+
+  /**
+   * Generate a short smart reply suggestion for a high-priority thread.
+   * Returns a 1-3 sentence suggestion or null if generation fails.
+   */
+  async generateSmartReply(thread: {
+    subject: string | null;
+    messages: Array<{ from: string; body: string; date: string }>;
+  }): Promise<string | null> {
+    const SMART_REPLY_PROMPT = `Du är en e-postassistent. Generera ett KORT svarsförslag (1-3 meningar) för det senaste mailet i tråden.
+Svaret ska vara direkt och professionellt. Inga inledningsfraser som "Hej" — bara svarskärnan.
+Skriv på samma språk som det senaste mailet.
+Returnera BARA svarstext, inget annat.`;
+
+    const lastMsg = thread.messages[thread.messages.length - 1];
+    if (!lastMsg) return null;
+
+    const userMessage = `Ämne: ${thread.subject || '(Inget ämne)'}
+Från: ${lastMsg.from}
+Meddelande: ${lastMsg.body.substring(0, 800)}
+
+Skriv ett kort svarsförslag.`;
+
+    try {
+      const response = await this.chat(SMART_REPLY_PROMPT, userMessage);
+      const trimmed = response.trim();
+      return trimmed.length > 0 && trimmed.length < 500 ? trimmed : null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 // Singleton instance

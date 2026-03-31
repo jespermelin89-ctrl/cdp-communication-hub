@@ -70,6 +70,16 @@ const en: Translations = {
     draftSuggestion: 'Draft suggestion',
     snoozed: 'Snoozed',
     allLabels: 'All labels',
+    mailboxInbox: 'Inbox',
+    mailboxSent: 'Sent',
+    mailboxArchive: 'Archive',
+    mailboxTrash: 'Trash',
+    mailboxSnoozed: 'Snoozed',
+    emptyInbox: 'All caught up!',
+    emptySent: 'No sent mail yet',
+    emptyTrash: 'Trash is empty',
+    emptyArchive: 'Nothing archived',
+    emptySnoozed: 'No snoozed threads',
   },
 
   drafts: {

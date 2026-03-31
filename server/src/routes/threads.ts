@@ -67,6 +67,33 @@ export async function threadRoutes(fastify: FastifyInstance) {
       where.labels = { has: label };
     }
 
+    const mailbox = rawQuery.mailbox;
+    if (mailbox) {
+      const now = new Date();
+      switch (mailbox) {
+        case 'inbox':
+          where.labels = { has: 'INBOX' };
+          where.NOT = { labels: { has: 'TRASH' } };
+          where.snoozedUntil = null;
+          break;
+        case 'sent':
+          where.isSentByUser = true;
+          break;
+        case 'trash':
+          where.labels = { has: 'TRASH' };
+          break;
+        case 'archive':
+          where.NOT = [{ labels: { has: 'INBOX' } }, { labels: { has: 'TRASH' } }];
+          break;
+        case 'snoozed':
+          where.snoozedUntil = { gt: now };
+          break;
+        case 'all':
+          where.NOT = { labels: { has: 'TRASH' } };
+          break;
+      }
+    }
+
     const threadSelect = {
       where,
       include: {
@@ -143,6 +170,7 @@ export async function threadRoutes(fastify: FastifyInstance) {
         analyses: undefined,
       })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      mailbox: mailbox ?? 'inbox',
     };
   });
 

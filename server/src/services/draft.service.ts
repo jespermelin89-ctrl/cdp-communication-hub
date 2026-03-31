@@ -192,6 +192,14 @@ export class DraftService {
           },
         });
 
+        // If thread exists, mark it as sent by user
+        if (draft.threadId) {
+          await prisma.emailThread.update({
+            where: { id: draft.threadId },
+            data: { isSentByUser: true },
+          }).catch(() => {}); // non-critical
+        }
+
         // Step 5: Log the send action
         await actionLogService.logInTransaction(tx, userId, 'draft_sent', 'draft', draftId, {
           gmailMessageId: result.messageId,

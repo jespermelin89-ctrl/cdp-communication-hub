@@ -90,6 +90,7 @@ model EmailThread {
   labels            String[] @default([])
   isRead            Boolean  @default(true) @map("is_read")
   snoozedUntil      DateTime? @map("snoozed_until")
+  isSentByUser      Boolean  @default(false) @map("is_sent_by_user")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 

@@ -71,6 +71,16 @@ const sv = {
     draftSuggestion: 'Utkastsförslag',
     snoozed: 'Snoozade',
     allLabels: 'Alla etiketter',
+    mailboxInbox: 'Inkorg',
+    mailboxSent: 'Skickat',
+    mailboxArchive: 'Arkiv',
+    mailboxTrash: 'Papperskorg',
+    mailboxSnoozed: 'Snoozade',
+    emptyInbox: 'Inget nytt \u2014 du \u00e4r i kapp!',
+    emptySent: 'Du har inte skickat n\u00e5got \u00e4nnu',
+    emptyTrash: 'Papperskorgen \u00e4r tom',
+    emptyArchive: 'Inget arkiverat',
+    emptySnoozed: 'Inga snoozade tr\u00e5dar',
   },
 
   // Drafts

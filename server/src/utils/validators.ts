@@ -57,6 +57,7 @@ export const ThreadQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
   label: z.string().optional(),
+  mailbox: z.enum(['inbox', 'sent', 'trash', 'archive', 'snoozed', 'all']).optional(),
 });
 
 export type ThreadQueryInput = z.infer<typeof ThreadQuerySchema>;

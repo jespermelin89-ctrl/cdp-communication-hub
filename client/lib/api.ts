@@ -281,13 +281,14 @@ class ApiClient {
   }
 
   // Threads
-  async getThreads(params?: { account_id?: string; page?: number; limit?: number; search?: string }) {
+  async getThreads(params?: { account_id?: string; page?: number; limit?: number; search?: string; mailbox?: string }) {
     const query: Record<string, string> = {};
     if (params?.account_id) query.account_id = params.account_id;
     if (params?.page) query.page = String(params.page);
     if (params?.limit) query.limit = String(params.limit);
     if (params?.search) query.search = params.search;
-    return this.requestWithRetry<{ threads: any[]; pagination: any }>('GET', '/threads', undefined, query);
+    if (params?.mailbox) query.mailbox = params.mailbox;
+    return this.requestWithRetry<{ threads: any[]; pagination: any; mailbox?: string }>('GET', '/threads', undefined, query);
   }
 
   async getThread(id: string) {

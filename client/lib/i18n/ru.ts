@@ -70,6 +70,16 @@ const ru: Translations = {
     draftSuggestion: 'Черновик предложения',
     snoozed: 'Отложенные',
     allLabels: 'Все метки',
+    mailboxInbox: 'Входящие',
+    mailboxSent: 'Отправленные',
+    mailboxArchive: 'Архив',
+    mailboxTrash: 'Корзина',
+    mailboxSnoozed: 'Отложенные',
+    emptyInbox: 'Всё прочитано!',
+    emptySent: 'Ещё нет отправленных писем',
+    emptyTrash: 'Корзина пуста',
+    emptyArchive: 'Нет архивированных',
+    emptySnoozed: 'Нет отложенных цепочек',
   },
 
   drafts: {

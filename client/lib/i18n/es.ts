@@ -70,6 +70,16 @@ const es: Translations = {
     draftSuggestion: 'Borrador sugerido',
     snoozed: 'Pospuestos',
     allLabels: 'Todas las etiquetas',
+    mailboxInbox: 'Bandeja de entrada',
+    mailboxSent: 'Enviados',
+    mailboxArchive: 'Archivo',
+    mailboxTrash: 'Papelera',
+    mailboxSnoozed: 'Pospuestos',
+    emptyInbox: '\u00a1Todo al d\u00eda!',
+    emptySent: 'A\u00fan no hay correos enviados',
+    emptyTrash: 'La papelera est\u00e1 vac\u00eda',
+    emptyArchive: 'Nada archivado',
+    emptySnoozed: 'No hay hilos pospuestos',
   },
 
   drafts: {

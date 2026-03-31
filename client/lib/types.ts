@@ -48,6 +48,7 @@ export interface EmailThread {
   labels: string[];
   isRead: boolean;
   snoozedUntil: string | null;
+  isSentByUser?: boolean;
   account: { id: string; emailAddress: string };
   latestAnalysis: AIAnalysis | null;
   messages?: EmailMessage[];

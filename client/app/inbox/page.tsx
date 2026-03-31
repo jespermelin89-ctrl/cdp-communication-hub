@@ -10,7 +10,7 @@ import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
 import SwipeableThread from '@/components/SwipeableThread';
-import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon, WifiOff, Star, MailX } from 'lucide-react';
+import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon, WifiOff, Star, MailX, Send, Clock } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PullToRefresh from '@/components/PullToRefresh';
@@ -70,10 +70,13 @@ function formatRelativeTime(dateStr: string | null | undefined): string {
   return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
 }
 
+type MailboxView = 'inbox' | 'sent' | 'trash' | 'archive' | 'snoozed' | 'all';
+
 export default function InboxPage() {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+  const [mailboxView, setMailboxView] = useState<MailboxView>('inbox');
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [classificationFilter, setClassificationFilter] = useState<string>('');
   const [syncing, setSyncing] = useState(false);
@@ -109,14 +112,15 @@ export default function InboxPage() {
   // Reset pagination when search/filter changes
   useEffect(() => {
     setDisplayLimit(20);
-  }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey, starredOnly, labelFilter, showSnoozed]);
+  }, [debouncedSearch, selectedAccountId, classificationFilter, priorityFilter, sortKey, starredOnly, labelFilter, showSnoozed, mailboxView]);
 
   // SWR — threads revalidate automatically when filters change
   const { data: threadData, isLoading: loading, error: threadError, mutate: mutateThreads } = useSWR(
-    ['threads', selectedAccountId, debouncedSearch],
+    ['threads', selectedAccountId, debouncedSearch, mailboxView],
     () => api.getThreads({
       account_id: selectedAccountId || undefined,
       search: debouncedSearch || undefined,
+      mailbox: mailboxView,
     }),
     { refreshInterval: 60000, revalidateOnFocus: true }
   );
@@ -376,9 +380,53 @@ export default function InboxPage() {
   const unanalyzedCount = threads.filter((th) => !th.latestAnalysis).length;
   const analyzingAny = analyzingIds.size > 0;
 
+  const MAILBOX_VIEWS = [
+    { id: 'inbox' as MailboxView, label: t.inbox.mailboxInbox ?? 'Inkorg', icon: InboxIcon },
+    { id: 'sent' as MailboxView, label: t.inbox.mailboxSent ?? 'Skickat', icon: Send },
+    { id: 'archive' as MailboxView, label: t.inbox.mailboxArchive ?? 'Arkiv', icon: Archive },
+    { id: 'trash' as MailboxView, label: t.inbox.mailboxTrash ?? 'Papperskorg', icon: Trash2 },
+    { id: 'snoozed' as MailboxView, label: t.inbox.mailboxSnoozed ?? 'Snoozade', icon: Clock },
+  ] as const;
+
+  function getEmptyStateMessage(): string {
+    switch (mailboxView) {
+      case 'inbox': return t.inbox.emptyInbox ?? 'Inget nytt \u2014 du \u00e4r i kapp!';
+      case 'sent': return t.inbox.emptySent ?? 'Du har inte skickat n\u00e5got \u00e4nnu';
+      case 'trash': return t.inbox.emptyTrash ?? 'Papperskorgen \u00e4r tom';
+      case 'archive': return t.inbox.emptyArchive ?? 'Inget arkiverat';
+      case 'snoozed': return t.inbox.emptySnoozed ?? 'Inga snoozade tr\u00e5dar';
+      default: return t.inbox.noThreads ?? 'Inga tr\u00e5dar';
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
+
+      {/* Mailbox tabs */}
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-16 z-40">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide py-2">
+            {MAILBOX_VIEWS.map((view) => {
+              const Icon = view.icon;
+              return (
+                <button
+                  key={view.id}
+                  onClick={() => setMailboxView(view.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors shrink-0 ${
+                    mailboxView === view.id
+                      ? 'bg-brand-500 text-white'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                >
+                  <Icon size={14} />
+                  {view.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Offline banner */}
       {!online && (
@@ -641,7 +689,7 @@ export default function InboxPage() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
             <EmptyState
               icon={InboxIcon}
-              title={t.inbox.noThreads}
+              title={getEmptyStateMessage()}
               description="Synka din inkorg för att hämta nya mail"
               action={{ label: t.inbox.syncNow, onClick: handleSync }}
             />

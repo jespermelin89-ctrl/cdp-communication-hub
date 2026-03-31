@@ -140,6 +140,13 @@ const ru: Translations = {
     exportMailJson: 'Экспорт почты (JSON)',
     exportBrainCore: 'Экспорт Brain Core',
     exportHint: 'Скачайте копию своих данных.',
+    notifications: 'Уведомления',
+    quietHours: 'Тихие часы',
+    quietHoursFrom: 'С',
+    quietHoursTo: 'До',
+    digestEnabled: 'Утренний дайджест',
+    digestHint: 'Собирать пропущенные уведомления и отправлять в:',
+    saved: 'Сохранено',
   },
 
   activity: {

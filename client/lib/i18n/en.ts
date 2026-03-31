@@ -140,6 +140,13 @@ const en: Translations = {
     exportMailJson: 'Export mail (JSON)',
     exportBrainCore: 'Export Brain Core',
     exportHint: 'Download a copy of your data.',
+    notifications: 'Notifications',
+    quietHours: 'Quiet hours',
+    quietHoursFrom: 'From',
+    quietHoursTo: 'To',
+    digestEnabled: 'Morning digest',
+    digestHint: 'Collect missed notifications and send at:',
+    saved: 'Saved',
   },
 
   activity: {

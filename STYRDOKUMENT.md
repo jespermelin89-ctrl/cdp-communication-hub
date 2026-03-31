@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-31 22:31:21 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-03-31 22:35:19 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -81,6 +81,8 @@ Prefix: `/api/v1`
 | `GET     /auth/google/reauth` | `auth` |
 | `POST    /auth/connect` | `auth` |
 | `GET     /auth/me` | `auth` |
+| `GET     /user/settings` | `auth` |
+| `PATCH   /user/settings` | `auth` |
 | `GET     /brain-core/writing-profile` | `brain-core` |
 | `PATCH   /brain-core/writing-mode/:key` | `brain-core` |
 | `GET     /brain-core/contacts` | `brain-core` |

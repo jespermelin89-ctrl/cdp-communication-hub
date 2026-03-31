@@ -143,6 +143,13 @@ const sv = {
     exportMailJson: 'Exportera mail (JSON)',
     exportBrainCore: 'Exportera Brain Core',
     exportHint: 'Ladda ner en kopia av din data.',
+    notifications: 'Notiser',
+    quietHours: 'Tysta timmar',
+    quietHoursFrom: 'Från',
+    quietHoursTo: 'Till',
+    digestEnabled: 'Morgondigest',
+    digestHint: 'Samla missade notiser och skicka vid:',
+    saved: 'Sparat',
   },
 
   // Thread detail

@@ -590,6 +590,20 @@ class ApiClient {
     return this.request<{ message: string }>('DELETE', `/threads/${id}/snooze`);
   }
 
+  async getUserSettings() {
+    return this.request<{ settings: any }>('GET', '/user/settings');
+  }
+
+  async updateUserSettings(data: {
+    quietHoursStart?: number;
+    quietHoursEnd?: number;
+    digestEnabled?: boolean;
+    digestTime?: number;
+    uiTheme?: string;
+  }) {
+    return this.request<{ settings: any }>('PATCH', '/user/settings', data);
+  }
+
   async reportSpam(threadId: string) {
     return this.request<{ message: string }>('POST', `/threads/${threadId}/spam`);
   }

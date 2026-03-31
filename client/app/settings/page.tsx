@@ -29,8 +29,24 @@ export default function SettingsPage() {
   const { t, locale, setLocale } = useI18n();
   const { theme, setTheme } = useTheme();
 
+  // Quiet hours + digest settings
+  const [quietStart, setQuietStart] = useState(22);
+  const [quietEnd, setQuietEnd] = useState(7);
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [digestTime, setDigestTime] = useState(8);
+  const [savingNotif, setSavingNotif] = useState(false);
+  const [notifSaved, setNotifSaved] = useState(false);
+
   useEffect(() => {
     loadAll();
+    api.getUserSettings().then((r) => {
+      if (r.settings) {
+        setQuietStart(r.settings.quietHoursStart ?? 22);
+        setQuietEnd(r.settings.quietHoursEnd ?? 7);
+        setDigestEnabled(r.settings.digestEnabled ?? false);
+        setDigestTime(r.settings.digestTime ?? 8);
+      }
+    }).catch(() => {});
   }, []);
 
   async function loadAll() {
@@ -84,6 +100,19 @@ export default function SettingsPage() {
       await loadAll();
     } catch (err: any) {
       setActionError(`Misslyckades: ${err.message}`);
+    }
+  }
+
+  async function saveNotifSettings() {
+    setSavingNotif(true);
+    try {
+      await api.updateUserSettings({ quietHoursStart: quietStart, quietHoursEnd: quietEnd, digestEnabled, digestTime });
+      setNotifSaved(true);
+      setTimeout(() => setNotifSaved(false), 2500);
+    } catch (err: any) {
+      setActionError(`Misslyckades: ${err.message}`);
+    } finally {
+      setSavingNotif(false);
     }
   }
 
@@ -370,6 +399,73 @@ export default function SettingsPage() {
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>
               </div>
+            </div>
+
+            {/* Notifications — quiet hours + digest */}
+            <div className="card space-y-4">
+              <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200">{t.settings.notifications}</h2>
+
+              {/* Quiet hours */}
+              <div>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1.5">{t.settings.quietHours}</label>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500">{t.settings.quietHoursFrom}</span>
+                  <select
+                    value={quietStart}
+                    onChange={(e) => setQuietStart(Number(e.target.value))}
+                    className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 outline-none"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                    ))}
+                  </select>
+                  <span className="text-sm text-gray-500">{t.settings.quietHoursTo}</span>
+                  <select
+                    value={quietEnd}
+                    onChange={(e) => setQuietEnd(Number(e.target.value))}
+                    className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 outline-none"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Digest */}
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={digestEnabled}
+                    onChange={(e) => setDigestEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t.settings.digestEnabled}</span>
+                </label>
+                {digestEnabled && (
+                  <div className="flex items-center gap-2 mt-2 ml-6">
+                    <span className="text-sm text-gray-500">{t.settings.digestHint}</span>
+                    <select
+                      value={digestTime}
+                      onChange={(e) => setDigestTime(Number(e.target.value))}
+                      className="text-sm border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 outline-none"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={saveNotifSettings}
+                disabled={savingNotif}
+                className="btn-primary text-sm"
+              >
+                {notifSaved ? t.settings.saved : savingNotif ? '...' : t.settings.save}
+              </button>
             </div>
 
             {/* Data & Backup */}

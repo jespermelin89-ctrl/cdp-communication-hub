@@ -17,7 +17,7 @@ import { emailProviderFactory } from './email-provider.factory';
 import { aiService } from './ai.service';
 import { brainCoreService } from './brain-core.service';
 import { matchClassificationRule } from './rule-engine.service';
-import { sendPushToUser } from './push.service';
+import { sendPushToUser, sendDigest } from './push.service';
 import { draftService } from './draft.service';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;       // 5 minutes
@@ -342,20 +342,36 @@ async function generateMorningBriefing(userId: string): Promise<void> {
 
 async function runMorningBriefings(): Promise<void> {
   const now = new Date();
-  // Run at 07:00 local (check hour 7)
-  if (now.getHours() !== 7) return;
+  const hour = now.getHours();
 
-  let users: Array<{ id: string }> = [];
-  try {
-    users = await prisma.user.findMany({ select: { id: true } });
-  } catch {
-    return;
+  // Run morning briefing at 07:00
+  if (hour === 7) {
+    let users: Array<{ id: string }> = [];
+    try {
+      users = await prisma.user.findMany({ select: { id: true } });
+    } catch {
+      return;
+    }
+    for (const user of users) {
+      generateMorningBriefing(user.id).catch((e: any) =>
+        console.warn(`[Briefing] Error for user ${user.id}:`, e?.message)
+      );
+    }
   }
 
-  for (const user of users) {
-    generateMorningBriefing(user.id).catch((e: any) =>
-      console.warn(`[Briefing] Error for user ${user.id}:`, e?.message)
-    );
+  // Run digest for each user whose digestTime matches current hour
+  try {
+    const settings = await prisma.userSettings.findMany({
+      where: { digestEnabled: true, digestTime: hour },
+      select: { userId: true },
+    });
+    for (const s of settings) {
+      sendDigest(s.userId).catch((e: any) =>
+        console.warn(`[Digest] Error for user ${s.userId}:`, e?.message)
+      );
+    }
+  } catch {
+    // Non-fatal
   }
 }
 

@@ -1,0 +1,5 @@
+ALTER TABLE "user_settings"
+  ADD COLUMN IF NOT EXISTS "quiet_hours_start" INTEGER DEFAULT 22,
+  ADD COLUMN IF NOT EXISTS "quiet_hours_end"   INTEGER DEFAULT 7,
+  ADD COLUMN IF NOT EXISTS "digest_enabled"    BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "digest_time"       INTEGER DEFAULT 8;

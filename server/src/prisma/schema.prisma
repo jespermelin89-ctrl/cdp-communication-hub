@@ -393,12 +393,16 @@ model PushSubscription {
 // USER SETTINGS
 // ============================================================
 model UserSettings {
-  id                      String  @id @default(uuid())
-  userId                  String  @unique @map("user_id")
-  defaultAccountId        String? @map("default_account_id")
-  uiTheme                 String  @default("light") @map("ui_theme")
-  notificationPreferences Json    @default("{}") @map("notification_preferences")
-  aiTonePreference        String? @map("ai_tone_preference")
+  id                      String   @id @default(uuid())
+  userId                  String   @unique @map("user_id")
+  defaultAccountId        String?  @map("default_account_id")
+  uiTheme                 String   @default("light") @map("ui_theme")
+  notificationPreferences Json     @default("{}") @map("notification_preferences")
+  aiTonePreference        String?  @map("ai_tone_preference")
+  quietHoursStart         Int?     @default(22) @map("quiet_hours_start")
+  quietHoursEnd           Int?     @default(7)  @map("quiet_hours_end")
+  digestEnabled           Boolean  @default(false) @map("digest_enabled")
+  digestTime              Int?     @default(8)  @map("digest_time")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

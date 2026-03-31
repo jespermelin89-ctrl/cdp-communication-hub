@@ -146,4 +146,45 @@ export async function authRoutes(fastify: FastifyInstance) {
     const profile = await authService.getProfile(request.userId);
     return { user: profile };
   });
+
+  /**
+   * GET /user/settings - Get user settings (includes quiet hours, digest, theme)
+   */
+  fastify.get('/user/settings', {
+    preHandler: authMiddleware,
+  }, async (request) => {
+    const { prisma } = await import('../config/database');
+    const settings = await prisma.userSettings.findUnique({ where: { userId: request.userId } });
+    return { settings };
+  });
+
+  /**
+   * PATCH /user/settings - Update user settings
+   */
+  fastify.patch('/user/settings', {
+    preHandler: authMiddleware,
+  }, async (request) => {
+    const { prisma } = await import('../config/database');
+    const body = request.body as {
+      quietHoursStart?: number;
+      quietHoursEnd?: number;
+      digestEnabled?: boolean;
+      digestTime?: number;
+      uiTheme?: string;
+    };
+
+    const allowed: Record<string, unknown> = {};
+    if (body.quietHoursStart !== undefined) allowed.quietHoursStart = Number(body.quietHoursStart);
+    if (body.quietHoursEnd !== undefined) allowed.quietHoursEnd = Number(body.quietHoursEnd);
+    if (body.digestEnabled !== undefined) allowed.digestEnabled = Boolean(body.digestEnabled);
+    if (body.digestTime !== undefined) allowed.digestTime = Number(body.digestTime);
+    if (body.uiTheme !== undefined) allowed.uiTheme = body.uiTheme;
+
+    const settings = await prisma.userSettings.upsert({
+      where: { userId: request.userId },
+      update: allowed,
+      create: { userId: request.userId, ...allowed },
+    });
+    return { settings };
+  });
 }

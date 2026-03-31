@@ -54,7 +54,7 @@ const PROVIDERS: EmailProviderConfig[] = [
     smtpDefaults: {
       host: 'smtp.office365.com',
       port: 587,
-      secure: true,
+      secure: false,
     },
   },
   {
@@ -90,7 +90,7 @@ const PROVIDERS: EmailProviderConfig[] = [
     smtpDefaults: {
       host: 'smtp.mail.me.com',
       port: 587,
-      secure: true,
+      secure: false,
     },
   },
   {
@@ -126,7 +126,7 @@ const PROVIDERS: EmailProviderConfig[] = [
     smtpDefaults: {
       host: 'smtp.bredband.net',
       port: 587,
-      secure: true,
+      secure: false,
     },
   },
   {

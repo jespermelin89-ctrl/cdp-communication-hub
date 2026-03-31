@@ -99,11 +99,12 @@ describe('CreateDraftSchema', () => {
     expect(() => CreateDraftSchema.parse(valid)).not.toThrow();
   });
 
-  it('accepts optional thread_id and cc_addresses', () => {
+  it('accepts optional thread_id, cc_addresses, and bcc_addresses', () => {
     const withOptionals = {
       ...valid,
       thread_id: '550e8400-e29b-41d4-a716-446655440001',
       cc_addresses: ['cc@example.com'],
+      bcc_addresses: ['hidden@example.com'],
     };
     expect(() => CreateDraftSchema.parse(withOptionals)).not.toThrow();
   });
@@ -128,9 +129,10 @@ describe('CreateDraftSchema', () => {
     expect(() => CreateDraftSchema.parse({ ...valid, body_text: '' })).toThrow();
   });
 
-  it('defaults cc_addresses to empty array', () => {
+  it('defaults cc_addresses and bcc_addresses to empty arrays', () => {
     const result = CreateDraftSchema.parse(valid);
     expect(result.cc_addresses).toEqual([]);
+    expect(result.bcc_addresses).toEqual([]);
   });
 });
 
@@ -143,6 +145,7 @@ describe('UpdateDraftSchema', () => {
     expect(() => UpdateDraftSchema.parse({ subject: 'New subject' })).not.toThrow();
     expect(() => UpdateDraftSchema.parse({ body_text: 'New body' })).not.toThrow();
     expect(() => UpdateDraftSchema.parse({ to_addresses: ['a@b.com'] })).not.toThrow();
+    expect(() => UpdateDraftSchema.parse({ bcc_addresses: ['hidden@example.com'] })).not.toThrow();
   });
 
   it('accepts empty object (no-op update)', () => {

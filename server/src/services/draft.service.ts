@@ -32,6 +32,7 @@ export class DraftService {
         threadId: input.thread_id || null,
         toAddresses: input.to_addresses,
         ccAddresses: input.cc_addresses || [],
+        bccAddresses: input.bcc_addresses || [],
         subject: input.subject,
         bodyText: bodyWithSignature,
         status: 'pending', // ALWAYS starts as pending
@@ -74,6 +75,7 @@ export class DraftService {
       data: {
         ...(input.to_addresses && { toAddresses: input.to_addresses }),
         ...(input.cc_addresses && { ccAddresses: input.cc_addresses }),
+        ...(input.bcc_addresses && { bccAddresses: input.bcc_addresses }),
         ...(input.subject && { subject: input.subject }),
         ...(input.body_text && { bodyText: input.body_text }),
       },
@@ -172,6 +174,7 @@ export class DraftService {
           from: draft.account.emailAddress,
           to: draft.toAddresses,
           cc: draft.ccAddresses,
+          bcc: draft.bccAddresses,
           subject: draft.subject,
           body: draft.bodyText,
           inReplyTo,

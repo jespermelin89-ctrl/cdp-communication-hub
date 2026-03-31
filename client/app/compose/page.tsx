@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
@@ -15,7 +15,7 @@ import type { Account } from '@/lib/types';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-export default function ComposePage() {
+function ComposePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const replyThreadId = searchParams.get('reply');
@@ -755,5 +755,24 @@ export default function ComposePage() {
         onCancel={() => setSendConfirmOpen(false)}
       />
     </div>
+  );
+}
+
+export default function ComposePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+          <TopBar />
+          <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-8 text-sm text-gray-500 dark:text-gray-400">
+              Laddar skrivfönster...
+            </div>
+          </main>
+        </div>
+      }
+    >
+      <ComposePageContent />
+    </Suspense>
   );
 }

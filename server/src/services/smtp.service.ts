@@ -75,6 +75,7 @@ export class SmtpService {
     options: {
       to: string[];
       cc?: string[];
+      bcc?: string[];
       subject: string;
       body: string;
       inReplyTo?: string;
@@ -97,6 +98,9 @@ export class SmtpService {
 
     if (options.cc && options.cc.length > 0) {
       mailOptions.cc = options.cc.join(', ');
+    }
+    if (options.bcc && options.bcc.length > 0) {
+      mailOptions.bcc = options.bcc.join(', ');
     }
 
     // Thread reply headers

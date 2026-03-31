@@ -81,30 +81,28 @@ export class ImapService {
       const lock = await client.getMailboxLock(folder);
 
       try {
-        // Build search criteria
-        const searchCriteria: any = {};
-        if (since) {
-          searchCriteria.since = since;
-        }
+        const searchQuery = since ? { since } : { all: true };
+        const messageUids = await client.search(searchQuery, { uid: true });
+        const recentUids = Array.isArray(messageUids)
+          ? [...messageUids].sort((a, b) => a - b).slice(-limit)
+          : [];
 
-        // Fetch message UIDs
         const messages: any[] = [];
-        let count = 0;
-
-        for await (const msg of client.fetch(
-          since ? { since } : '1:*',
-          {
-            envelope: true,
-            bodyStructure: true,
-            uid: true,
-            flags: true,
-            internalDate: true,
-            headers: ['message-id', 'in-reply-to', 'references'],
+        if (recentUids.length > 0) {
+          for await (const msg of client.fetch(
+            recentUids,
+            {
+              envelope: true,
+              bodyStructure: true,
+              uid: true,
+              flags: true,
+              internalDate: true,
+              headers: ['message-id', 'in-reply-to', 'references'],
+            },
+            { uid: true }
+          )) {
+            messages.push(msg);
           }
-        )) {
-          messages.push(msg);
-          count++;
-          if (count >= limit) break;
         }
 
         // Process messages: group into threads and cache
@@ -123,6 +121,7 @@ export class ImapService {
           const toAddresses = (envelope.to || []).map((a: any) => a.address).filter(Boolean);
           const ccAddresses = (envelope.cc || []).map((a: any) => a.address).filter(Boolean);
           const messageId = msg.headers?.get('message-id')?.toString() || msg.uid?.toString() || '';
+          const gmailMessageId = `imap_${messageId}`;
           const receivedAt = msg.internalDate || new Date();
           const isRead = msg.flags?.has('\\Seen') || false;
 
@@ -144,7 +143,7 @@ export class ImapService {
             thread = await prisma.emailThread.create({
               data: {
                 accountId,
-                gmailThreadId: `imap_${messageId}`, // Use message ID as thread identifier
+                gmailThreadId: gmailMessageId, // Use message ID as thread identifier
                 subject,
                 snippet: '', // Will be filled below
                 lastMessageAt: receivedAt,
@@ -162,12 +161,21 @@ export class ImapService {
               ...toAddresses,
               ...ccAddresses,
             ]);
+            const existingMessage = await prisma.emailMessage.findUnique({
+              where: {
+                threadId_gmailMessageId: {
+                  threadId: thread.id,
+                  gmailMessageId,
+                },
+              },
+              select: { id: true },
+            });
             await prisma.emailThread.update({
               where: { id: thread.id },
               data: {
                 lastMessageAt: receivedAt > (thread.lastMessageAt || new Date(0)) ? receivedAt : thread.lastMessageAt,
                 participantEmails: Array.from(participants),
-                messageCount: { increment: 1 },
+                ...(existingMessage ? {} : { messageCount: { increment: 1 } }),
                 isRead: isRead && thread.isRead,
               },
             });
@@ -198,7 +206,7 @@ export class ImapService {
             where: {
               threadId_gmailMessageId: {
                 threadId: thread.id,
-                gmailMessageId: `imap_${messageId}`,
+                gmailMessageId,
               },
             },
             update: {
@@ -207,7 +215,7 @@ export class ImapService {
             },
             create: {
               threadId: thread.id,
-              gmailMessageId: `imap_${messageId}`,
+              gmailMessageId,
               fromAddress,
               toAddresses,
               ccAddresses,

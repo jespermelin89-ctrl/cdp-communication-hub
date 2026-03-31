@@ -83,12 +83,14 @@ describe('DraftService.create', () => {
       subject: 'Test',
       body_text: 'Hello',
       cc_addresses: [],
+      bcc_addresses: ['hidden@test.com'],
     });
 
     expect(result.status).toBe('pending');
     expect(mockDraft.create).toHaveBeenCalledOnce();
     const createCall = mockDraft.create.mock.calls[0][0];
     expect(createCall.data.status).toBe('pending');
+    expect(createCall.data.bccAddresses).toEqual(['hidden@test.com']);
   });
 
   it('appends signature when account has one', async () => {
@@ -108,6 +110,7 @@ describe('DraftService.create', () => {
       subject: 'Test',
       body_text: 'Hello',
       cc_addresses: [],
+      bcc_addresses: [],
     });
 
     const createCall = mockDraft.create.mock.calls[0][0];
@@ -132,6 +135,7 @@ describe('DraftService.create', () => {
       subject: 'Test',
       body_text: 'Hello',
       cc_addresses: [],
+      bcc_addresses: [],
     });
 
     const createCall = mockDraft.create.mock.calls[0][0];
@@ -207,6 +211,7 @@ describe('DraftService.send — safety gate', () => {
             thread: null,
             toAddresses: ['to@test.com'],
             ccAddresses: [],
+            bccAddresses: [],
             subject: 'Test',
             bodyText: 'Hello',
           }),
@@ -230,6 +235,11 @@ describe('DraftService.send — safety gate', () => {
             userId: USER_ID,
             account: { emailAddress: 'from@test.com' },
             thread: null,
+            toAddresses: ['to@test.com'],
+            ccAddresses: [],
+            bccAddresses: [],
+            subject: 'Test',
+            bodyText: 'Hello',
           }),
           update: vi.fn(),
         },
@@ -250,6 +260,11 @@ describe('DraftService.send — safety gate', () => {
             userId: USER_ID,
             account: { emailAddress: 'from@test.com' },
             thread: null,
+            toAddresses: ['to@test.com'],
+            ccAddresses: [],
+            bccAddresses: [],
+            subject: 'Test',
+            bodyText: 'Hello',
           }),
           update: vi.fn(),
         },
@@ -286,6 +301,7 @@ describe('DraftService.send — safety gate', () => {
             thread: null,
             toAddresses: ['to@test.com'],
             ccAddresses: [],
+            bccAddresses: ['hidden@test.com'],
             subject: 'Test',
             bodyText: 'Hello',
           }),
@@ -299,6 +315,12 @@ describe('DraftService.send — safety gate', () => {
 
     const result = await draftService.send(DRAFT_ID, USER_ID);
     expect(result.status).toBe('sent');
+    expect(emailProviderFactory.sendEmail).toHaveBeenCalledWith(
+      ACCOUNT_ID,
+      expect.objectContaining({
+        bcc: ['hidden@test.com'],
+      })
+    );
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'sent', gmailMessageId: 'gmail-msg-123' }),
@@ -321,6 +343,7 @@ describe('DraftService.send — safety gate', () => {
             thread: null,
             toAddresses: ['to@test.com'],
             ccAddresses: [],
+            bccAddresses: ['hidden@test.com'],
             subject: 'Test',
             bodyText: 'Hello',
           }),
@@ -399,6 +422,26 @@ describe('DraftService.update', () => {
     mockDraft.update.mockResolvedValue({ id: DRAFT_ID, status: 'pending', subject: 'New subject', account: { emailAddress: 'x@y.com' } });
 
     await expect(draftService.update(DRAFT_ID, USER_ID, { subject: 'New subject' })).resolves.not.toThrow();
+  });
+
+  it('persists bcc updates on a pending draft', async () => {
+    mockDraft.findFirst.mockResolvedValue({ id: DRAFT_ID, status: 'pending' });
+    mockDraft.update.mockResolvedValue({
+      id: DRAFT_ID,
+      status: 'pending',
+      bccAddresses: ['hidden@test.com'],
+      account: { emailAddress: 'x@y.com' },
+    });
+
+    await draftService.update(DRAFT_ID, USER_ID, { bcc_addresses: ['hidden@test.com'] });
+
+    expect(mockDraft.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          bccAddresses: ['hidden@test.com'],
+        }),
+      })
+    );
   });
 
   it('blocks updating an approved draft', async () => {

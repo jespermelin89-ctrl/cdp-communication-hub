@@ -84,6 +84,7 @@ export function buildRfc2822Email(options: {
   from: string;
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   body: string;
   inReplyTo?: string;
@@ -95,6 +96,9 @@ export function buildRfc2822Email(options: {
   lines.push(`To: ${options.to.join(', ')}`);
   if (options.cc && options.cc.length > 0) {
     lines.push(`Cc: ${options.cc.join(', ')}`);
+  }
+  if (options.bcc && options.bcc.length > 0) {
+    lines.push(`Bcc: ${options.bcc.join(', ')}`);
   }
   lines.push(`Subject: ${options.subject}`);
   lines.push('MIME-Version: 1.0');

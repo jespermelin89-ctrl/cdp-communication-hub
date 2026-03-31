@@ -7,7 +7,7 @@ import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
 import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock } from 'lucide-react';
-import { sanitizeHtml } from '@/lib/sanitize-html';
+import { sanitizeHtml, replaceCidImages } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -685,7 +685,7 @@ export default function ThreadDetailPage() {
                   {msg.bodyHtml ? (
                     <div
                       className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 leading-relaxed overflow-auto max-h-[600px] [&_a]:text-brand-600 [&_a]:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-bold [&_strong]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:text-gray-500 [&_img]:max-w-full"
-                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(msg.bodyHtml) }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(replaceCidImages(msg.bodyHtml, threadId, msg.gmailMessageId ?? msg.id)) }}
                     />
                   ) : (
                     <div className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">

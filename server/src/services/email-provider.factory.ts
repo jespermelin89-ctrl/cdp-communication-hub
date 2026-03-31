@@ -24,6 +24,7 @@ export interface SendEmailOptions {
   from: string;
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   body: string;
   inReplyTo?: string;
@@ -127,6 +128,7 @@ export class EmailProviderFactory {
         const result = await smtpService.sendEmail(accountId, {
           to: options.to,
           cc: options.cc,
+          bcc: options.bcc,
           subject: options.subject,
           body: options.body,
           inReplyTo: options.inReplyTo,

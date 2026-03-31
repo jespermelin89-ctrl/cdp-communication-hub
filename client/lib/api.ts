@@ -466,7 +466,20 @@ class ApiClient {
     if (currentToken) {
       body.token = currentToken; // Embed in OAuth state for add-account flow
     }
-    return this.request<{ provider: string; imap_host?: string; imap_port?: number; smtp_host?: string; smtp_port?: number; oauth_available?: boolean; authUrl?: string }>(
+    return this.request<{
+      provider: {
+        id: string;
+        name: string;
+        type: string;
+        icon: string;
+        authMethod: 'oauth' | 'imap';
+        imapDefaults?: { host: string; port: number; secure: boolean };
+        smtpDefaults?: { host: string; port: number; secure: boolean };
+      };
+      authUrl?: string;
+      requiresImap?: boolean;
+      message?: string;
+    }>(
       'POST', '/auth/connect', body
     );
   }

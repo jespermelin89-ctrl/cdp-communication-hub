@@ -1,4 +1,20 @@
 /**
+ * Replace cid: image references with backend proxy URLs.
+ * Call this BEFORE sanitizeHtml so the img src is valid after sanitization.
+ */
+export function replaceCidImages(
+  html: string,
+  threadId: string,
+  messageId: string,
+): string {
+  return html.replace(
+    /src=["']cid:([^"']+)["']/gi,
+    (_, cid) =>
+      `src="/api/v1/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/inline/${encodeURIComponent(cid)}"`,
+  );
+}
+
+/**
  * Minimal HTML sanitizer for email display.
  * Strips scripts, event handlers, and dangerous elements.
  * Safe for dangerouslySetInnerHTML in email thread view.

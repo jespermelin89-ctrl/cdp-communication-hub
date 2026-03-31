@@ -159,6 +159,7 @@ model Draft {
   threadId       String?   @map("thread_id") // null for new emails
   toAddresses    String[]  @map("to_addresses")
   ccAddresses    String[]  @default([]) @map("cc_addresses")
+  bccAddresses   String[]  @default([]) @map("bcc_addresses")
   subject        String
   bodyText       String    @map("body_text")
   status         String    @default("pending") // pending|approved|sent|failed|discarded

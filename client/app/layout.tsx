@@ -9,7 +9,10 @@ import { ChatProvider } from '@/lib/chat-context';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import ClientShell from '@/components/ClientShell';
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(appUrl),
   title: 'CDP Communication Hub',
   description: 'AI-powered email communication hub with draft approval workflow',
   manifest: '/manifest.json',

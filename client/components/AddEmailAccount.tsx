@@ -5,20 +5,33 @@ import { api } from '@/lib/api';
 
 // IMAP/SMTP presets for auto-detection
 const PROVIDER_PRESETS: Record<string, { imap_host: string; imap_port: number; imap_use_ssl: boolean; smtp_host: string; smtp_port: number; smtp_use_ssl: boolean }> = {
-  google: { imap_host: 'imap.gmail.com', imap_port: 993, imap_use_ssl: true, smtp_host: 'smtp.gmail.com', smtp_port: 587, smtp_use_ssl: true },
-  microsoft: { imap_host: 'outlook.office365.com', imap_port: 993, imap_use_ssl: true, smtp_host: 'smtp.office365.com', smtp_port: 587, smtp_use_ssl: true },
+  google: { imap_host: 'imap.gmail.com', imap_port: 993, imap_use_ssl: true, smtp_host: 'smtp.gmail.com', smtp_port: 587, smtp_use_ssl: false },
+  microsoft: { imap_host: 'outlook.office365.com', imap_port: 993, imap_use_ssl: true, smtp_host: 'smtp.office365.com', smtp_port: 587, smtp_use_ssl: false },
   yahoo: { imap_host: 'imap.mail.yahoo.com', imap_port: 993, imap_use_ssl: true, smtp_host: 'smtp.mail.yahoo.com', smtp_port: 465, smtp_use_ssl: true },
-  icloud: { imap_host: 'imap.mail.me.com', imap_port: 993, imap_use_ssl: true, smtp_host: 'smtp.mail.me.com', smtp_port: 587, smtp_use_ssl: true },
+  icloud: { imap_host: 'imap.mail.me.com', imap_port: 993, imap_use_ssl: true, smtp_host: 'smtp.mail.me.com', smtp_port: 587, smtp_use_ssl: false },
 };
 
 interface DetectedProvider {
-  provider: string;
-  imap_host?: string;
-  imap_port?: number;
-  smtp_host?: string;
-  smtp_port?: number;
-  oauth_available?: boolean;
+  provider: {
+    id: string;
+    name: string;
+    type: string;
+    icon: string;
+    authMethod: 'oauth' | 'imap';
+    imapDefaults?: {
+      host: string;
+      port: number;
+      secure: boolean;
+    };
+    smtpDefaults?: {
+      host: string;
+      port: number;
+      secure: boolean;
+    };
+  };
   authUrl?: string;
+  requiresImap?: boolean;
+  message?: string;
 }
 
 interface AddEmailAccountProps {
@@ -50,7 +63,7 @@ export default function AddEmailAccount({ onSuccess, onCancel, defaultEmail = ''
     imap_use_ssl: true,
     smtp_host: '',
     smtp_port: 587,
-    smtp_use_ssl: true,
+    smtp_use_ssl: false,
     password: '',
   });
 
@@ -161,16 +174,18 @@ export default function AddEmailAccount({ onSuccess, onCancel, defaultEmail = ''
 
   // Helper to switch to manual IMAP mode with presets
   function switchToManualImap() {
-    const providerKey = detectedProvider?.provider?.toLowerCase() || 'custom';
+    const providerKey = detectedProvider?.provider.id?.toLowerCase() || 'custom';
     const preset = PROVIDER_PRESETS[providerKey];
+    const imapDefaults = detectedProvider?.provider.imapDefaults;
+    const smtpDefaults = detectedProvider?.provider.smtpDefaults;
     setImapForm((f) => ({
       ...f,
-      imap_host: detectedProvider?.imap_host || preset?.imap_host || '',
-      imap_port: detectedProvider?.imap_port || preset?.imap_port || 993,
-      imap_use_ssl: preset?.imap_use_ssl ?? true,
-      smtp_host: detectedProvider?.smtp_host || preset?.smtp_host || '',
-      smtp_port: detectedProvider?.smtp_port || preset?.smtp_port || 587,
-      smtp_use_ssl: preset?.smtp_use_ssl ?? true,
+      imap_host: imapDefaults?.host || preset?.imap_host || '',
+      imap_port: imapDefaults?.port || preset?.imap_port || 993,
+      imap_use_ssl: imapDefaults?.secure ?? preset?.imap_use_ssl ?? true,
+      smtp_host: smtpDefaults?.host || preset?.smtp_host || '',
+      smtp_port: smtpDefaults?.port || preset?.smtp_port || 587,
+      smtp_use_ssl: smtpDefaults?.secure ?? preset?.smtp_use_ssl ?? false,
     }));
     setStep('imap');
   }
@@ -233,10 +248,9 @@ export default function AddEmailAccount({ onSuccess, onCancel, defaultEmail = ''
   // Step 2: Provider Detected
   // ============================================================
   if (step === 'provider' && detectedProvider) {
-    const providerId = detectedProvider.provider?.toLowerCase() || '';
+    const providerId = detectedProvider.provider.id?.toLowerCase() || '';
     const isGoogle = providerId === 'google';
     const isMicrosoft = providerId === 'microsoft';
-    const hasOAuth = detectedProvider.authUrl || isGoogle;
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">

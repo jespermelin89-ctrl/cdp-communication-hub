@@ -8,6 +8,7 @@
 import { google, gmail_v1 } from 'googleapis';
 import { prisma } from '../config/database';
 import { encrypt, decrypt } from '../utils/encryption';
+import { actionLogService } from './action-log.service';
 import {
   getHeader,
   parseEmailAddresses,
@@ -46,23 +47,46 @@ export class GmailService {
       expiry_date: account.tokenExpiresAt?.getTime(),
     });
 
-    // Auto-refresh: listen for new tokens and persist them
+    // Proactive refresh: if token expires within 5 minutes, refresh now
+    const now = Date.now();
+    const expiresAt = account.tokenExpiresAt?.getTime() ?? 0;
+    if (expiresAt && expiresAt - now < 5 * 60 * 1000) {
+      try {
+        const { credentials } = await oauth2Client.refreshAccessToken();
+        const updateData: Record<string, any> = {};
+        if (credentials.access_token) updateData.accessTokenEncrypted = encrypt(credentials.access_token);
+        if (credentials.refresh_token) updateData.refreshTokenEncrypted = encrypt(credentials.refresh_token);
+        if (credentials.expiry_date) updateData.tokenExpiresAt = new Date(credentials.expiry_date);
+        if (Object.keys(updateData).length > 0) {
+          await prisma.emailAccount.update({ where: { id: accountId }, data: updateData });
+        }
+        oauth2Client.setCredentials(credentials);
+      } catch (err: any) {
+        const status = err?.response?.status ?? err?.status;
+        if (status === 400 || status === 401) {
+          // Token permanently revoked — disable account and request re-auth
+          await prisma.emailAccount.update({
+            where: { id: accountId },
+            data: { isActive: false, syncError: 'OAuth token revoked — please reconnect this account' },
+          });
+          actionLogService.log(account.userId, 'token_revoked', 'account', accountId, {
+            email: account.emailAddress,
+            reason: 'OAuth token refresh failed with 400/401',
+          }).catch(() => {});
+          throw new Error(`REAUTH_REQUIRED:${account.emailAddress}`);
+        }
+        // Non-fatal (e.g. network error) — continue with current token
+      }
+    }
+
+    // Auto-refresh: listen for new tokens from implicit refresh and persist them
     oauth2Client.on('tokens', async (tokens) => {
-      const updateData: any = {};
-      if (tokens.access_token) {
-        updateData.accessTokenEncrypted = encrypt(tokens.access_token);
-      }
-      if (tokens.refresh_token) {
-        updateData.refreshTokenEncrypted = encrypt(tokens.refresh_token);
-      }
-      if (tokens.expiry_date) {
-        updateData.tokenExpiresAt = new Date(tokens.expiry_date);
-      }
+      const updateData: Record<string, any> = {};
+      if (tokens.access_token) updateData.accessTokenEncrypted = encrypt(tokens.access_token);
+      if (tokens.refresh_token) updateData.refreshTokenEncrypted = encrypt(tokens.refresh_token);
+      if (tokens.expiry_date) updateData.tokenExpiresAt = new Date(tokens.expiry_date);
       if (Object.keys(updateData).length > 0) {
-        await prisma.emailAccount.update({
-          where: { id: accountId },
-          data: updateData,
-        });
+        await prisma.emailAccount.update({ where: { id: accountId }, data: updateData });
       }
     });
 
@@ -267,6 +291,7 @@ export class GmailService {
       from: string;
       to: string[];
       cc?: string[];
+      bcc?: string[];
       subject: string;
       body: string;
       inReplyTo?: string;
@@ -280,6 +305,7 @@ export class GmailService {
       from: options.from,
       to: options.to,
       cc: options.cc,
+      bcc: options.bcc,
       subject: options.subject,
       body: options.body,
       inReplyTo: options.inReplyTo,

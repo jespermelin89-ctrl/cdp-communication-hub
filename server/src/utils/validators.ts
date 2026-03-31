@@ -31,6 +31,7 @@ export const CreateDraftSchema = z.object({
   thread_id: z.string().uuid().optional(),
   to_addresses: z.array(z.string().email()).min(1),
   cc_addresses: z.array(z.string().email()).optional().default([]),
+  bcc_addresses: z.array(z.string().email()).optional().default([]),
   subject: z.string().min(1).max(500),
   body_text: z.string().min(1),
 });
@@ -40,6 +41,7 @@ export type CreateDraftInput = z.infer<typeof CreateDraftSchema>;
 export const UpdateDraftSchema = z.object({
   to_addresses: z.array(z.string().email()).optional(),
   cc_addresses: z.array(z.string().email()).optional(),
+  bcc_addresses: z.array(z.string().email()).optional(),
   subject: z.string().min(1).max(500).optional(),
   body_text: z.string().min(1).optional(),
 });

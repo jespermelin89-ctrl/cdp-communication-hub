@@ -523,6 +523,13 @@ const en: Translations = {
     cancelReply: 'Cancel',
     sendNote: 'Creates draft → approve → sends immediately',
   },
+  attachments: {
+    download: 'Download',
+    preview: 'Preview',
+    size: 'Size',
+    noPreview: 'No preview available',
+    downloading: 'Downloading...',
+  },
   undoSend: {
     sending: 'Email sending in',
     undo: 'Undo',

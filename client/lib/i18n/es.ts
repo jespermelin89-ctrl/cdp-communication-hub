@@ -521,6 +521,13 @@ const es: Translations = {
     cancelReply: 'Cancelar',
     sendNote: 'Crea borrador → aprueba → envía de inmediato',
   },
+  attachments: {
+    download: 'Descargar',
+    preview: 'Vista previa',
+    size: 'Tamaño',
+    noPreview: 'Sin vista previa disponible',
+    downloading: 'Descargando...',
+  },
   undoSend: {
     sending: 'Correo se envía en',
     undo: 'Deshacer',

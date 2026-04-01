@@ -913,6 +913,49 @@ export async function threadRoutes(fastify: FastifyInstance) {
     }
   );
 
+  /**
+   * GET /threads/:threadId/messages/:messageId/attachments/:attachmentId/data
+   * Sprint 6: Returns attachment as base64 JSON for preview in browser.
+   */
+  fastify.get(
+    '/threads/:threadId/messages/:messageId/attachments/:attachmentId/data',
+    async (request, reply) => {
+      const { threadId, messageId, attachmentId } = request.params as {
+        threadId: string;
+        messageId: string;
+        attachmentId: string;
+      };
+
+      const message = await prisma.emailMessage.findFirst({
+        where: buildMessageLookupWhere(threadId, messageId),
+        include: { thread: { include: { account: { select: { id: true, userId: true } } } } },
+      });
+
+      if (!message || message.thread.account.userId !== request.userId) {
+        return reply.code(404).send({ error: 'Not found' });
+      }
+
+      const attachments = (message.attachments as any[]) ?? [];
+      const att = attachments.find((a: any) => a.attachmentId === attachmentId);
+
+      try {
+        const base64Data = await emailProviderFactory.getAttachment(
+          message.thread.account.id,
+          message.gmailMessageId,
+          attachmentId
+        );
+        return {
+          data: base64Data,
+          mimeType: att?.mimeType || 'application/octet-stream',
+          filename: att?.filename || 'download',
+          size: att?.size || 0,
+        };
+      } catch (err: any) {
+        return reply.code(502).send({ error: `Failed to fetch attachment: ${err.message}` });
+      }
+    }
+  );
+
   // ============================================================
   // SPRINT 1 — Dedicated bulk endpoints
   // ============================================================

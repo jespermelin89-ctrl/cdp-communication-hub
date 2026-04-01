@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import type { EmailThread, AIAnalysis } from '@/lib/types';
+import AttachmentPreview from '@/components/AttachmentPreview';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
   lead: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
@@ -1121,31 +1122,14 @@ export default function ThreadDetailPage() {
                           {msg.bodyText || '(No text content)'}
                         </div>
                       )}
-                      {/* Attachment pills */}
+                      {/* Attachment Preview — Sprint 6 */}
                       {msg.attachments && msg.attachments.length > 0 && (
-                        <div className="px-5 pb-4 flex flex-wrap gap-2 border-t border-gray-100 dark:border-gray-700 pt-3">
-                          {msg.attachments.map((att: any, i: number) => {
-                            const key = `${msg.id}:${att.attachmentId}`;
-                            const isDownloading = downloadingId === key;
-                            return (
-                              <button
-                                key={i}
-                                onClick={() => handleDownloadAttachment(msg, att)}
-                                disabled={isDownloading}
-                                title={`Ladda ner ${att.filename}`}
-                                className="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-600 dark:text-gray-300 hover:border-brand-300 dark:hover:border-brand-700 hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors disabled:opacity-60"
-                              >
-                                {isDownloading
-                                  ? <span className="w-3 h-3 border border-gray-400 border-t-brand-500 rounded-full animate-spin shrink-0" />
-                                  : <Paperclip size={12} className="text-gray-400 shrink-0" />}
-                                <span className="truncate max-w-[200px]">{att.filename || 'Bilaga'}</span>
-                                {att.size > 0 && (
-                                  <span className="text-gray-400 shrink-0">{formatFileSize(att.size)}</span>
-                                )}
-                                <Download size={11} className="text-gray-400 shrink-0 ml-0.5" />
-                              </button>
-                            );
-                          })}
+                        <div className="px-5 pb-4 border-t border-gray-100 dark:border-gray-700 pt-3">
+                          <AttachmentPreview
+                            attachments={msg.attachments}
+                            threadId={threadId}
+                            messageId={msg.gmailMessageId ?? msg.id}
+                          />
                         </div>
                       )}
                       {/* Inline reply form */}

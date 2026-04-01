@@ -521,6 +521,13 @@ const ru: Translations = {
     cancelReply: 'Отмена',
     sendNote: 'Создаёт черновик → подтверждение → отправляет',
   },
+  attachments: {
+    download: 'Скачать',
+    preview: 'Предпросмотр',
+    size: 'Размер',
+    noPreview: 'Предпросмотр недоступен',
+    downloading: 'Загружается...',
+  },
   undoSend: {
     sending: 'Письмо отправится через',
     undo: 'Отменить',

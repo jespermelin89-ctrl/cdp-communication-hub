@@ -550,6 +550,15 @@ const sv = {
     sendNote: 'Skapar utkast → godkänn → skickar direkt',
   },
 
+  // Attachments
+  attachments: {
+    download: 'Ladda ner',
+    preview: 'Förhandsgranska',
+    size: 'Storlek',
+    noPreview: 'Ingen förhandsvisning tillgänglig',
+    downloading: 'Laddar ner...',
+  },
+
   // Undo Send
   undoSend: {
     sending: 'Mail skickas om',

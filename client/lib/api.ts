@@ -352,6 +352,46 @@ class ApiClient {
     return this.request('POST', '/threads/bulk/priority', { threadIds, priority });
   }
 
+  // Sprint 7 — Advanced Search
+  async advancedSearch(params: {
+    q?: string;
+    from?: string;
+    to?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    hasAttachment?: boolean;
+    classification?: string;
+    priority?: string;
+    accountId?: string;
+    labelIds?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ threads: any[]; total: number; page: number; hasMore: boolean }> {
+    const query: Record<string, string> = {};
+    if (params.q) query.q = params.q;
+    if (params.from) query.from = params.from;
+    if (params.to) query.to = params.to;
+    if (params.dateFrom) query.dateFrom = params.dateFrom;
+    if (params.dateTo) query.dateTo = params.dateTo;
+    if (params.hasAttachment !== undefined) query.hasAttachment = String(params.hasAttachment);
+    if (params.classification) query.classification = params.classification;
+    if (params.priority) query.priority = params.priority;
+    if (params.accountId) query.accountId = params.accountId;
+    if (params.labelIds) query.labelIds = params.labelIds;
+    if (params.page) query.page = String(params.page);
+    if (params.limit) query.limit = String(params.limit);
+    return this.request('GET', '/search', undefined, query);
+  }
+  async getSearchHistory(): Promise<{ history: any[] }> {
+    return this.request('GET', '/search/history');
+  }
+  async clearSearchHistory(): Promise<{ deleted: boolean }> {
+    return this.request('DELETE', '/search/history');
+  }
+  async deleteSearchHistoryEntry(id: string): Promise<{ deleted: boolean }> {
+    return this.request('DELETE', `/search/history/${id}`);
+  }
+
   // Sprint 5 — Undo Send
   async sendDelayed(draftId: string, delaySeconds?: number): Promise<{ draft: any; scheduledAt: string; delaySeconds: number }> {
     return this.request('POST', `/drafts/${draftId}/send-delayed`, { delay_seconds: delaySeconds });

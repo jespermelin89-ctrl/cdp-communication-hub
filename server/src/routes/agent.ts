@@ -28,6 +28,8 @@ import { env } from '../config/env';
 const ALLOWED_ACTIONS = [
   'briefing', 'classify', 'draft', 'search', 'brain-status', 'learn',
   'bulk-classify', 'sync', 'cleanup',
+  // v2 actions:
+  'send', 'schedule', 'snooze', 'export', 'contacts', 'stats', 'compose', 'chat',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -66,6 +68,41 @@ export default async function agentRoutes(app: FastifyInstance) {
       return reply.code(503).send({ success: false, error: 'Inga aktiva e-postkonton hittades.' });
     }
     const userId = account.userId;
+
+    // Async callback: if caller provides callback_url, accept immediately and POST result when done
+    const callbackUrl = (params as any).callback_url as string | undefined;
+    if (callbackUrl) {
+      // Validate URL format before accepting
+      try { new URL(callbackUrl); } catch {
+        return reply.code(400).send({ success: false, error: 'callback_url måste vara en giltig URL.' });
+      }
+
+      // Fire and forget — execute then POST to callback_url
+      setImmediate(async () => {
+        try {
+          const innerResp = await app.inject({
+            method: 'POST',
+            url: '/execute',
+            headers: { 'x-api-key': env.COMMAND_API_KEY ?? '' },
+            payload: { action, params: { ...params, callback_url: undefined } },
+          });
+          const resultBody = innerResp.json();
+          await fetch(callbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(resultBody),
+          }).catch(() => {});
+        } catch (err: any) {
+          await fetch(callbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ success: false, action, error: err?.message ?? 'Internal error' }),
+          }).catch(() => {});
+        }
+      });
+
+      return reply.code(202).send({ success: true, action, message: 'Accepterat — resultatet skickas till callback_url när klart.' });
+    }
 
     try {
       switch (action) {
@@ -508,6 +545,164 @@ export default async function agentRoutes(app: FastifyInstance) {
           };
         }
 
+        // ── SEND ─────────────────────────────────────────────────────────
+        case 'send': {
+          if (!params.draft_id) {
+            return reply.code(400).send({ success: false, error: 'params.draft_id krävs.' });
+          }
+          // Approve if still pending, then send
+          const draftToSend = await prisma.draft.findFirst({ where: { id: params.draft_id, account: { userId } } });
+          if (!draftToSend) return reply.code(404).send({ success: false, error: 'Utkast hittades inte.' });
+          if (draftToSend.status === 'pending') {
+            await draftService.approve(params.draft_id, userId);
+          }
+          const sentDraft = await draftService.send(params.draft_id, userId);
+          return { success: true, action, data: { draft_id: sentDraft.id, status: sentDraft.status, message: 'E-post skickad.' } };
+        }
+
+        // ── SCHEDULE ──────────────────────────────────────────────────────
+        case 'schedule': {
+          if (!params.draft_id || !params.send_at) {
+            return reply.code(400).send({ success: false, error: 'params.draft_id och params.send_at krävs.' });
+          }
+          const sendAt = new Date(params.send_at);
+          if (isNaN(sendAt.getTime())) return reply.code(400).send({ success: false, error: 'send_at måste vara ett giltigt ISO-datum.' });
+          const draftForSchedule = await prisma.draft.findFirst({ where: { id: params.draft_id, account: { userId } } });
+          if (!draftForSchedule) return reply.code(404).send({ success: false, error: 'Utkast hittades inte.' });
+          if (draftForSchedule.status === 'pending') {
+            await draftService.approve(params.draft_id, userId);
+          }
+          const scheduled = await prisma.draft.update({ where: { id: params.draft_id }, data: { scheduledAt: sendAt } });
+          return { success: true, action, data: { draft_id: scheduled.id, scheduled_at: sendAt.toISOString(), message: `Schemalagt för ${sendAt.toLocaleString('sv-SE')}` } };
+        }
+
+        // ── SNOOZE ────────────────────────────────────────────────────────
+        case 'snooze': {
+          if (!params.thread_id || !params.until) {
+            return reply.code(400).send({ success: false, error: 'params.thread_id och params.until krävs.' });
+          }
+          const snoozeUntil = new Date(params.until);
+          if (isNaN(snoozeUntil.getTime())) return reply.code(400).send({ success: false, error: 'until måste vara ett giltigt ISO-datum.' });
+          const thread = await prisma.emailThread.findFirst({ where: { id: params.thread_id, account: { userId } } });
+          if (!thread) return reply.code(404).send({ success: false, error: 'Tråd hittades inte.' });
+          await prisma.emailThread.update({ where: { id: params.thread_id }, data: { snoozedUntil: snoozeUntil } });
+          return { success: true, action, data: { thread_id: params.thread_id, snoozed_until: snoozeUntil.toISOString(), message: `Snoozad till ${snoozeUntil.toLocaleString('sv-SE')}` } };
+        }
+
+        // ── EXPORT ────────────────────────────────────────────────────────
+        case 'export': {
+          const threads = await prisma.emailThread.findMany({
+            where: { account: { userId } },
+            orderBy: { lastMessageAt: 'desc' },
+            take: Math.min(Number(params.limit) || 100, 100),
+            include: { analyses: { orderBy: { createdAt: 'desc' }, take: 1 } },
+          });
+          return {
+            success: true,
+            action,
+            data: {
+              count: threads.length,
+              exported_at: new Date().toISOString(),
+              threads: threads.map((t) => ({
+                id: t.id,
+                subject: t.subject,
+                participants: t.participantEmails,
+                is_read: t.isRead,
+                last_message_at: t.lastMessageAt,
+                labels: t.labels,
+                priority: t.analyses[0]?.priority ?? null,
+                classification: t.analyses[0]?.classification ?? null,
+              })),
+            },
+          };
+        }
+
+        // ── CONTACTS ──────────────────────────────────────────────────────
+        case 'contacts': {
+          const contactList = await brainCoreService.getContacts(userId, Number(params.limit) || 50, params.search as string | undefined);
+          return {
+            success: true,
+            action,
+            data: {
+              count: contactList.length,
+              contacts: contactList.map((c) => ({
+                email: c.emailAddress,
+                name: c.displayName,
+                relationship: c.relationship,
+                total_emails: c.totalEmails,
+                last_contact: c.lastContactAt,
+              })),
+            },
+          };
+        }
+
+        // ── STATS ─────────────────────────────────────────────────────────
+        case 'stats': {
+          const [unread, highPrio, snoozed, pendingDrafts, accounts] = await Promise.all([
+            prisma.emailThread.count({ where: { account: { userId }, isRead: false } }),
+            prisma.emailThread.count({
+              where: {
+                account: { userId },
+                isRead: false,
+                analyses: { some: { priority: 'high' } },
+              },
+            }),
+            prisma.emailThread.count({ where: { account: { userId }, snoozedUntil: { gt: new Date() } } }),
+            prisma.draft.count({ where: { account: { userId }, status: 'pending' } }),
+            prisma.emailAccount.findMany({ where: { userId, isActive: true }, select: { emailAddress: true, lastSyncAt: true } }),
+          ]);
+          return {
+            success: true,
+            action,
+            data: {
+              unread,
+              high_priority: highPrio,
+              snoozed,
+              pending_drafts: pendingDrafts,
+              accounts: accounts.map((a) => ({ email: a.emailAddress, last_sync: a.lastSyncAt })),
+              generated_at: new Date().toISOString(),
+            },
+          };
+        }
+
+        // ── COMPOSE ───────────────────────────────────────────────────────
+        case 'compose': {
+          if (!params.account_id && !params.text) {
+            return reply.code(400).send({ success: false, error: 'params.account_id eller params.text krävs.' });
+          }
+          const composeAccount = await prisma.emailAccount.findFirst({
+            where: params.account_id ? { id: params.account_id, userId } : { userId, isActive: true },
+          });
+          if (!composeAccount) return reply.code(404).send({ success: false, error: 'Konto hittades inte.' });
+          const newDraft = await draftService.create(userId, {
+            account_id: composeAccount.id,
+            to_addresses: params.to ? (Array.isArray(params.to) ? params.to : [params.to]) : [],
+            subject: params.subject || '',
+            body_text: params.text || params.body || '',
+            cc_addresses: params.cc ? (Array.isArray(params.cc) ? params.cc : [params.cc]) : undefined,
+          });
+          return {
+            success: true,
+            action,
+            data: { draft_id: newDraft.id, status: newDraft.status, message: 'Utkast skapat — granska i CDP UI.' },
+          };
+        }
+
+        // ── CHAT ──────────────────────────────────────────────────────────
+        case 'chat': {
+          if (!params.message) {
+            return reply.code(400).send({ success: false, error: 'params.message krävs.' });
+          }
+          const systemPrompt = 'Du är Amanda, en AI-assistent för CDP Communication Hub. Svara på svenska om inget annat anges.';
+          const chatResponse = await aiService.chat(systemPrompt, String(params.message));
+          return {
+            success: true,
+            action,
+            data: { reply: chatResponse },
+            provider_used: env.AI_PROVIDER,
+          };
+        }
+
         // ── CLEANUP ───────────────────────────────────────────────────────
         case 'cleanup': {
           // Remove test/debug learning events, keep real ones
@@ -551,6 +746,47 @@ export default async function agentRoutes(app: FastifyInstance) {
         : msg;
       return reply.code(500).send({ success: false, action, error: safe });
     }
+  });
+
+  // ── POST /batch — Execute multiple actions in sequence ─────────────────────
+  app.post('/batch', async (req, reply) => {
+    const body = req.body as { actions?: Array<{ action: string; params?: Record<string, any> }> };
+    const actions = body?.actions;
+
+    if (!Array.isArray(actions) || actions.length === 0) {
+      return reply.code(400).send({ success: false, error: 'body.actions måste vara en icke-tom array.' });
+    }
+    if (actions.length > 10) {
+      return reply.code(400).send({ success: false, error: 'Max 10 actions per batch.' });
+    }
+
+    const account = await prisma.emailAccount.findFirst({ where: { isActive: true } });
+    if (!account) return reply.code(503).send({ success: false, error: 'Inga aktiva konton.' });
+
+    const results: Array<{ action: string; success: boolean; data?: any; error?: string }> = [];
+
+    for (const item of actions) {
+      const action = item.action as AgentAction;
+      if (!ALLOWED_ACTIONS.includes(action)) {
+        results.push({ action: item.action, success: false, error: `Okänd action: ${action}` });
+        continue;
+      }
+      try {
+        // Proxy each action through the /execute handler via Fastify inject
+        const response = await app.inject({
+          method: 'POST',
+          url: '/execute',
+          headers: { 'x-api-key': env.COMMAND_API_KEY ?? '' },
+          payload: { action, params: item.params ?? {} },
+        });
+        const parsed = response.json<{ success: boolean; data?: any; error?: string }>();
+        results.push({ action, success: parsed.success, data: parsed.data, error: parsed.error });
+      } catch (err: any) {
+        results.push({ action, success: false, error: err?.message ?? 'Okänt fel' });
+      }
+    }
+
+    return { success: true, results };
   });
 
   // ── GET /notifications ─────────────────────────────────────────────────────

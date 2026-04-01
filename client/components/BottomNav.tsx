@@ -21,7 +21,7 @@ function NavItem({ href, icon, label, badge, active }: NavItemProps) {
   return (
     <Link
       href={href}
-      className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 px-1 relative transition-colors ${
+      className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 px-1 min-h-[44px] relative transition-colors ${
         active
           ? 'text-brand-600 dark:text-brand-400'
           : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'

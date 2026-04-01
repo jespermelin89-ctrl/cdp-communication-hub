@@ -4,7 +4,11 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased;
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased max-w-full overflow-x-hidden;
+  }
+  /* Prevent horizontal scroll on all page containers */
+  .page-container {
+    @apply min-h-[100dvh] max-w-full overflow-x-hidden;
   }
 }
 

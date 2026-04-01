@@ -561,7 +561,7 @@ export default function InboxPage() {
           <div className="flex gap-2 mb-4 flex-wrap items-center">
             <button
               onClick={() => setSelectedAccountId('')}
-              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+              className={`px-3 py-2 rounded-full text-sm font-medium transition-all min-h-[36px] ${
                 !selectedAccountId
                   ? 'bg-brand-500 text-white shadow-sm'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -638,7 +638,7 @@ export default function InboxPage() {
             <button
               key={opt.key}
               onClick={() => setSortKey(opt.key)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-all ${
+              className={`px-3 py-2 rounded-full text-sm font-medium border transition-all min-h-[36px] ${
                 sortKey === opt.key
                   ? 'bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 border-gray-800 dark:border-gray-200'
                   : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -666,7 +666,7 @@ export default function InboxPage() {
               <button
                 key={cls}
                 onClick={() => setClassificationFilter(classificationFilter === cls ? '' : cls)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                className={`px-3 py-2 rounded-lg text-sm font-medium border transition-all min-h-[36px] ${
                   classificationFilter === cls
                     ? (CLASSIFICATION_COLORS[cls] || 'bg-gray-100 text-gray-700 border-gray-200')
                     : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -863,7 +863,7 @@ export default function InboxPage() {
                               {senderDisplay}
                             </span>
                           </div>
-                          <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                          <span className="text-sm text-gray-400 dark:text-gray-500 shrink-0">
                             {formatRelativeTime(thread.lastMessageAt)}
                           </span>
                         </div>

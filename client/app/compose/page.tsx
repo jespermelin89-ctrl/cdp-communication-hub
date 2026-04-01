@@ -790,7 +790,7 @@ function ComposePageContent() {
               onChange={(e) => setBody(e.target.value)}
               placeholder="Skriv ditt meddelande här…"
               rows={14}
-              className="w-full px-5 py-4 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none outline-none leading-relaxed pr-12"
+              className="w-full px-5 py-4 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none outline-none leading-relaxed pr-12 landscape:rows-8 min-h-[8rem]"
             />
             {/* Voice dictation button — appends transcript to body */}
             <div className="absolute bottom-3 right-3">

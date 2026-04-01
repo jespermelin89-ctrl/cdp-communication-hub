@@ -170,6 +170,7 @@ export class DraftService {
         }
 
         // Step 3: Send via provider (Gmail, SMTP, etc.)
+        const draftAttachments = (draft.attachments as any[] | null) ?? [];
         const result = await emailProviderFactory.sendEmail(draft.accountId, {
           from: draft.account.emailAddress,
           to: draft.toAddresses,
@@ -180,6 +181,12 @@ export class DraftService {
           inReplyTo,
           references,
           threadId: gmailThreadIdForSend,
+          attachments: draftAttachments.map((a: any) => ({
+            filename: String(a.filename ?? ''),
+            mimeType: String(a.mimeType ?? 'application/octet-stream'),
+            size: Number(a.size ?? 0),
+            data: String(a.data ?? ''),
+          })),
         });
 
         // Step 4: Update draft status to 'sent'

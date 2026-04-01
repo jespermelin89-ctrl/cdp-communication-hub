@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import VoiceButton from '@/components/VoiceButton';
-import { Send, Save, Wand2, X, ChevronDown, PenLine, Loader2, CornerDownLeft, CheckCircle2 } from 'lucide-react';
+import { Send, Save, Wand2, X, ChevronDown, PenLine, Loader2, CornerDownLeft, CheckCircle2, Paperclip } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
@@ -53,6 +53,17 @@ function ComposePageContent() {
 
   // ── Signature tracking ────────────────────────────────────────────────────
   const prevAccountIdRef = useRef<string>('');
+
+  // ── Attachment state ──────────────────────────────────────────────────────
+  const [attachments, setAttachments] = useState<Array<{
+    id: string;
+    filename: string;
+    size: number;
+    mimeType: string;
+    uploading?: boolean;
+  }>>([]);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Auto-save state ───────────────────────────────────────────────────────
   const [autoSavedDraftId, setAutoSavedDraftId] = useState<string | null>(null);
@@ -310,6 +321,88 @@ function ComposePageContent() {
     } finally {
       setAiGenerating(false);
     }
+  }
+
+  // ── Attachment helpers ────────────────────────────────────────────────────
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  async function handleFileUpload(files: FileList) {
+    if (!selectedAccountId) { toast.error('Välj ett konto innan du bifogar'); return; }
+
+    // Ensure a draft exists to attach to — autosave first
+    let draftId = autoSavedDraftId;
+    if (!draftId) {
+      try {
+        const result = await api.createDraft({
+          account_id: selectedAccountId,
+          to_addresses: toAddresses.length > 0 ? toAddresses : ['draft@placeholder.local'],
+          subject: subject.trim() || 'Utkast',
+          body_text: body,
+        });
+        draftId = result.draft.id;
+        setAutoSavedDraftId(draftId);
+      } catch {
+        toast.error('Kunde inte skapa utkast för bilaga');
+        return;
+      }
+    }
+
+    const csrfToken = typeof document !== 'undefined'
+      ? document.cookie.split(';').find(c => c.trim().startsWith('csrf_token='))?.split('=')[1]
+      : undefined;
+
+    for (const file of Array.from(files)) {
+      if (file.size > 25 * 1024 * 1024) {
+        toast.error(`${file.name} är för stor (max 25 MB)`);
+        continue;
+      }
+
+      const tempId = crypto.randomUUID();
+      setAttachments(prev => [...prev, { id: tempId, filename: file.name, size: file.size, mimeType: file.type, uploading: true }]);
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const token = api.getToken();
+        const headers: Record<string, string> = {};
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+        const res = await fetch(`/api/v1/drafts/${draftId}/attachments`, {
+          method: 'POST',
+          headers,
+          body: formData,
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        setAttachments(prev => prev.map(a => a.id === tempId ? { ...data.attachment, uploading: false } : a));
+      } catch {
+        toast.error(`Kunde inte ladda upp ${file.name}`);
+        setAttachments(prev => prev.filter(a => a.id !== tempId));
+      }
+    }
+  }
+
+  async function removeAttachment(attId: string) {
+    if (autoSavedDraftId) {
+      const csrfToken = typeof document !== 'undefined'
+        ? document.cookie.split(';').find(c => c.trim().startsWith('csrf_token='))?.split('=')[1]
+        : undefined;
+      const token = api.getToken();
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+      await fetch(`/api/v1/drafts/${autoSavedDraftId}/attachments/${attId}`, {
+        method: 'DELETE',
+        headers,
+      }).catch(() => {});
+    }
+    setAttachments(prev => prev.filter(a => a.id !== attId));
   }
 
   // ── Save draft ────────────────────────────────────────────────────────────
@@ -681,8 +774,17 @@ function ComposePageContent() {
             ))}
           </div>
 
-          {/* Body */}
-          <div className="relative">
+          {/* Body — drag & drop zone */}
+          <div
+            className={`relative transition-colors ${dragActive ? 'ring-2 ring-inset ring-violet-500 bg-violet-50/30 dark:bg-violet-900/10' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragActive(false);
+              if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files);
+            }}
+          >
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
@@ -697,6 +799,50 @@ function ComposePageContent() {
                 lang="sv-SE"
               />
             </div>
+
+            {/* Drag overlay */}
+            {dragActive && (
+              <div className="absolute inset-0 bg-violet-500/10 border-2 border-dashed border-violet-400 rounded-b-2xl flex items-center justify-center z-50 pointer-events-none">
+                <p className="text-violet-600 dark:text-violet-300 font-medium text-sm">Släpp filer här</p>
+              </div>
+            )}
+          </div>
+
+          {/* Attachment bar */}
+          <div className="px-4 py-2 border-t border-gray-100 dark:border-gray-800 flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-violet-600 dark:text-gray-400 dark:hover:text-violet-400 transition-colors"
+            >
+              <Paperclip size={14} />
+              Bifoga fil
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              hidden
+              onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+            />
+            {attachments.map(att => (
+              <div key={att.id} className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
+                {att.uploading
+                  ? <Loader2 size={12} className="animate-spin text-violet-500" />
+                  : <Paperclip size={12} className="text-gray-400" />}
+                <span className="max-w-[120px] truncate text-gray-700 dark:text-gray-200">{att.filename}</span>
+                <span className="text-gray-400">{formatFileSize(att.size)}</span>
+                {!att.uploading && (
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(att.id)}
+                    className="text-gray-400 hover:text-red-500 transition-colors ml-0.5"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
 
           {/* Footer actions */}

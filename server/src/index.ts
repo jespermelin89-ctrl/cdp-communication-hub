@@ -11,6 +11,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import { env } from './config/env';
 import { connectDatabase, disconnectDatabase, prisma } from './config/database';
 import { errorHandler } from './middleware/error.middleware';
@@ -67,6 +68,14 @@ async function main() {
 
   // Cookie plugin — required for CSRF double-submit
   await fastify.register(cookie);
+
+  // Multipart — file uploads (max 25 MB, max 10 files per request)
+  await fastify.register(multipart, {
+    limits: {
+      fileSize: 25 * 1024 * 1024,
+      files: 10,
+    },
+  });
 
   // Rate limiting — 200 req/min per IP (CORS preflight + normal traffic)
   await fastify.register(rateLimit, {

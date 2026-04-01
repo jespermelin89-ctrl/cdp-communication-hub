@@ -303,22 +303,60 @@ export class GmailService {
       inReplyTo?: string;
       references?: string;
       threadId?: string; // Gmail thread ID for threading
+      attachments?: Array<{ filename: string; mimeType: string; data: string }>;
     }
   ): Promise<{ messageId: string; threadId: string }> {
     const gmail = await this.getClient(accountId);
 
-    const rawEmail = buildRfc2822Email({
-      from: options.from,
-      to: options.to,
-      cc: options.cc,
-      bcc: options.bcc,
-      subject: options.subject,
-      body: options.body,
-      inReplyTo: options.inReplyTo,
-      references: options.references,
-    });
+    const attachments = options.attachments ?? [];
+    let encodedEmail: string;
 
-    const encodedEmail = encodeBase64Url(rawEmail);
+    if (attachments.length > 0) {
+      // Build multipart/mixed MIME message manually
+      const boundary = `bdry_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const lines: string[] = [];
+
+      lines.push(`From: ${options.from}`);
+      if (options.to.length) lines.push(`To: ${options.to.join(', ')}`);
+      if (options.cc?.length) lines.push(`Cc: ${options.cc.join(', ')}`);
+      if (options.bcc?.length) lines.push(`Bcc: ${options.bcc.join(', ')}`);
+      lines.push(`Subject: =?UTF-8?B?${Buffer.from(options.subject || '').toString('base64')}?=`);
+      if (options.inReplyTo) lines.push(`In-Reply-To: ${options.inReplyTo}`);
+      if (options.references) lines.push(`References: ${options.references}`);
+      lines.push('MIME-Version: 1.0');
+      lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
+      lines.push('');
+      lines.push(`--${boundary}`);
+      lines.push('Content-Type: text/plain; charset=UTF-8');
+      lines.push('Content-Transfer-Encoding: base64');
+      lines.push('');
+      lines.push(Buffer.from(options.body || '').toString('base64'));
+
+      for (const att of attachments) {
+        lines.push(`--${boundary}`);
+        lines.push(`Content-Type: ${att.mimeType}; name="${att.filename}"`);
+        lines.push(`Content-Disposition: attachment; filename="${att.filename}"`);
+        lines.push('Content-Transfer-Encoding: base64');
+        lines.push('');
+        lines.push(att.data); // Already base64
+      }
+      lines.push(`--${boundary}--`);
+
+      const raw = Buffer.from(lines.join('\r\n'));
+      encodedEmail = raw.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    } else {
+      const rawEmail = buildRfc2822Email({
+        from: options.from,
+        to: options.to,
+        cc: options.cc,
+        bcc: options.bcc,
+        subject: options.subject,
+        body: options.body,
+        inReplyTo: options.inReplyTo,
+        references: options.references,
+      });
+      encodedEmail = encodeBase64Url(rawEmail);
+    }
 
     const response = await gmail.users.messages.send({
       userId: 'me',

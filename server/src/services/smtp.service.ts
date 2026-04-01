@@ -80,6 +80,7 @@ export class SmtpService {
       body: string;
       inReplyTo?: string;
       references?: string;
+      attachments?: Array<{ filename: string; mimeType: string; data: string }>;
     }
   ): Promise<{ messageId: string }> {
     const credentials = await this.getCredentials(accountId);
@@ -109,6 +110,15 @@ export class SmtpService {
     }
     if (options.references) {
       mailOptions.references = options.references;
+    }
+
+    // Attachments
+    if (options.attachments && options.attachments.length > 0) {
+      mailOptions.attachments = options.attachments.map((att) => ({
+        filename: att.filename,
+        content: Buffer.from(att.data, 'base64'),
+        contentType: att.mimeType,
+      }));
     }
 
     const result = await transport.sendMail(mailOptions);

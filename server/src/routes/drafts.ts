@@ -216,6 +216,71 @@ export async function draftRoutes(fastify: FastifyInstance) {
   });
 
   /**
+   * POST /drafts/:id/attachments — Upload a file attachment to a draft
+   * Accepts multipart/form-data with a single file field.
+   */
+  fastify.post('/drafts/:id/attachments', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { prisma } = await import('../config/database');
+
+    const draft = await prisma.draft.findFirst({
+      where: { id, userId: request.userId },
+    });
+    if (!draft) return reply.code(404).send({ error: 'Draft not found' });
+
+    const file = await request.file();
+    if (!file) return reply.code(400).send({ error: 'No file uploaded' });
+
+    const buffer = await file.toBuffer();
+    if (buffer.length > 25 * 1024 * 1024) {
+      return reply.code(400).send({ error: 'File too large (max 25 MB)' });
+    }
+
+    const base64 = buffer.toString('base64');
+    const existing: any[] = (draft.attachments as any[]) ?? [];
+
+    const newAttachment = {
+      id: crypto.randomUUID(),
+      filename: file.filename,
+      mimeType: file.mimetype,
+      size: buffer.length,
+      data: base64,
+    };
+    existing.push(newAttachment);
+
+    await prisma.draft.update({ where: { id }, data: { attachments: existing } });
+
+    return reply.code(201).send({
+      attachment: {
+        id: newAttachment.id,
+        filename: newAttachment.filename,
+        mimeType: newAttachment.mimeType,
+        size: newAttachment.size,
+      },
+    });
+  });
+
+  /**
+   * DELETE /drafts/:id/attachments/:attachmentId — Remove an attachment from a draft
+   */
+  fastify.delete('/drafts/:id/attachments/:attachmentId', async (request, reply) => {
+    const { id, attachmentId } = request.params as { id: string; attachmentId: string };
+    const { prisma } = await import('../config/database');
+
+    const draft = await prisma.draft.findFirst({
+      where: { id, userId: request.userId },
+    });
+    if (!draft) return reply.code(404).send({ error: 'Draft not found' });
+
+    const existing: any[] = (draft.attachments as any[]) ?? [];
+    const filtered = existing.filter((a: any) => a.id !== attachmentId);
+
+    await prisma.draft.update({ where: { id }, data: { attachments: filtered } });
+
+    return { message: 'Attachment removed' };
+  });
+
+  /**
    * POST /drafts/:id/discard - Discard a draft
    */
   fastify.post('/drafts/:id/discard', async (request, reply) => {

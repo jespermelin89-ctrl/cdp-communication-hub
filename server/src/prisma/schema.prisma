@@ -165,6 +165,7 @@ model Draft {
   bccAddresses   String[]  @default([]) @map("bcc_addresses")
   subject        String
   bodyText       String    @map("body_text")
+  attachments    Json?     @default("[]") @map("attachments") // [{id, filename, mimeType, size, data}]
   status         String    @default("pending") // pending|approved|sent|failed|discarded
   gmailMessageId String?   @map("gmail_message_id") // set after successful send
   approvedAt     DateTime? @map("approved_at")

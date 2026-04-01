@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-03-31 22:46:13 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-01 06:15:47 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -107,6 +107,8 @@ Prefix: `/api/v1`
 | `POST    /drafts/:id/send` | `drafts` |
 | `POST    /drafts/:id/schedule` | `drafts` |
 | `DELETE  /drafts/:id/schedule` | `drafts` |
+| `POST    /drafts/:id/attachments` | `drafts` |
+| `DELETE  /drafts/:id/attachments/:attachmentId` | `drafts` |
 | `POST    /drafts/:id/discard` | `drafts` |
 | `POST    /providers/detect` | `providers` |
 | `GET     /providers` | `providers` |
@@ -228,7 +230,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 
 ---
 
-## Serverpaket (16 direktberoenden)
+## Serverpaket (17 direktberoenden)
 
 <details>
 <summary>Visa alla</summary>
@@ -237,6 +239,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `@fastify/cookie ^11.0.0`
 - `@fastify/cors ^10.0.0`
 - `@fastify/helmet ^13.0.2`
+- `@fastify/multipart ^9.4.0`
 - `@fastify/rate-limit ^10.2.0`
 - `@prisma/client ^6.2.0`
 - `dotenv ^16.4.0`

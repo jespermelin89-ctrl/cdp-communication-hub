@@ -20,6 +20,13 @@ export interface FetchThreadsResult {
   nextPageToken?: string | null;
 }
 
+export interface AttachmentData {
+  filename: string;
+  mimeType: string;
+  size: number;
+  data: string; // Base64-encoded
+}
+
 export interface SendEmailOptions {
   from: string;
   to: string[];
@@ -30,6 +37,7 @@ export interface SendEmailOptions {
   inReplyTo?: string;
   references?: string;
   threadId?: string;
+  attachments?: AttachmentData[];
 }
 
 export interface SendEmailResult {

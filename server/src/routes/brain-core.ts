@@ -211,4 +211,83 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
 
     return { rule };
   });
+
+  // GET /brain-core/learning-insights — dashboard insights
+  fastify.get('/brain-core/learning-insights', async (request) => {
+    const { prisma } = await import('../config/database');
+    const userId = request.userId;
+
+    const [totalEvents, eventsByType, recentEvents, contacts] = await Promise.all([
+      prisma.learningEvent.count({ where: { userId } }),
+      prisma.learningEvent.groupBy({
+        by: ['eventType'],
+        where: { userId },
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+      }),
+      prisma.learningEvent.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+      prisma.contactProfile.findMany({
+        where: { userId },
+        orderBy: { totalEmails: 'desc' },
+        take: 10,
+      }),
+    ]);
+
+    // Weekly trend: events per day last 7 days
+    const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const weeklyEvents = await prisma.learningEvent.findMany({
+      where: { userId, createdAt: { gte: since7d } },
+      select: { createdAt: true },
+    });
+
+    const weeklyMap: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(since7d.getTime() + i * 86400000).toISOString().slice(0, 10);
+      weeklyMap[d] = 0;
+    }
+    for (const e of weeklyEvents) {
+      const key = new Date(e.createdAt).toISOString().slice(0, 10);
+      if (weeklyMap[key] !== undefined) weeklyMap[key]++;
+    }
+    const weeklyTrend = Object.entries(weeklyMap).map(([date, count]) => ({ date, count }));
+
+    return {
+      totalEvents,
+      byType: eventsByType.map((e) => ({ type: e.eventType, count: e._count.id })),
+      recentEvents,
+      weeklyTrend,
+      topContacts: contacts,
+    };
+  });
+
+  // POST /brain-core/voice-test — Test writing mode
+  fastify.post('/brain-core/voice-test', async (request, reply) => {
+    const { mode_key, instruction } = request.body as { mode_key: string; instruction: string };
+
+    if (!mode_key || !instruction) {
+      return reply.code(400).send({ error: 'mode_key and instruction are required' });
+    }
+
+    const { prisma } = await import('../config/database');
+    const mode = await prisma.writingMode.findFirst({
+      where: { userId: request.userId, modeKey: mode_key },
+    });
+
+    if (!mode) return reply.code(404).send({ error: 'Writing mode not found' });
+
+    const systemPrompt = `Du är Jesper Melin och skriver i stilen: ${mode.name}. ${mode.description}.
+Karakteristik: ${JSON.stringify(mode.characteristics)}.
+Avsluta med: ${mode.signOff ?? 'Mvh Jesper'}.`;
+
+    try {
+      const result = await (await import('../services/ai.service')).aiService.chat(systemPrompt, instruction);
+      return { preview: result, mode: mode.name };
+    } catch (err: any) {
+      return reply.code(500).send({ error: 'AI test failed', message: err.message });
+    }
+  });
 }

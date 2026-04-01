@@ -36,6 +36,10 @@ import agentRoutes from './routes/agent';
 import { pushRoutes } from './routes/push';
 import { docsRoutes } from './routes/docs';
 import { webhookRoutes } from './routes/webhooks';
+import { followUpRoutes } from './routes/follow-ups';
+import { templatesRoutes } from './routes/templates';
+import { analyticsRoutes } from './routes/analytics';
+import { savedViewsRoutes } from './routes/views';
 
 async function main() {
   // Validate environment before starting
@@ -205,6 +209,10 @@ async function main() {
     await api.register(pushRoutes);
     await api.register(docsRoutes);
     await api.register(webhookRoutes); // No auth — receives from Google Pub/Sub
+    await api.register(followUpRoutes);
+    await api.register(templatesRoutes);
+    await api.register(analyticsRoutes);
+    await api.register(savedViewsRoutes);
   }, { prefix: '/api/v1' });
 
   // Start server FIRST (so Render sees the port binding)

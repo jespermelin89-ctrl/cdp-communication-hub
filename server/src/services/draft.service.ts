@@ -35,6 +35,7 @@ export class DraftService {
         bccAddresses: input.bcc_addresses || [],
         subject: input.subject,
         bodyText: bodyWithSignature,
+        bodyHtml: (input as any).body_html ?? null,
         status: 'pending', // ALWAYS starts as pending
       },
       include: {
@@ -78,6 +79,7 @@ export class DraftService {
         ...(input.bcc_addresses && { bccAddresses: input.bcc_addresses }),
         ...(input.subject && { subject: input.subject }),
         ...(input.body_text && { bodyText: input.body_text }),
+        ...((input as any).body_html !== undefined && { bodyHtml: (input as any).body_html }),
       },
       include: {
         account: { select: { emailAddress: true } },
@@ -178,6 +180,7 @@ export class DraftService {
           bcc: draft.bccAddresses,
           subject: draft.subject,
           body: draft.bodyText,
+          bodyHtml: draft.bodyHtml ?? undefined,
           inReplyTo,
           references,
           threadId: gmailThreadIdForSend,

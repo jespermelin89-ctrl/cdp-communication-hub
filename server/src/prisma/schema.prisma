@@ -96,10 +96,15 @@ model EmailThread {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  account  EmailAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  messages EmailMessage[]
-  analyses AIAnalysis[]
-  drafts   Draft[]
+  account           EmailAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  messages          EmailMessage[]
+  analyses          AIAnalysis[]
+  drafts            Draft[]
+  followUpReminders FollowUpReminder[]
+
+  firstReceivedAt   DateTime? @map("first_received_at")
+  firstRepliedAt    DateTime? @map("first_replied_at")
+  responseTimeHours Float?    @map("response_time_hours")
 
   @@unique([accountId, gmailThreadId])
   @@index([accountId, lastMessageAt(sort: Desc)], name: "idx_threads_account_last_msg")
@@ -167,6 +172,7 @@ model Draft {
   bccAddresses   String[]  @default([]) @map("bcc_addresses")
   subject        String
   bodyText       String    @map("body_text")
+  bodyHtml       String?   @map("body_html")
   attachments    Json?     @default("[]") @map("attachments") // [{id, filename, mimeType, size, data}]
   status         String    @default("pending") // pending|approved|sent|failed|discarded
   gmailMessageId String?   @map("gmail_message_id") // set after successful send
@@ -375,6 +381,58 @@ model DailySummary {
 
   @@unique([userId, date])
   @@map("daily_summaries")
+}
+
+// ============================================================
+// FOLLOW-UP REMINDERS
+// ============================================================
+model FollowUpReminder {
+  id          String      @id @default(cuid())
+  userId      String      @map("user_id")
+  threadId    String      @map("thread_id")
+  thread      EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  remindAt    DateTime    @map("remind_at")
+  reason      String?     // "awaiting_reply" | "follow_up" | "custom"
+  note        String?
+  isCompleted Boolean     @default(false) @map("is_completed")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@map("follow_up_reminders")
+}
+
+// ============================================================
+// EMAIL TEMPLATES
+// ============================================================
+model EmailTemplate {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  name       String
+  subject    String?
+  bodyText   String?  @map("body_text")
+  bodyHtml   String?  @map("body_html")
+  category   String?
+  variables  Json?
+  usageCount Int      @default(0) @map("usage_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("email_templates")
+}
+
+// ============================================================
+// SAVED VIEWS
+// ============================================================
+model SavedView {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  icon      String?
+  filters   Json
+  sortKey   String?  @map("sort_key")
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("saved_views")
 }
 
 // ============================================================

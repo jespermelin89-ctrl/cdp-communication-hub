@@ -34,6 +34,7 @@ export interface SendEmailOptions {
   bcc?: string[];
   subject: string;
   body: string;
+  bodyHtml?: string;
   inReplyTo?: string;
   references?: string;
   threadId?: string;
@@ -139,6 +140,7 @@ export class EmailProviderFactory {
           bcc: options.bcc,
           subject: options.subject,
           body: options.body,
+          bodyHtml: options.bodyHtml,
           inReplyTo: options.inReplyTo,
           references: options.references,
         });

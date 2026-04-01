@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock, MoreVertical, ShieldBan, BellOff } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock, MoreVertical, ShieldBan, BellOff, Copy, Reply, Users, Bell, Loader2 } from 'lucide-react';
 import { sanitizeHtml, replaceCidImages, wrapQuotedContent } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -107,6 +107,17 @@ export default function ThreadDetailPage() {
   const [overrideClassification, setOverrideClassification] = useState('');
   const [overriding, setOverriding] = useState(false);
   const [overrideSaved, setOverrideSaved] = useState(false);
+
+  // Thread UX improvements (Sprint 6)
+  const [inlineReplyMessageId, setInlineReplyMessageId] = useState<string | null>(null);
+  const [inlineReplyText, setInlineReplyText] = useState('');
+  const [sendingInlineReply, setSendingInlineReply] = useState(false);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+
+  // Follow-up reminder (Sprint 1)
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [followUpCreating, setFollowUpCreating] = useState(false);
 
   // Load writing profile once per threadId
   useEffect(() => {
@@ -220,6 +231,63 @@ export default function ThreadDetailPage() {
     } catch (err: any) {
       setError(`Arkivering misslyckades: ${err.message}`);
       setArchiving(false);
+    }
+  }
+
+  // Sprint 6 helpers
+  async function handleCopyMessage(msg: any) {
+    const text = msg.bodyText ?? '';
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      setCopiedMessageId(msg.id);
+      toast.success(t.threadUx?.copied ?? 'Kopierat!');
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    }
+  }
+
+  async function handleInlineSendReply() {
+    if (!inlineReplyText.trim() || !thread) return;
+    const account = (thread as any)?.account;
+    if (!account?.id) { toast.error('Konto saknas'); return; }
+
+    setSendingInlineReply(true);
+    try {
+      const externalParticipants = (thread as any).participantEmails?.filter(
+        (e: string) => e !== account.emailAddress
+      ) ?? [];
+      const toAddresses = externalParticipants.length > 0 ? externalParticipants : (thread as any).participantEmails ?? [];
+
+      const created = await api.createDraft({
+        account_id: account.id,
+        thread_id: threadId,
+        to_addresses: toAddresses.slice(0, 3),
+        subject: `Re: ${(thread as any).subject ?? ''}`,
+        body_text: inlineReplyText,
+      });
+      await api.approveDraft(created.draft.id);
+      await api.sendDraft(created.draft.id);
+      setInlineReplyMessageId(null);
+      setInlineReplyText('');
+      await mutateThread();
+      toast.success('Svar skickat!');
+    } catch (err: any) {
+      toast.error(`Misslyckades: ${err.message}`);
+    } finally {
+      setSendingInlineReply(false);
+    }
+  }
+
+  async function handleCreateFollowUp(hours: number) {
+    const remindAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+    setFollowUpCreating(true);
+    try {
+      await api.createFollowUp(threadId, remindAt);
+      setFollowUpOpen(false);
+      toast.success(t.followUps?.created ?? 'Påminnelse skapad');
+    } catch {
+      toast.error('Kunde inte skapa påminnelse');
+    } finally {
+      setFollowUpCreating(false);
     }
   }
 
@@ -528,6 +596,25 @@ export default function ThreadDetailPage() {
     return () => document.removeEventListener('click', close);
   }, [moreOpen]);
 
+  // Close per-message menus on outside click
+  useEffect(() => {
+    if (!openMessageMenuId) return;
+    function close() { setOpenMessageMenuId(null); }
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openMessageMenuId]);
+
+  // Close follow-up dropdown on outside click
+  useEffect(() => {
+    if (!followUpOpen) return;
+    function close(e: MouseEvent) {
+      const target = e.target as Element;
+      if (!target.closest('[data-followup-dropdown]')) setFollowUpOpen(false);
+    }
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [followUpOpen]);
+
   // j/k/u keyboard navigation
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
@@ -756,6 +843,37 @@ export default function ThreadDetailPage() {
                 </>
               )}
             </div>
+            {/* Follow-up reminder */}
+            <div className="relative" data-followup-dropdown>
+              <button
+                onClick={() => setFollowUpOpen((s) => !s)}
+                title={t.followUps.createReminder}
+                className="btn-secondary text-sm flex items-center gap-1.5"
+              >
+                <Bell size={14} />
+                {t.followUps.createReminder}
+              </button>
+              {followUpOpen && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden min-w-[180px]">
+                  {[
+                    { label: t.thread?.snooze1h ?? '1 timme', hours: 1 },
+                    { label: t.thread?.snooze3h ?? '3 timmar', hours: 3 },
+                    { label: '1 dag', hours: 24 },
+                    { label: t.thread?.snooze1w ?? '1 vecka', hours: 168 },
+                  ].map(({ label, hours }) => (
+                    <button
+                      key={hours}
+                      onClick={() => handleCreateFollowUp(hours)}
+                      disabled={followUpCreating}
+                      className="w-full text-left text-sm px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      {followUpCreating ? <Loader2 size={13} className="animate-spin" /> : <Clock size={13} className="text-gray-400" />}
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {/* Star toggle */}
             <button
               onClick={handleToggleStar}
@@ -847,6 +965,35 @@ export default function ThreadDetailPage() {
 
             {thread.messages && thread.messages.length > 0 ? (
               <>
+                {/* Participants chips */}
+                {(() => {
+                  const seen = new Set<string>();
+                  (thread.messages as any[]).forEach((m) => {
+                    seen.add(m.fromAddress);
+                    (m.toAddresses ?? []).forEach((e: string) => seen.add(e));
+                    (m.ccAddresses ?? []).forEach((e: string) => seen.add(e));
+                  });
+                  const participants = Array.from(seen).slice(0, 8);
+                  if (participants.length <= 1) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 flex-wrap px-1">
+                      <Users size={13} className="text-gray-400 shrink-0" />
+                      {participants.map((email) => (
+                        <span
+                          key={email}
+                          title={email}
+                          className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 max-w-[160px] truncate"
+                        >
+                          {email.split('@')[0]}
+                        </span>
+                      ))}
+                      {seen.size > 8 && (
+                        <span className="text-xs text-gray-400">+{seen.size - 8}</span>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Expand all — only shown when collapsed mode is active */}
                 {thread.messages.length > 3 && (
                   <div className="flex justify-end">
@@ -885,13 +1032,18 @@ export default function ThreadDetailPage() {
                   return (
                     <div key={msg.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
                       <div
-                        className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
-                        onClick={() => shouldCollapse && toggleExpand(msg.id)}
+                        className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
                       >
-                        <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold ${avatarColor(msg.fromAddress)}`}>
+                        <div
+                          className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-white text-xs font-bold cursor-pointer ${avatarColor(msg.fromAddress)}`}
+                          onClick={() => shouldCollapse && toggleExpand(msg.id)}
+                        >
                           {initials(msg.fromAddress)}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div
+                          className="flex-1 min-w-0 cursor-pointer"
+                          onClick={() => shouldCollapse && toggleExpand(msg.id)}
+                        >
                           <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{msg.fromAddress}</div>
                           <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
                             {t.common.to}: {msg.toAddresses.slice(0, 2).join(', ')}
@@ -899,10 +1051,65 @@ export default function ThreadDetailPage() {
                             {msg.ccAddresses.length > 0 && ` · Cc: ${msg.ccAddresses[0]}`}
                           </div>
                         </div>
-                        <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                        {/* Exact timestamp with tooltip */}
+                        <span
+                          className="text-xs text-gray-400 dark:text-gray-500 shrink-0 cursor-default"
+                          title={new Date(msg.receivedAt).toLocaleString('sv-SE', { dateStyle: 'full', timeStyle: 'medium' })}
+                        >
                           {new Date(msg.receivedAt).toLocaleString()}
                         </span>
-                        {shouldCollapse && <ChevronDown size={16} className="text-gray-400 shrink-0 rotate-180" />}
+                        {/* Per-message action menu */}
+                        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setOpenMessageMenuId(openMessageMenuId === msg.id ? null : msg.id)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            title="Fler alternativ"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                          {openMessageMenuId === msg.id && (
+                            <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden min-w-[160px]">
+                              <button
+                                onClick={() => {
+                                  setInlineReplyMessageId(msg.id);
+                                  setInlineReplyText('');
+                                  setOpenMessageMenuId(null);
+                                }}
+                                className="w-full text-left text-sm px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2 transition-colors"
+                              >
+                                <Reply size={14} />
+                                {t.threadUx?.replyInline ?? 'Svara inline'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  router.push(`/compose?forward=${threadId}`);
+                                  setOpenMessageMenuId(null);
+                                }}
+                                className="w-full text-left text-sm px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2 transition-colors"
+                              >
+                                <Forward size={14} />
+                                {t.threadUx?.forward ?? 'Vidarebefordra'}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleCopyMessage(msg);
+                                  setOpenMessageMenuId(null);
+                                }}
+                                className="w-full text-left text-sm px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 flex items-center gap-2 transition-colors"
+                              >
+                                {copiedMessageId === msg.id ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                                {copiedMessageId === msg.id ? (t.threadUx?.copied ?? 'Kopierat!') : (t.threadUx?.copy ?? 'Kopiera text')}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {shouldCollapse && (
+                          <ChevronDown
+                            size={16}
+                            className="text-gray-400 shrink-0 rotate-180 cursor-pointer"
+                            onClick={() => toggleExpand(msg.id)}
+                          />
+                        )}
                       </div>
                       {msg.bodyHtml ? (
                         <div
@@ -939,6 +1146,38 @@ export default function ThreadDetailPage() {
                               </button>
                             );
                           })}
+                        </div>
+                      )}
+                      {/* Inline reply form */}
+                      {inlineReplyMessageId === msg.id && (
+                        <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
+                          <textarea
+                            autoFocus
+                            value={inlineReplyText}
+                            onChange={(e) => setInlineReplyText(e.target.value)}
+                            placeholder={t.threadUx?.inlineReplyPlaceholder ?? 'Skriv ditt svar...'}
+                            rows={3}
+                            className="w-full text-sm px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-400 resize-none"
+                          />
+                          <div className="flex justify-end gap-2 mt-2">
+                            <button
+                              onClick={() => { setInlineReplyMessageId(null); setInlineReplyText(''); }}
+                              className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            >
+                              {'Avbryt'}
+                            </button>
+                            <button
+                              onClick={handleInlineSendReply}
+                              disabled={sendingInlineReply || !inlineReplyText.trim()}
+                              className="flex items-center gap-1.5 text-sm px-4 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium disabled:opacity-50 transition-colors"
+                            >
+                              {sendingInlineReply ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                              {t.threadUx?.send ?? 'Skicka'}
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            {t.threadUx?.sendNote ?? 'Skapar utkast → godkänn → skickar direkt'}
+                          </p>
                         </div>
                       )}
                     </div>

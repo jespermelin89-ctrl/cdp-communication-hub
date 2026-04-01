@@ -5,12 +5,18 @@ import Link from 'next/link';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
+import { toast } from 'sonner';
 import {
   Brain, PenLine, Tag, Users, Trash2, RefreshCw,
-  ChevronLeft, CheckCircle, AlertCircle, Zap
+  ChevronLeft, CheckCircle, AlertCircle, Zap, Lightbulb, Wand2, Loader2
 } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line
+} from 'recharts';
 
 export default function BrainCorePage() {
+  const { t } = useI18n();
   const [writingModes, setWritingModes] = useState<any[]>([]);
   const [voiceAttributes, setVoiceAttributes] = useState<any[]>([]);
   const [rules, setRules] = useState<any[]>([]);
@@ -19,7 +25,17 @@ export default function BrainCorePage() {
   const [cleaning, setCleaning] = useState(false);
   const [cleanMsg, setCleanMsg] = useState<string | null>(null);
   const [cleanupConfirmOpen, setCleanupConfirmOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'modes' | 'rules' | 'contacts'>('modes');
+  const [activeTab, setActiveTab] = useState<'modes' | 'rules' | 'contacts' | 'learning' | 'contactIntel'>('modes');
+
+  // Learning insights
+  const [insights, setInsights] = useState<any | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+
+  // Voice test
+  const [voiceTestMode, setVoiceTestMode] = useState('');
+  const [voiceTestInput, setVoiceTestInput] = useState('');
+  const [voiceTestResult, setVoiceTestResult] = useState<string | null>(null);
+  const [voiceTesting, setVoiceTesting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -55,10 +71,38 @@ export default function BrainCorePage() {
     setCleanupConfirmOpen(true);
   }
 
+  useEffect(() => {
+    if (activeTab === 'learning' || activeTab === 'contactIntel') {
+      if (!insights) {
+        setInsightsLoading(true);
+        api.getLearningInsights()
+          .then((d) => setInsights(d))
+          .catch(() => {})
+          .finally(() => setInsightsLoading(false));
+      }
+    }
+  }, [activeTab, insights]);
+
+  async function handleVoiceTest() {
+    if (!voiceTestMode || !voiceTestInput.trim()) return;
+    setVoiceTesting(true);
+    setVoiceTestResult(null);
+    try {
+      const result = await api.testVoiceMode(voiceTestMode, voiceTestInput);
+      setVoiceTestResult(result.preview);
+    } catch (err: any) {
+      toast.error(`Fel: ${err.message}`);
+    } finally {
+      setVoiceTesting(false);
+    }
+  }
+
   const TABS = [
-    { key: 'modes' as const, label: 'Skrivstilar', icon: <PenLine size={14} />, count: writingModes.length },
+    { key: 'modes' as const, label: t.brainInsights?.tabModes ?? 'Skrivstilar', icon: <PenLine size={14} />, count: writingModes.length },
     { key: 'rules' as const, label: 'Regler', icon: <Tag size={14} />, count: rules.length },
-    { key: 'contacts' as const, label: 'Kontakter', icon: <Users size={14} />, count: contacts.length },
+    { key: 'contacts' as const, label: t.brainInsights?.tabContacts ?? 'Kontakter', icon: <Users size={14} />, count: contacts.length },
+    { key: 'learning' as const, label: t.brainInsights?.tabLearning ?? 'Inlärning', icon: <Lightbulb size={14} />, count: 0 },
+    { key: 'contactIntel' as const, label: 'KI', icon: <Brain size={14} />, count: 0 },
   ];
 
   return (
@@ -300,6 +344,170 @@ export default function BrainCorePage() {
                     })
                 )}
               </div>
+            )}
+          </>
+        )}
+
+        {/* Learning Insights tab */}
+        {!loading && activeTab === 'learning' && (
+          <>
+            {insightsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={20} className="animate-spin text-violet-500" />
+              </div>
+            ) : insights ? (
+              <div className="space-y-5">
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center">
+                    <div className="text-2xl font-bold text-violet-600 dark:text-violet-400">{insights.totalEvents}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t.brainInsights?.totalEvents ?? 'Totalt antal händelser'}</div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{insights.byType?.length ?? 0}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Typer</div>
+                  </div>
+                </div>
+
+                {/* Weekly trend */}
+                {insights.weeklyTrend && insights.weeklyTrend.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">{t.brainInsights?.weeklyTrend ?? 'Veckoutveckling'}</h3>
+                    <ResponsiveContainer width="100%" height={120}>
+                      <LineChart data={insights.weeklyTrend}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v: string) => v.slice(5)} />
+                        <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+                        <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: 8, fontSize: 11 }} />
+                        <Line type="monotone" dataKey="count" stroke="#8B5CF6" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* By type */}
+                {insights.byType && insights.byType.length > 0 && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">{t.brainInsights?.byType ?? 'Per typ'}</h3>
+                    <ResponsiveContainer width="100%" height={150}>
+                      <BarChart data={insights.byType.slice(0, 8)} layout="vertical">
+                        <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+                        <YAxis type="category" dataKey="type" width={130} tick={{ fontSize: 10, fill: '#9CA3AF' }} tickFormatter={(v: string) => v.length > 20 ? `${v.slice(0, 19)}…` : v} />
+                        <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: 8, fontSize: 11 }} />
+                        <Bar dataKey="count" fill="#8B5CF6" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Recent events */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">{t.brainInsights?.recentEvents ?? 'Senaste händelser'}</h3>
+                  {insights.recentEvents?.length === 0 ? (
+                    <p className="text-xs text-gray-400">{t.brainInsights?.noEvents ?? 'Inga händelser.'}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {insights.recentEvents?.slice(0, 10).map((ev: any) => (
+                        <div key={ev.id} className="flex items-center gap-2 text-xs">
+                          <span className="text-gray-400 dark:text-gray-500 shrink-0">{new Date(ev.createdAt).toLocaleDateString('sv-SE')}</span>
+                          <span className="text-violet-600 dark:text-violet-400 font-medium truncate">{ev.eventType}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Voice mode test */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 flex items-center gap-1.5">
+                    <Wand2 size={14} className="text-violet-500" />
+                    Testa skrivsätt
+                  </h3>
+                  <div className="space-y-2">
+                    <select
+                      value={voiceTestMode}
+                      onChange={(e) => setVoiceTestMode(e.target.value)}
+                      className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 outline-none"
+                    >
+                      <option value="">Välj skrivsätt...</option>
+                      {writingModes.map((m: any) => (
+                        <option key={m.modeKey} value={m.modeKey}>{m.name}</option>
+                      ))}
+                    </select>
+                    <textarea
+                      value={voiceTestInput}
+                      onChange={(e) => setVoiceTestInput(e.target.value)}
+                      placeholder={t.brainInsights?.testInstruction ?? 'Skriv ett testmeddelande...'}
+                      rows={3}
+                      className="w-full text-sm px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 outline-none resize-none focus:ring-2 focus:ring-violet-400"
+                    />
+                    <button
+                      onClick={handleVoiceTest}
+                      disabled={voiceTesting || !voiceTestMode || !voiceTestInput.trim()}
+                      className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-medium disabled:opacity-50 transition-colors"
+                    >
+                      {voiceTesting ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                      {voiceTesting ? (t.brainInsights?.generating ?? 'Genererar...') : (t.brainInsights?.testVoice ?? 'Testa')}
+                    </button>
+                    {voiceTestResult && (
+                      <div className="mt-2 text-sm text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-2 border border-gray-200 dark:border-gray-700 whitespace-pre-wrap">
+                        {voiceTestResult}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 py-8 text-center">Kunde inte ladda inlärningsinsikter.</p>
+            )}
+          </>
+        )}
+
+        {/* Contact Intelligence tab */}
+        {!loading && activeTab === 'contactIntel' && (
+          <>
+            {insightsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 size={20} className="animate-spin text-violet-500" />
+              </div>
+            ) : insights?.topContacts ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center gap-1.5">
+                  <Users size={14} className="text-violet-500" />
+                  {t.brainInsights?.contactIntelligence ?? 'Kontaktintelligens'}
+                </h3>
+                <div className="space-y-3">
+                  {insights.topContacts.map((c: any) => (
+                    <div key={c.id} className="flex items-center gap-3 py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                      <div className="w-8 h-8 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-bold text-violet-600 dark:text-violet-400">
+                          {(c.displayName ?? c.emailAddress).slice(0, 2).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                          {c.displayName ?? c.emailAddress}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.emailAddress}</div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-medium text-violet-600 dark:text-violet-400">{c.totalEmails} mail</div>
+                        {c.preferredMode && (
+                          <div className="text-xs text-gray-400">{c.preferredMode}</div>
+                        )}
+                        {c.lastContactAt && (
+                          <div className="text-xs text-gray-400">{new Date(c.lastContactAt).toLocaleDateString('sv-SE')}</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {insights.topContacts.length === 0 && (
+                    <p className="text-sm text-gray-400 text-center py-4">Inga kontakter ännu.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400 py-8 text-center">Laddar kontaktdata...</p>
             )}
           </>
         )}

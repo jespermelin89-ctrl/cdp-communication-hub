@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-01 06:32:23 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-01 07:18:31 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -76,6 +76,7 @@ Prefix: `/api/v1`
 | `POST    /ai/generate-draft` | `ai` |
 | `POST    /ai/summarize-inbox` | `ai` |
 | `POST    /ai/bulk-classify` | `ai` |
+| `GET     /analytics/overview` | `analytics` |
 | `POST    /auth/google` | `auth` |
 | `GET     /auth/google/callback` | `auth` |
 | `GET     /auth/google/reauth` | `auth` |
@@ -96,6 +97,8 @@ Prefix: `/api/v1`
 | `GET     /brain-core/learning-stats` | `brain-core` |
 | `GET     /brain-core/export` | `brain-core` |
 | `POST    /brain-core/sender-rules` | `brain-core` |
+| `GET     /brain-core/learning-insights` | `brain-core` |
+| `POST    /brain-core/voice-test` | `brain-core` |
 | `GET     /brain-summary` | `brain-summary` |
 | `GET     /command-center` | `command-center` |
 | `GET     /docs` | `docs` |
@@ -110,11 +113,21 @@ Prefix: `/api/v1`
 | `POST    /drafts/:id/attachments` | `drafts` |
 | `DELETE  /drafts/:id/attachments/:attachmentId` | `drafts` |
 | `POST    /drafts/:id/discard` | `drafts` |
+| `GET     /follow-ups` | `follow-ups` |
+| `POST    /threads/:id/follow-up` | `follow-ups` |
+| `PATCH   /follow-ups/:id/complete` | `follow-ups` |
+| `DELETE  /follow-ups/:id` | `follow-ups` |
 | `POST    /providers/detect` | `providers` |
 | `GET     /providers` | `providers` |
 | `POST    /push/subscribe` | `push` |
 | `DELETE  /push/subscribe` | `push` |
 | `POST    /push/test` | `push` |
+| `GET     /templates` | `templates` |
+| `POST    /templates` | `templates` |
+| `PATCH   /templates/:id` | `templates` |
+| `DELETE  /templates/:id` | `templates` |
+| `POST    /templates/:id/use` | `templates` |
+| `POST    /templates/generate` | `templates` |
 | `GET     /threads` | `threads` |
 | `GET     /threads/:id` | `threads` |
 | `POST    /threads/:id/spam` | `threads` |
@@ -132,6 +145,11 @@ Prefix: `/api/v1`
 | `POST    /threads/batch` | `threads` |
 | `PATCH   /threads/:id` | `threads` |
 | `GET     /threads/export` | `threads` |
+| `GET     /views` | `views` |
+| `POST    /views` | `views` |
+| `PATCH   /views/reorder` | `views` |
+| `PATCH   /views/:id` | `views` |
+| `DELETE  /views/:id` | `views` |
 | `POST    /webhooks/gmail` | `webhooks` |
 
 ---
@@ -156,7 +174,7 @@ Prefix: `/api/v1`
 
 ---
 
-## Databas — Tabeller (17 st)
+## Databas — Tabeller (20 st)
 
 - `User`
 - `EmailAccount`
@@ -173,6 +191,9 @@ Prefix: `/api/v1`
 - `ClassificationRule`
 - `LearningEvent`
 - `DailySummary`
+- `FollowUpReminder`
+- `EmailTemplate`
+- `SavedView`
 - `PushSubscription`
 - `UserSettings`
 
@@ -195,6 +216,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 
 - `/ (dashboard)`
 - `/activity`
+- `/analytics`
 - `/auth/callback`
 - `/categories`
 - `/compose`
@@ -207,6 +229,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `/settings`
 - `/settings/accounts`
 - `/settings/brain-core`
+- `/settings/templates`
 - `/setup-siri`
 - `/threads/[id]`
 

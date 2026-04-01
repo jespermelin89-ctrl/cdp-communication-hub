@@ -300,6 +300,7 @@ export class GmailService {
       bcc?: string[];
       subject: string;
       body: string;
+      bodyHtml?: string;
       inReplyTo?: string;
       references?: string;
       threadId?: string; // Gmail thread ID for threading
@@ -311,9 +312,10 @@ export class GmailService {
     const attachments = options.attachments ?? [];
     let encodedEmail: string;
 
-    if (attachments.length > 0) {
-      // Build multipart/mixed MIME message manually
-      const boundary = `bdry_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    if (attachments.length > 0 || options.bodyHtml) {
+      // Build multipart/mixed (with attachments) or multipart/alternative (HTML only)
+      const outerBoundary = `bdry_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      const altBoundary = `alt_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       const lines: string[] = [];
 
       lines.push(`From: ${options.from}`);
@@ -324,23 +326,46 @@ export class GmailService {
       if (options.inReplyTo) lines.push(`In-Reply-To: ${options.inReplyTo}`);
       if (options.references) lines.push(`References: ${options.references}`);
       lines.push('MIME-Version: 1.0');
-      lines.push(`Content-Type: multipart/mixed; boundary="${boundary}"`);
-      lines.push('');
-      lines.push(`--${boundary}`);
-      lines.push('Content-Type: text/plain; charset=UTF-8');
-      lines.push('Content-Transfer-Encoding: base64');
-      lines.push('');
-      lines.push(Buffer.from(options.body || '').toString('base64'));
+
+      if (attachments.length > 0) {
+        lines.push(`Content-Type: multipart/mixed; boundary="${outerBoundary}"`);
+        lines.push('');
+        lines.push(`--${outerBoundary}`);
+      }
+
+      if (options.bodyHtml) {
+        lines.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`);
+        lines.push('');
+        lines.push(`--${altBoundary}`);
+        lines.push('Content-Type: text/plain; charset=UTF-8');
+        lines.push('Content-Transfer-Encoding: base64');
+        lines.push('');
+        lines.push(Buffer.from(options.body || '').toString('base64'));
+        lines.push(`--${altBoundary}`);
+        lines.push('Content-Type: text/html; charset=UTF-8');
+        lines.push('Content-Transfer-Encoding: base64');
+        lines.push('');
+        lines.push(Buffer.from(options.bodyHtml).toString('base64'));
+        lines.push(`--${altBoundary}--`);
+      } else {
+        lines.push('Content-Type: text/plain; charset=UTF-8');
+        lines.push('Content-Transfer-Encoding: base64');
+        lines.push('');
+        lines.push(Buffer.from(options.body || '').toString('base64'));
+      }
 
       for (const att of attachments) {
-        lines.push(`--${boundary}`);
+        lines.push(`--${outerBoundary}`);
         lines.push(`Content-Type: ${att.mimeType}; name="${att.filename}"`);
         lines.push(`Content-Disposition: attachment; filename="${att.filename}"`);
         lines.push('Content-Transfer-Encoding: base64');
         lines.push('');
         lines.push(att.data); // Already base64
       }
-      lines.push(`--${boundary}--`);
+
+      if (attachments.length > 0) {
+        lines.push(`--${outerBoundary}--`);
+      }
 
       const raw = Buffer.from(lines.join('\r\n'));
       encodedEmail = raw.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');

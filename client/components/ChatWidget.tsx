@@ -118,6 +118,26 @@ const INTENTS: Intent[] = [
       return api.chatAsk('visa dagens dagliga sammanfattning från Brain Core med needs_reply, good_to_know och ai_recommendation');
     },
   },
+  {
+    pattern: /^(påminnelser|follow.?up(s)?|uppföljning(ar)?|väntar\s*svar|remindr)/i,
+    description: 'Visar aktiva uppföljningspåminnelser',
+    execute: async () => {
+      const result = await api.getFollowUps();
+      const reminders = result.reminders ?? [];
+      if (reminders.length === 0) {
+        return { type: 'follow_ups', message: 'Inga aktiva påminnelser just nu. 👌', data: [] };
+      }
+      const lines = reminders.slice(0, 10).map((r: any) => {
+        const when = new Date(r.remindAt).toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' });
+        return `• **${r.thread?.subject ?? '(inget ämne)'}** — påminn ${when}`;
+      });
+      return {
+        type: 'follow_ups',
+        message: `Du har **${reminders.length}** aktiv${reminders.length === 1 ? '' : 'a'} påminnelse${reminders.length === 1 ? '' : 'r'}:\n\n${lines.join('\n')}`,
+        data: reminders,
+      };
+    },
+  },
 ];
 
 // ── Quick action chips ────────────────────────────────────────────────────────
@@ -131,6 +151,7 @@ const QUICK_ACTIONS = [
   { label: '📝 Utkast', cmd: 'utkast' },
   { label: '✉️ Nytt mail', cmd: 'nytt mail' },
   { label: '📅 Daglig sammanfattning', cmd: 'daglig sammanfattning' },
+  { label: '🔔 Påminnelser', cmd: 'påminnelser' },
 ];
 
 // ── Connection status badge shown inside the chat header ──────────────────

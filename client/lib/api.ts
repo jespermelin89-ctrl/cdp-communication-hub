@@ -614,6 +614,105 @@ class ApiClient {
       action: 'spam',
     });
   }
+
+  // Follow-up reminders
+  async getFollowUps() {
+    return this.requestWithRetry<{ reminders: any[] }>('GET', '/follow-ups');
+  }
+
+  async createFollowUp(threadId: string, remindAt: string, note?: string) {
+    return this.request<{ reminder: any }>('POST', `/threads/${threadId}/follow-up`, {
+      remind_at: remindAt,
+      note,
+    });
+  }
+
+  async completeFollowUp(id: string) {
+    return this.request<{ reminder: any }>('PATCH', `/follow-ups/${id}/complete`, {});
+  }
+
+  async deleteFollowUp(id: string) {
+    return this.request<{ ok: boolean }>('DELETE', `/follow-ups/${id}`);
+  }
+
+  // Email templates
+  async getTemplates() {
+    return this.requestWithRetry<{ templates: any[] }>('GET', '/templates');
+  }
+
+  async createTemplate(data: {
+    name: string;
+    subject?: string;
+    body_text?: string;
+    body_html?: string;
+    category?: string;
+  }) {
+    return this.request<{ template: any }>('POST', '/templates', data);
+  }
+
+  async updateTemplate(id: string, data: {
+    name?: string;
+    subject?: string;
+    body_text?: string;
+    body_html?: string;
+    category?: string;
+  }) {
+    return this.request<{ template: any }>('PATCH', `/templates/${id}`, data);
+  }
+
+  async deleteTemplate(id: string) {
+    return this.request<{ ok: boolean }>('DELETE', `/templates/${id}`);
+  }
+
+  async useTemplate(id: string) {
+    return this.request<{ template: any }>('POST', `/templates/${id}/use`, {});
+  }
+
+  async generateTemplate(instructions: string, name?: string, category?: string) {
+    return this.request<{ template: any }>('POST', '/templates/generate', {
+      instructions,
+      name,
+      category,
+    });
+  }
+
+  // Analytics
+  async getAnalytics(days = 30) {
+    return this.requestWithRetry<any>('GET', '/analytics/overview', undefined, { days: String(days) });
+  }
+
+  // Saved views
+  async getSavedViews() {
+    return this.requestWithRetry<{ views: any[] }>('GET', '/views');
+  }
+
+  async createSavedView(data: { name: string; icon?: string; filters: Record<string, any>; sort_key?: string }) {
+    return this.request<{ view: any }>('POST', '/views', data);
+  }
+
+  async updateSavedView(id: string, data: { name?: string; icon?: string; filters?: Record<string, any>; sort_key?: string }) {
+    return this.request<{ view: any }>('PATCH', `/views/${id}`, data);
+  }
+
+  async deleteSavedView(id: string) {
+    return this.request<{ ok: boolean }>('DELETE', `/views/${id}`);
+  }
+
+  async reorderViews(ids: string[]) {
+    return this.request<{ views: any[] }>('PATCH', '/views/reorder', { ids });
+  }
+
+  // Brain Core insights
+  async getLearningInsights() {
+    return this.requestWithRetry<any>('GET', '/brain-core/learning-insights');
+  }
+
+  async testVoiceMode(modeKey: string, instruction: string) {
+    return this.request<{ preview: string; mode: string }>('POST', '/brain-core/voice-test', {
+      mode_key: modeKey,
+      instruction,
+    });
+  }
 }
 
 export const api = new ApiClient();

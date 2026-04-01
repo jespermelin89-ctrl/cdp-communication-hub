@@ -294,6 +294,84 @@ export async function autoSeedBrainCore(): Promise<void> {
     }
     console.log(`[auto-seed] ${contacts.length} contact profiles seedade.`);
 
+    // ── EMAIL TEMPLATES ────────────────────────────────────────────────────
+    const existingTemplates = await prisma.emailTemplate.count({ where: { userId } });
+    if (existingTemplates === 0) {
+      const templates = [
+        {
+          name: 'Snabbsvar — mottaget',
+          subject: 'Re: {{subject}}',
+          bodyText: 'Hej!\n\nTack för ditt mail, jag har tagit emot det och återkommer inom kort.\n\n/Jesper',
+          category: 'general',
+        },
+        {
+          name: 'Mötesbokningsförfrågan',
+          subject: 'Möte — {{topic}}',
+          bodyText: 'Hej!\n\nJag skulle gärna vilja boka in ett kort möte för att diskutera {{topic}}.\n\nHar du möjlighet någon av dessa tider:\n- \n- \n- \n\nÅterhör gärna vad som passar.\n\n/Jesper',
+          category: 'meeting',
+        },
+        {
+          name: 'Uppföljning utan svar',
+          subject: 'Uppföljning: {{subject}}',
+          bodyText: 'Hej!\n\nJag hörde av mig för ett tag sedan och ville följa upp — har du haft tillfälle att titta på det?\n\nHojta om du behöver mer information.\n\n/Jesper',
+          category: 'follow-up',
+        },
+        {
+          name: 'Introduktionsmejl',
+          subject: 'Introduktion — Jesper Melin, CDP Holding',
+          bodyText: 'Hej!\n\nMitt namn är Jesper Melin och jag driver CDP Holding.\n\nJag hörde av mig eftersom {{reason}}.\n\nSkulle gärna ta ett kort samtal för att höra mer om er verksamhet och se om det finns något vi kan göra tillsammans.\n\nÅterhör gärna!\n\n/Jesper',
+          category: 'outreach',
+        },
+        {
+          name: 'Tack och bekräftelse',
+          subject: 'Tack! — {{topic}}',
+          bodyText: 'Hej!\n\nTack så mycket för {{topic}}. Det uppskattas verkligen.\n\nJag återkommer när jag har tittat igenom allt.\n\n/Jesper',
+          category: 'general',
+        },
+      ];
+
+      for (const tmpl of templates) {
+        await prisma.emailTemplate.create({ data: { userId, ...tmpl } });
+      }
+      console.log(`[auto-seed] ${templates.length} email templates seedade.`);
+    }
+
+    // ── SAVED VIEWS ────────────────────────────────────────────────────────
+    const existingViews = await prisma.savedView.count({ where: { userId } });
+    if (existingViews === 0) {
+      const views = [
+        {
+          name: 'Leads',
+          icon: 'zap',
+          filters: { classification: 'lead' },
+          sortOrder: 0,
+        },
+        {
+          name: 'Hög prioritet',
+          icon: 'flame',
+          filters: { priority: 'high' },
+          sortOrder: 1,
+        },
+        {
+          name: 'Olästa',
+          icon: 'mail',
+          filters: { isRead: false },
+          sortOrder: 2,
+        },
+        {
+          name: 'Stjärnmärkta',
+          icon: 'star',
+          filters: { label: 'STARRED' },
+          sortOrder: 3,
+        },
+      ];
+
+      for (const view of views) {
+        await prisma.savedView.create({ data: { userId, ...view as any } });
+      }
+      console.log(`[auto-seed] ${views.length} saved views seedade.`);
+    }
+
     console.log('[auto-seed] Brain Core klar!');
   } catch (err: any) {
     // Never crash the server due to seed failure

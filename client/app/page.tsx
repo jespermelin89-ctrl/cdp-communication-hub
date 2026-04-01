@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
   Mail, AlertTriangle, FileText, CheckCircle, RefreshCw, Brain, Inbox, Settings,
   AlertCircle, Info, Lightbulb, Sparkles, Send, Trash2, Bot, Link2, Tag,
-  MailOpen, Zap, Users, ChevronRight, Bell,
+  MailOpen, Zap, Users, ChevronRight, Bell, Clock,
 } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
@@ -30,6 +30,7 @@ export default function DashboardPage() {
   const [sortingGroups, setSortingGroups] = useState<Array<{ label: string; threadIds: string[]; action: 'archive' | 'trash'; dismissed: boolean }>>([]);
   const [applyingGroup, setApplyingGroup] = useState<string | null>(null);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [followUps, setFollowUps] = useState<any[]>([]);
   const [bulkClassifying, setBulkClassifying] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ analyzed: number; ai_calls: number } | null>(null);
   const [notifBannerDismissed, setNotifBannerDismissed] = useState(false);
@@ -79,6 +80,7 @@ export default function DashboardPage() {
     if (!data) return;
     buildSortingGroups();
     api.getContacts().then((r) => setContacts(r.contacts ?? [])).catch(() => {});
+    api.getFollowUps().then((r) => setFollowUps(r.reminders ?? [])).catch(() => {});
   }, [data]);
 
   async function fetchAiSummary(accountId: string) {
@@ -405,6 +407,53 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Follow-up reminders widget */}
+            {followUps.length > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 mb-5">
+                <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Clock size={13} /> {t.followUps?.title ?? 'Väntar svar'}
+                </div>
+                <div className="space-y-2">
+                  {followUps.slice(0, 5).map((reminder) => (
+                    <div key={reminder.id} className="flex items-center justify-between gap-3 text-sm">
+                      <div className="flex-1 min-w-0">
+                        <Link
+                          href={`/threads/${reminder.thread?.id}`}
+                          className="font-medium text-gray-800 dark:text-gray-100 hover:text-amber-700 dark:hover:text-amber-300 truncate block"
+                        >
+                          {reminder.thread?.subject ?? '(Inget ämne)'}
+                        </Link>
+                        {reminder.thread?.lastMessageAt && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {t.followUps?.timeSince ?? 'Sedan'} {formatTime(reminder.thread.lastMessageAt)}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await api.completeFollowUp(reminder.id);
+                            setFollowUps((prev) => prev.filter((r) => r.id !== reminder.id));
+                            toast.success(t.followUps?.completed ?? 'Markerad som klar');
+                          } catch {
+                            toast.error('Kunde inte markera som klar');
+                          }
+                        }}
+                        className="px-3 py-1 text-xs font-medium bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors shrink-0"
+                      >
+                        {t.followUps?.markDone ?? 'Klar'}
+                      </button>
+                    </div>
+                  ))}
+                  {followUps.length > 5 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      + {followUps.length - 5} till
+                    </p>
+                  )}
                 </div>
               </div>
             )}

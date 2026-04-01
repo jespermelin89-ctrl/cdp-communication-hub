@@ -267,6 +267,74 @@ async function autoLearnContacts(
 }
 
 // ──────────────────────────────────────────────
+// Auto-detect follow-up reminders — threads awaiting reply > 48h
+// ──────────────────────────────────────────────
+
+const AWAITING_REPLY_HOURS = 48;
+
+async function autoDetectFollowUpReminders(userId: string): Promise<void> {
+  const cutoff = new Date(Date.now() - AWAITING_REPLY_HOURS * 60 * 60 * 1000);
+
+  // Find threads where isSentByUser=true AND lastMessageAt is older than 48h
+  const candidateThreads = await prisma.emailThread.findMany({
+    where: {
+      account: { userId, isActive: true },
+      isSentByUser: true,
+      lastMessageAt: { lte: cutoff },
+      followUpReminders: { none: { isCompleted: false } },
+    },
+    select: { id: true, subject: true },
+    take: 20,
+  });
+
+  if (candidateThreads.length === 0) return;
+
+  for (const thread of candidateThreads) {
+    try {
+      await prisma.followUpReminder.create({
+        data: {
+          userId,
+          threadId: thread.id,
+          remindAt: new Date(),
+          reason: 'awaiting_reply',
+        },
+      });
+      console.log(`[FollowUp] Auto-created reminder for thread ${thread.id}: ${thread.subject ?? '(no subject)'}`);
+    } catch {
+      // May already exist — skip silently
+    }
+  }
+
+  // Push notification for due reminders
+  try {
+    const dueReminders = await prisma.followUpReminder.findMany({
+      where: {
+        userId,
+        isCompleted: false,
+        remindAt: { lte: new Date() },
+      },
+      include: { thread: { select: { subject: true, id: true } } },
+      take: 5,
+    });
+
+    for (const reminder of dueReminders) {
+      sendPushToUser(userId, {
+        title: `⏰ Inget svar på: ${reminder.thread.subject || '(inget ämne)'}`,
+        body: reminder.note ?? 'Du väntar fortfarande på svar',
+        url: `/threads/${reminder.thread.id}`,
+      }).catch(() => {});
+
+      await prisma.followUpReminder.update({
+        where: { id: reminder.id },
+        data: { isCompleted: true },
+      });
+    }
+  } catch {
+    // Non-critical
+  }
+}
+
+// ──────────────────────────────────────────────
 // Morning briefing — generate at 07:00 for each user
 // ──────────────────────────────────────────────
 
@@ -432,6 +500,9 @@ async function syncAllAccounts(): Promise<void> {
       );
       autoLearnContacts(account.id, account.emailAddress, account.userId).catch((e) =>
         console.warn(`[Contacts] Error for ${account.emailAddress}:`, e?.message)
+      );
+      autoDetectFollowUpReminders(account.userId).catch((e) =>
+        console.warn(`[FollowUp] Error for ${account.emailAddress}:`, e?.message)
       );
     } catch (err: any) {
       const errMsg = err.message?.substring(0, 200) ?? 'Unknown error';

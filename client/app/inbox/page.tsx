@@ -98,6 +98,11 @@ export default function InboxPage() {
   const [labelFilter, setLabelFilter] = useState('');
   const [starringIds, setStarringIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [savedViews, setSavedViews] = useState<any[]>([]);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
+  const [newViewName, setNewViewName] = useState('');
+  const [savingView, setSavingView] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { t } = useI18n();
@@ -166,6 +171,7 @@ export default function InboxPage() {
 
   useEffect(() => {
     loadAccounts();
+    api.getSavedViews().then((r) => setSavedViews(r.views ?? [])).catch(() => {});
   }, []);
 
   // Sync inbox selection → global ChatContext so the chat widget knows which threads are selected
@@ -497,9 +503,9 @@ export default function InboxPage() {
               return (
                 <button
                   key={view.id}
-                  onClick={() => setMailboxView(view.id)}
+                  onClick={() => { setMailboxView(view.id); setActiveViewId(null); }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors shrink-0 ${
-                    mailboxView === view.id
+                    mailboxView === view.id && !activeViewId
                       ? 'bg-brand-500 text-white'
                       : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
@@ -509,6 +515,27 @@ export default function InboxPage() {
                 </button>
               );
             })}
+            {/* Saved view chips */}
+            {savedViews.map((sv) => (
+              <button
+                key={sv.id}
+                onClick={() => {
+                  setActiveViewId(sv.id);
+                  const filters = sv.filters as any;
+                  if (filters?.mailbox) setMailboxView(filters.mailbox as MailboxView);
+                  if (filters?.priority) setPriorityFilter(filters.priority);
+                  if (filters?.label) setLabelFilter(filters.label);
+                }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors shrink-0 ${
+                  activeViewId === sv.id
+                    ? 'bg-violet-500 text-white'
+                    : 'text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 border border-violet-200 dark:border-violet-800'
+                }`}
+              >
+                {sv.icon && <span>{sv.icon}</span>}
+                {sv.name}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -654,6 +681,61 @@ export default function InboxPage() {
             </button>
           </div>
         </div>
+
+        {/* Save as view — shown when any filter is active */}
+        {(priorityFilter || classificationFilter || labelFilter || starredOnly) && !activeViewId && (
+          <div className="flex items-center gap-2 mb-3">
+            {saveViewOpen ? (
+              <div className="flex items-center gap-2 w-full">
+                <input
+                  type="text"
+                  value={newViewName}
+                  onChange={(e) => setNewViewName(e.target.value)}
+                  placeholder="Namn på vy..."
+                  className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-violet-300 dark:border-violet-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-violet-400"
+                  autoFocus
+                />
+                <button
+                  onClick={async () => {
+                    if (!newViewName.trim()) return;
+                    setSavingView(true);
+                    try {
+                      const filters: Record<string, any> = {};
+                      if (mailboxView) filters.mailbox = mailboxView;
+                      if (priorityFilter) filters.priority = priorityFilter;
+                      if (classificationFilter) filters.classification = classificationFilter;
+                      if (labelFilter) filters.label = labelFilter;
+                      if (starredOnly) filters.starred = true;
+                      const result = await api.createSavedView({ name: newViewName.trim(), filters, sort_key: sortKey });
+                      setSavedViews((prev) => [...prev, result.view]);
+                      setSaveViewOpen(false);
+                      setNewViewName('');
+                      toast.success(t.views?.saved ?? 'Vy sparad');
+                    } catch {
+                      toast.error('Kunde inte spara vy');
+                    } finally {
+                      setSavingView(false);
+                    }
+                  }}
+                  disabled={savingView || !newViewName.trim()}
+                  className="text-sm px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-medium disabled:opacity-50 transition-colors"
+                >
+                  Spara
+                </button>
+                <button onClick={() => setSaveViewOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-sm px-2 py-1.5">
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setSaveViewOpen(true)}
+                className="text-xs text-violet-600 dark:text-violet-400 hover:underline"
+              >
+                + {t.views?.saveView ?? 'Spara som vy'}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Sort options */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">

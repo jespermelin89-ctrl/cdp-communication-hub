@@ -6,12 +6,13 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import VoiceButton from '@/components/VoiceButton';
-import { Send, Save, Wand2, X, ChevronDown, PenLine, Loader2, CornerDownLeft, CheckCircle2, Paperclip } from 'lucide-react';
+import { Send, Save, Wand2, X, ChevronDown, PenLine, Loader2, CornerDownLeft, CheckCircle2, Paperclip, Type, AlignLeft, LayoutTemplate } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Account } from '@/lib/types';
+import RichTextEditor from '@/components/RichTextEditor';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -70,6 +71,15 @@ function ComposePageContent() {
   const [autoSaveIndicator, setAutoSaveIndicator] = useState<'saved' | 'saving' | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutoSaveBodyRef = useRef<string>('');
+
+  // ── Editor mode ───────────────────────────────────────────────────────────
+  const [editorMode, setEditorMode] = useState<'plain' | 'rich'>('rich');
+  const [bodyHtml, setBodyHtml] = useState('');
+
+  // ── Template panel ────────────────────────────────────────────────────────
+  const [templatePanelOpen, setTemplatePanelOpen] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
 
   // ── Submit state ──────────────────────────────────────────────────────────
   const [saving, setSaving] = useState(false);
@@ -458,7 +468,8 @@ function ComposePageContent() {
         bcc_addresses: bccAddresses.length > 0 ? bccAddresses : undefined,
         subject: subject.trim(),
         body_text: body,
-      });
+        ...(editorMode === 'rich' && bodyHtml ? { body_html: bodyHtml } : {}),
+      } as any);
       await api.approveDraft(created.draft.id);
       await api.sendDraft(created.draft.id);
       toast.success('Mail skickat!');
@@ -469,6 +480,34 @@ function ComposePageContent() {
     } finally {
       setSaving(false);
     }
+  }
+
+  // ── Templates ─────────────────────────────────────────────────────────────
+  async function openTemplates() {
+    setTemplatePanelOpen(true);
+    if (templates.length === 0) {
+      setTemplatesLoading(true);
+      try {
+        const result = await api.getTemplates();
+        setTemplates(result.templates ?? []);
+      } catch {
+        toast.error('Kunde inte ladda mallar');
+      } finally {
+        setTemplatesLoading(false);
+      }
+    }
+  }
+
+  async function applyTemplate(template: any) {
+    if (template.subject) setSubject(template.subject);
+    if (editorMode === 'rich' && template.bodyHtml) {
+      setBodyHtml(template.bodyHtml);
+    } else if (template.bodyText) {
+      setBody(template.bodyText);
+    }
+    setTemplatePanelOpen(false);
+    try { await api.useTemplate(template.id); } catch { /* non-critical */ }
+    toast.success(t.templates?.used ?? 'Mall använd');
   }
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
@@ -785,13 +824,91 @@ function ComposePageContent() {
               if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files);
             }}
           >
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Skriv ditt meddelande här…"
-              rows={14}
-              className="w-full px-5 py-4 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none outline-none leading-relaxed pr-12 landscape:rows-8 min-h-[8rem]"
-            />
+            {/* Editor mode toggle */}
+            <div className="flex items-center gap-1 px-3 pt-2 pb-1 border-b border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => setEditorMode('rich')}
+                className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${editorMode === 'rich' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                title="Formaterad text"
+              >
+                <Type size={12} />
+                Formaterad
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditorMode('plain')}
+                className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${editorMode === 'plain' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                title="Vanlig text"
+              >
+                <AlignLeft size={12} />
+                Vanlig
+              </button>
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={openTemplates}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title="Mailmallar"
+              >
+                <LayoutTemplate size={12} />
+                Mallar
+              </button>
+            </div>
+
+            {/* Template panel */}
+            {templatePanelOpen && (
+              <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-gray-700 dark:text-gray-200">Mailmallar</span>
+                  <button type="button" onClick={() => setTemplatePanelOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <X size={14} />
+                  </button>
+                </div>
+                {templatesLoading ? (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Laddar mallar...</div>
+                ) : templates.length === 0 ? (
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Inga mallar. Skapa mallar i inställningar.</div>
+                ) : (
+                  <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
+                    {templates.map((tmpl) => (
+                      <button
+                        key={tmpl.id}
+                        type="button"
+                        onClick={() => applyTemplate(tmpl)}
+                        className="text-left text-xs px-2 py-1.5 rounded bg-white dark:bg-gray-700 hover:bg-violet-50 dark:hover:bg-violet-900/20 border border-gray-200 dark:border-gray-600 transition-colors"
+                      >
+                        <div className="font-medium text-gray-800 dark:text-gray-100">{tmpl.name}</div>
+                        {tmpl.subject && <div className="text-gray-500 dark:text-gray-400 truncate">{tmpl.subject}</div>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {editorMode === 'rich' ? (
+              <RichTextEditor
+                value={bodyHtml || body}
+                onChange={(html) => {
+                  setBodyHtml(html);
+                  // Extract plain text for fallback
+                  const tmp = document.createElement('div');
+                  tmp.innerHTML = html;
+                  setBody(tmp.textContent ?? '');
+                }}
+                placeholder="Skriv ditt meddelande här…"
+                className="rounded-none border-0"
+              />
+            ) : (
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Skriv ditt meddelande här…"
+                rows={14}
+                className="w-full px-5 py-4 text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 resize-none outline-none leading-relaxed pr-12 landscape:rows-8 min-h-[8rem]"
+              />
+            )}
             {/* Voice dictation button — appends transcript to body */}
             <div className="absolute bottom-3 right-3">
               <VoiceButton

@@ -34,6 +34,7 @@ export const CreateDraftSchema = z.object({
   bcc_addresses: z.array(z.string().email()).optional().default([]),
   subject: z.string().min(1).max(500),
   body_text: z.string().min(1),
+  body_html: z.string().optional(),
 });
 
 export type CreateDraftInput = z.infer<typeof CreateDraftSchema>;
@@ -44,6 +45,7 @@ export const UpdateDraftSchema = z.object({
   bcc_addresses: z.array(z.string().email()).optional(),
   subject: z.string().min(1).max(500).optional(),
   body_text: z.string().min(1).optional(),
+  body_html: z.string().optional(),
 });
 
 export type UpdateDraftInput = z.infer<typeof UpdateDraftSchema>;

@@ -4,6 +4,71 @@ All notable changes to CDP Communication Hub are documented here.
 
 ---
 
+## v1.1.0 — Intelligence & Power Features (2026-04-01)
+
+### Sprint 8 — v1.1 Release (tests, CHANGELOG, version bump, git tag)
+- 40 new unit tests: follow-ups, templates, analytics, saved-views (all passing)
+- Full test suite: 271 server tests passing
+- CHANGELOG updated with complete v1.1.0 history
+- Version bumped to 1.1.0 in client/package.json and server/package.json
+- Git tag `v1.1.0` created
+
+### Sprint 7 — Brain Core Insights + Learning Dashboard
+- **client**: Extended `settings/brain-core/page.tsx` with Learning and Contact Intelligence tabs
+- **client**: Recharts LineChart for weekly learning trend, BarChart for event types
+- **client**: Top contacts with preferred writing mode and email frequency
+- **client**: Voice mode test panel — submit instruction, see AI preview
+- **server**: `GET /brain-core/learning-insights` endpoint (totalEvents, byType, recentEvents, weeklyTrend, topContacts)
+- **server**: `POST /brain-core/voice-test` endpoint
+- **client/ChatWidget**: Follow-up intent regex + "Påminnelser" quick-action chip
+
+### Sprint 6 — Thread UX Improvements
+- **client/threads/[id]/page.tsx**: Participants chips (all unique email addresses in thread)
+- **client/threads/[id]/page.tsx**: Per-message action menu (Reply inline, Forward, Copy text)
+- **client/threads/[id]/page.tsx**: Inline reply form with textarea + send/cancel
+- **client/threads/[id]/page.tsx**: Follow-up reminder button in thread header (Bell icon + dropdown with time presets)
+- **client/threads/[id]/page.tsx**: Exact timestamp tooltip (sv-SE full date/time)
+- **client/threads/[id]/page.tsx**: Click-outside handlers for message menus and follow-up dropdown
+- **i18n**: Added `copy`, `send`, `sendNote` keys to `threadUx` in all 4 locales (sv, en, es, ru)
+
+### Sprint 5 — Saved Views + Smart Filters
+- **server**: `SavedView` Prisma model (id, userId, name, icon, filters JSON, sortOrder, timestamps)
+- **server**: `GET/POST/PATCH/DELETE /views`, `PATCH /views/reorder` (reorder registered before /:id)
+- **client/inbox/page.tsx**: Saved view chips in mailbox tab row
+- **client/inbox/page.tsx**: "Spara som vy" inline form shown when filters are active
+- **server/auto-seed**: 4 default saved views seeded for new users (Leads, Hög prioritet, Olästa, Stjärnmärkta)
+
+### Sprint 4 — Analytics Dashboard
+- **server**: `GET /analytics/overview?days=N` — mailPerDay, classificationDistribution, priorityDistribution, topSenders, Amanda stats, avgResponseTimeHours, activeFollowUps, totals
+- **client/analytics/page.tsx**: LineChart (mail volume), PieChart (classification), BarChart (priority), horizontal BarChart (top senders), stat cards for Amanda
+- Period selector: 7 / 30 / 90 days
+- Dark mode throughout, Recharts responsive containers
+
+### Sprint 3 — Email Templates
+- **server**: `EmailTemplate` Prisma model (id, userId, name, subject, bodyText, bodyHtml, variables JSON, category, usageCount, isAiGenerated, timestamps)
+- **server**: `GET/POST/PATCH/DELETE /templates`, `POST /templates/:id/use`, `POST /templates/generate` (AI generation via `aiService.chat`)
+- **client/settings/templates/page.tsx**: Template list, create form, AI generation panel
+- **client/compose/page.tsx**: Template picker panel, "Använd mall" applies subject + body
+- **server/auto-seed**: 5 default templates seeded (Snabbsvar, Mötesbokningsförfrågan, Uppföljning, Introduktionsmejl, Tack och bekräftelse)
+
+### Sprint 2 — Rich Text Compose (Tiptap)
+- **client/components/RichTextEditor.tsx**: Tiptap editor with Bold, Italic, Underline, BulletList, OrderedList, Link, Blockquote toolbar
+- **client/compose/page.tsx**: Editor mode toggle (rich/plain), bodyHtml passed on send
+- **server**: `bodyHtml` field added to Draft model and draft service
+- **server/gmail.service**: Multipart/alternative MIME for HTML+text emails
+- **server/smtp.service**: `html` field in nodemailer mailOptions
+
+### Sprint 1 — Follow-up Reminders
+- **server**: `FollowUpReminder` Prisma model (id, threadId, userId, remindAt, reason, note, isCompleted, isAutoDetected, timestamps)
+- **server**: `firstReceivedAt`, `firstRepliedAt`, `responseTimeHours` added to EmailThread
+- **server**: `GET /follow-ups`, `POST /threads/:id/follow-up`, `PATCH /follow-ups/:id/complete`, `DELETE /follow-ups/:id`
+- **server/sync-scheduler**: `autoDetectFollowUpReminders()` — finds threads awaiting reply > 48h, creates reminders, sends push notifications for due reminders
+- **client/app/page.tsx**: Follow-up widget on dashboard (active reminders list)
+- **client**: 7 new i18n namespaces (sv/en/es/ru): followUps, richText, templates, analytics, views, threadUx, brainInsights
+- **client/lib/api.ts**: 18 new API methods added
+
+---
+
 ## v1.0.0 — CDP Communication Hub Launch (2026-04-01)
 
 ### BUILD-SPEC-3 Sprint 6 — Final Sweep + Release

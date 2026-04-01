@@ -78,6 +78,7 @@ export class SmtpService {
       bcc?: string[];
       subject: string;
       body: string;
+      bodyHtml?: string;
       inReplyTo?: string;
       references?: string;
       attachments?: Array<{ filename: string; mimeType: string; data: string }>;
@@ -95,6 +96,7 @@ export class SmtpService {
       to: options.to.join(', '),
       subject: options.subject,
       text: options.body,
+      ...(options.bodyHtml && { html: options.bodyHtml }),
     };
 
     if (options.cc && options.cc.length > 0) {

@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-01 07:36:25 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-01 07:39:00 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -71,6 +71,8 @@ Prefix: `/api/v1`
 | `POST    /accounts/:id/sync` | `accounts` |
 | `POST    /accounts/:id/badges` | `accounts` |
 | `DELETE  /accounts/:id/badges/:badge` | `accounts` |
+| `GET     /accounts/:id/signature` | `accounts` |
+| `PUT     /accounts/:id/signature` | `accounts` |
 | `GET     /action-logs` | `action-logs` |
 | `POST    /ai/analyze-thread` | `ai` |
 | `POST    /ai/generate-draft` | `ai` |
@@ -249,6 +251,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `/settings/accounts`
 - `/settings/brain-core`
 - `/settings/labels`
+- `/settings/signatures`
 - `/settings/templates`
 - `/setup-siri`
 - `/threads/[id]`

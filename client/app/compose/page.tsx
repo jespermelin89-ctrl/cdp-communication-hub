@@ -110,13 +110,27 @@ function ComposePageContent() {
     prevAccountIdRef.current = selectedAccountId;
     const acc = accounts.find(a => a.id === selectedAccountId);
     if (!acc) return;
-    setBody(prev => {
-      const sigStart = prev.indexOf('\n\n--\n');
-      const content = sigStart >= 0 ? prev.slice(0, sigStart) : prev;
-      return acc.signature ? `${content}\n\n--\n${acc.signature}` : content;
-    });
+
+    // Only insert if useSignatureOnNew is true (or field doesn't exist yet — legacy)
+    const shouldInsert = acc.useSignatureOnNew !== false;
+
+    if (editorMode === 'rich' && acc.signatureHtml && shouldInsert) {
+      setBodyHtml(prev => {
+        const sigMarker = '<div class="cdp-signature">';
+        const sigStart = prev.indexOf(sigMarker);
+        const content = sigStart >= 0 ? prev.slice(0, sigStart) : prev;
+        return `${content}<div class="cdp-signature" style="color:#6b7280;font-size:0.875rem;border-top:1px solid #e5e7eb;margin-top:1rem;padding-top:0.5rem">${acc.signatureHtml}</div>`;
+      });
+    } else {
+      setBody(prev => {
+        const sigStart = prev.indexOf('\n\n--\n');
+        const content = sigStart >= 0 ? prev.slice(0, sigStart) : prev;
+        const sig = acc.signature ?? '';
+        return sig && shouldInsert ? `${content}\n\n--\n${sig}` : content;
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedAccountId, accounts]);
+  }, [selectedAccountId, accounts, editorMode]);
 
   // Set default writing mode
   useEffect(() => {

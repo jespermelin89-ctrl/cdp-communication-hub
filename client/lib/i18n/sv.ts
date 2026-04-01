@@ -550,6 +550,23 @@ const sv = {
     sendNote: 'Skapar utkast → godkänn → skickar direkt',
   },
 
+  // Signatures
+  signatures: {
+    title: 'Signaturer',
+    configured: 'Konfigurerad',
+    none: 'Ingen',
+    useOnNew: 'Använd på nya mail',
+    useOnReply: 'Använd vid svar',
+    save: 'Spara signatur',
+    saving: 'Sparar...',
+    saved: 'Signatur sparad',
+    copyFrom: 'Kopiera från',
+    preview: 'Förhandsvisning',
+    placeholder: 'Skriv din signatur här...',
+    noAccounts: 'Inga kopplade konton.',
+    status: 'Signatur',
+  },
+
   // Bulk actions
   bulk: {
     selected: 'valda',

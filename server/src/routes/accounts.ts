@@ -386,4 +386,49 @@ export async function accountRoutes(fastify: FastifyInstance) {
 
     return { account: updated, message: `Badge '${badge}' removed` };
   });
+
+  // ============================================================
+  // SPRINT 3 — Signature endpoints
+  // ============================================================
+
+  /**
+   * GET /accounts/:id/signature — Get signature for an account.
+   */
+  fastify.get('/accounts/:id/signature', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const account = await prisma.emailAccount.findFirst({
+      where: { id, userId: request.userId },
+      select: { id: true, emailAddress: true, signature: true, signatureHtml: true, useSignatureOnNew: true, useSignatureOnReply: true },
+    });
+    if (!account) return reply.code(404).send({ error: 'Account not found' });
+    return { signature: account };
+  });
+
+  /**
+   * PUT /accounts/:id/signature — Save/update signature for an account.
+   */
+  fastify.put('/accounts/:id/signature', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { text, html, useOnNew, useOnReply } = request.body as {
+      text?: string;
+      html?: string;
+      useOnNew?: boolean;
+      useOnReply?: boolean;
+    };
+
+    const account = await prisma.emailAccount.findFirst({ where: { id, userId: request.userId } });
+    if (!account) return reply.code(404).send({ error: 'Account not found' });
+
+    const updated = await prisma.emailAccount.update({
+      where: { id },
+      data: {
+        ...(text !== undefined && { signature: text }),
+        ...(html !== undefined && { signatureHtml: html }),
+        ...(useOnNew !== undefined && { useSignatureOnNew: useOnNew }),
+        ...(useOnReply !== undefined && { useSignatureOnReply: useOnReply }),
+      },
+      select: { id: true, emailAddress: true, signature: true, signatureHtml: true, useSignatureOnNew: true, useSignatureOnReply: true },
+    });
+    return { signature: updated };
+  });
 }

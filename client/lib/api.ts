@@ -352,6 +352,14 @@ class ApiClient {
     return this.request('POST', '/threads/bulk/priority', { threadIds, priority });
   }
 
+  // Sprint 3 — Signatures
+  async getSignature(accountId: string): Promise<{ signature: any }> {
+    return this.request('GET', `/accounts/${accountId}/signature`);
+  }
+  async saveSignature(accountId: string, data: { text?: string; html?: string; useOnNew?: boolean; useOnReply?: boolean }): Promise<{ signature: any }> {
+    return this.request('PUT', `/accounts/${accountId}/signature`, data);
+  }
+
   // Sprint 2 — Labels
   async getLabels(): Promise<{ labels: any[] }> {
     return this.request('GET', '/labels');

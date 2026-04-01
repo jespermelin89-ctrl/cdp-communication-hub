@@ -24,6 +24,7 @@
     "swr": "^2.4.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
     "@next/bundle-analyzer": "^16.2.1",
     "@playwright/test": "^1.58.2",
     "@types/node": "^22.10.0",

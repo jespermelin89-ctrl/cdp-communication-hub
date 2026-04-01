@@ -4,7 +4,55 @@ All notable changes to CDP Communication Hub are documented here.
 
 ---
 
-## v1.0.0 — Launch Ready (2026-04-01)
+## v1.0.0 — CDP Communication Hub Launch (2026-04-01)
+
+### BUILD-SPEC-3 Sprint 6 — Final Sweep + Release
+- `chore: v1.0.0 release — accessibility audit, performance check, version bump`
+- Automated accessibility audit with `@axe-core/playwright` (inbox + dashboard)
+- Slow-query logger in server dev mode (logs queries > 100ms)
+- All 325 tests passing (231 server + 94 client vitest)
+- CHANGELOG updated for all BUILD-SPEC-3 sprints
+- Git tag `v1.0.0` created
+
+### BUILD-SPEC-3 Sprint 5 — Unified Multi-Inbox
+- `feat: unified multi-inbox — account tabs, color coding, per-account stats`
+- **client**: Inbox header replaced with horizontal account tabs (color dots, unread badges)
+- **client**: "Alla" aggregate tab with total unread count across all accounts
+- **client**: Dashboard `AccountSyncCard` shows per-account unread + high-priority counts
+- **server**: `GET /threads` returns `accountCounts` (per-account unread via `groupBy`)
+- **server**: `GET /command-center` returns `per_account_stats` (unread + highPriority per account)
+- **types**: `CommandCenterData.per_account_stats` added
+
+### BUILD-SPEC-3 Sprint 4 — Mobile Audit
+- `feat: mobile audit — touch targets, safe areas, pull-to-refresh, font sizing`
+- 44px minimum touch targets on all NavItem links
+- `env(safe-area-inset-bottom)` padding via `.pb-safe-bottom` and `.safe-bottom` CSS utilities
+- `max-w-full overflow-x-hidden` on body; `.page-container` utility class
+- Filter chips and thread timestamps bumped to `text-sm` / `min-h-[36px]`
+
+### BUILD-SPEC-3 Sprint 3 — Agent API v2
+- `feat: agent API v2 — send, schedule, snooze, compose, batch, callback webhook`
+- Expanded `ALLOWED_ACTIONS`: send, schedule, snooze, export, contacts, stats, compose, chat
+- `callback_url` async support — fires inner action, POSTs result to callback URL via `setImmediate`
+- `POST /agent/batch` — proxies up to 20 actions in one request via `app.inject()`
+- All 8 new action handlers in agent switch
+
+### BUILD-SPEC-3 Sprint 2 — Gmail Push Notifications
+- `feat: Gmail push notifications — Pub/Sub webhook, incremental sync, watch renewal`
+- `GmailPushService`: `watch()`, `renewAllWatches()`, `handleNotification()`
+- `POST /webhooks/gmail` — decodes Pub/Sub base64 message, triggers incremental sync
+- `incrementalSync()` on `GmailService` using History API with fallback to full fetch
+- Daily watch renewal registered in `sync-scheduler.service`
+- CSRF exemption for `/webhooks/` routes
+
+### BUILD-SPEC-3 Sprint 1 — Attachment Upload
+- `feat: attachment upload — drag & drop compose, multipart upload, Gmail/SMTP MIME attachments`
+- `@fastify/multipart` registered (25MB / 10 files limit)
+- `POST /drafts/:id/attachments` and `DELETE /drafts/:id/attachments/:attachmentId`
+- `Draft.attachments Json?` added to Prisma schema
+- Gmail MIME multipart/mixed construction with base64-encoded attachments
+- SMTP nodemailer attachment mapping
+- Compose page: drag & drop zone, attachment chips, auto-create draft on first attach
 
 ### Sprint 7 — Production Readiness
 - `feat: production ready — build verification, migration, env docs, README, changelog`

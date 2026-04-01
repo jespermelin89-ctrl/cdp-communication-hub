@@ -187,36 +187,55 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 - ChatWidget: reset button, selected-threads amber banner, badge on FAB, apply-analyze button on thread_list responses
 - `chat.ts` backend: `chatAuthMiddleware` (X-API-Key OR JWT), Prisma errors sanitized
 
-## Kända Buggar / TODO (2026-03-27)
+### ✅ v1.1.0 — Intelligence & Power Features
+- Follow-up reminders: auto-detect (48h), manuella reminders, push-notiser
+- Rich text compose: Tiptap editor, HTML-mail, plain/rich toggle
+- Email templates: CRUD, AI-generering, compose-integration, 5 seed-mallar
+- Analytics dashboard: Recharts, mail-volym, svarstid, top-avsändare
+- Saved views: anpassade filterkombinationer, 4 default-vyer, reorder
+- Thread UX: inline-svar, forward per meddelande, deltagarlista, timestamp tooltip
+- Brain Core insights: learning dashboard, kontaktintelligens, röstprofiltest
+- 271 tester (server)
 
-### 🟡 Drafts-sidan tom
-- Inga utkast visas — kan bero på att inga drafts skapats än (kör Analysera i inbox för att skapa)
+### ✅ v1.2.0 — Daily Driver Features
+- Bulk actions: multi-select inbox, arkivera/trash/läst/klassificera, keyboard shortcuts
+- Custom labels: färg-taggar, tråd-tilldelning, label-hantering, bulk
+- Email signatures: per-konto HTML-signaturer, auto-insert i compose
+- Contact autocomplete: type-ahead, senaste kontakter, chip-mottagare
+- Undo send: 10s fördröjning, avbryt, countdown-toast, konfigurerbart
+- Attachment preview: thumbnails, lightbox, nedladdning, inline bildgrid
+- Advanced search: filter, datumintervall, bilagor, sökhistorik, spara som vy
+- 395 server + 94 client tester
 
-### 🟡 Dubbla konton (legacy)
-- Eventuella duplikat skapade INNAN `@@unique([userId, emailAddress])` lades till i schema
-- Fix: ta bort manuellt via Prisma Studio eller SQL: DELETE FROM email_accounts WHERE id NOT IN (SELECT MIN(id) FROM email_accounts GROUP BY user_id, email_address)
+### ✅ v1.3.0 — Communication Flow (2026-04-01)
+- Thread view overhaul: HTML-rendering (DOMPurify), quoted text collapse, message accordion
+- Inline reply & forward: reply box i tråd, reply/reply-all/forward, snabb-svar
+- Keyboard shortcuts: vim-stil navigation (g i/d/s/c, j/k, r/a/f/e), help overlay, `?` trigger
+- Real-time SSE: event stream `/events/stream`, live inbox, anslutningsindikator, auto-reconnect
+- Snooze UI + quick actions: snooze-picker, hover-actions, svep-gester (mobil), auto-unsnooze
+- Performance: cursor pagination, infinite scroll (SWR infinite), virtual list, optimistiska uppdateringar
+- Settings + onboarding: unified sidebar-layout, 5-stegs wizard, compact mode, externa bilder
+- 436 server + 129 client tester — alla gröna
+
+## Nuläge (2026-04-01)
+
+- **Git**: `main` = `origin/main` = v1.3.0, 0 uncommitted ändringar
+- **Version**: 1.3.0 i client/package.json och server/package.json
+- **Deploy**: Vercel + Render triggas automatiskt på push till main
+- **Tester**: 436 server (36 filer) + 129 client (9 filer) = 565 totalt
+
+## Kända Buggar / TODO (2026-04-01)
 
 ### ⏳ Framtida (bygg inte nu)
 - n8n workflow automation (ersätt setInterval-cronjobs)
 - Microsoft OAuth
-- E-postsignaturer: visa i draft-editorn (frontend preview redan finns via draft body)
+- Push notifications browser-permission prompt i onboarding
 
 ## TODO (prio-ordning)
 
-1. ✅ **Fix AI analyze flow** — inline errors, sync-messages try/catch, proper error codes
-2. ✅ **Fix dubbla konton** — `@@unique([userId, emailAddress])` finns i schema
-3. ✅ **Fix priority overview** — visar oanalyserade + länk till inbox
-4. ✅ **Dark mode** — ThemeProvider, Tailwind `darkMode: 'class'`, toggle i TopBar
-5. ✅ **Synligare "Lägg till konto"-knapp** — brand-färgad knapp i TopBar
-6. ✅ **AI inbox-sammanfattning** — dashboard-widget med sessionStorage-cache
-7. ✅ **E-postsignaturer per konto** — signature-fält, editor, auto-append i DraftService
-8. ✅ **Fix drafts-sidan** — empty state med hint och länk till inbox
-9. ✅ **DB-migration** — `20260327000000_add_account_fields` för account_type/team_members/ai_handling; render.yaml har GROQ_API_KEY
-10. ✅ **Arkivera/radera** — `/threads/:id/archive`, `/threads/:id/trash`, `/threads/batch`; Archive/Trash knappar i Inbox + tråd-vy
-11. ✅ **AI fallback-kedja** — Groq → Anthropic → OpenAI med logging
-12. ✅ **Draft editor** — auto-save (30s debounce) + tecken/ord-räknare i realtid
-13. ✅ **Browser-notifieringar** — useNotifications hook, Bell/BellOff i TopBar, notifyNewHighPriority i Inbox
-14. ✅ **AI-stabilitet** — truncateContent (body→2000, snippet→300), provider blacklist (1h), gpt-4o-mini, utökad NO_REPLY_PATTERN
+1. ✅ Allt v1.0–v1.3 levererat — se completed work ovan
+16. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell efter deploy
+17. **n8n integration** (framtida — planera bara, bygg inte)
 15. ✅ **Account dropdown** — AccountDropdown i Inbox + settings editor för accountType/aiHandling/teamMembers
 16. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell efter deploy
 17. **n8n integration** (framtida — planera bara, bygg inte)

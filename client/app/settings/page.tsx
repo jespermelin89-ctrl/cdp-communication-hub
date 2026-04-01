@@ -35,6 +35,9 @@ export default function SettingsPage() {
   const [digestEnabled, setDigestEnabled] = useState(false);
   const [digestTime, setDigestTime] = useState(8);
   const [undoSendDelay, setUndoSendDelay] = useState(10);
+  const [compactMode, setCompactMode] = useState(false);
+  const [notificationSound, setNotificationSound] = useState(false);
+  const [externalImages, setExternalImages] = useState<'ask' | 'allow' | 'block'>('ask');
   const [savingNotif, setSavingNotif] = useState(false);
   const [notifSaved, setNotifSaved] = useState(false);
 
@@ -47,6 +50,9 @@ export default function SettingsPage() {
         setDigestEnabled(r.settings.digestEnabled ?? false);
         setDigestTime(r.settings.digestTime ?? 8);
         setUndoSendDelay(r.settings.undoSendDelay ?? 10);
+        setCompactMode(r.settings.compactMode ?? false);
+        setNotificationSound(r.settings.notificationSound ?? false);
+        setExternalImages(r.settings.externalImages ?? 'ask');
       }
     }).catch(() => {});
   }, []);
@@ -108,7 +114,7 @@ export default function SettingsPage() {
   async function saveNotifSettings() {
     setSavingNotif(true);
     try {
-      await api.updateUserSettings({ quietHoursStart: quietStart, quietHoursEnd: quietEnd, digestEnabled, digestTime, undoSendDelay });
+      await api.updateUserSettings({ quietHoursStart: quietStart, quietHoursEnd: quietEnd, digestEnabled, digestTime, undoSendDelay, compactMode, notificationSound, externalImages });
       setNotifSaved(true);
       setTimeout(() => setNotifSaved(false), 2500);
     } catch (err: any) {
@@ -497,6 +503,65 @@ export default function SettingsPage() {
                 />
                 <div className="flex justify-between text-xs text-gray-400 mt-0.5">
                   <span>0s</span><span>30s</span>
+                </div>
+              </div>
+
+              {/* Compact mode */}
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={compactMode}
+                    onChange={(e) => setCompactMode(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {(t as any).settingsSections?.compactMode ?? 'Kompakt vy'}
+                  </span>
+                </label>
+                <p className="text-xs text-gray-400 dark:text-gray-500 ml-6 mt-0.5">
+                  {(t as any).settingsSections?.compactModeHint ?? 'Minskar radstorlek och padding i inkorgen.'}
+                </p>
+              </div>
+
+              {/* Notification sound */}
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationSound}
+                    onChange={(e) => setNotificationSound(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {(t as any).settingsSections?.notificationSound ?? 'Notisljud'}
+                  </span>
+                </label>
+              </div>
+
+              {/* External images */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  {(t as any).settingsSections?.externalImages ?? 'Externa bilder'}
+                </label>
+                <div className="flex gap-2">
+                  {(['ask', 'allow', 'block'] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      onClick={() => setExternalImages(opt)}
+                      className={`flex-1 text-xs px-2 py-1.5 rounded-lg border transition-colors ${
+                        externalImages === opt
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-700 text-brand-700 dark:text-brand-300'
+                          : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {opt === 'ask'
+                        ? ((t as any).settingsSections?.externalImagesAsk ?? 'Fråga alltid')
+                        : opt === 'allow'
+                        ? ((t as any).settingsSections?.externalImagesAllow ?? 'Tillåt alltid')
+                        : ((t as any).settingsSections?.externalImagesBlock ?? 'Blockera alltid')}
+                    </button>
+                  ))}
                 </div>
               </div>
 

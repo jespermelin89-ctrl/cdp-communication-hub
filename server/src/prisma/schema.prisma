@@ -469,6 +469,10 @@ model UserSettings {
   digestEnabled           Boolean  @default(false) @map("digest_enabled")
   digestTime              Int?     @default(8)  @map("digest_time")
   undoSendDelay           Int      @default(10) @map("undo_send_delay")
+  hasCompletedOnboarding  Boolean  @default(false) @map("has_completed_onboarding")
+  notificationSound       Boolean  @default(false) @map("notification_sound")
+  externalImages          String   @default("ask") @map("external_images")
+  compactMode             Boolean  @default(false) @map("compact_mode")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

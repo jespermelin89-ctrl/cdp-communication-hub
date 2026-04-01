@@ -285,14 +285,15 @@ class ApiClient {
   }
 
   // Threads
-  async getThreads(params?: { account_id?: string; page?: number; limit?: number; search?: string; mailbox?: string }) {
+  async getThreads(params?: { account_id?: string; page?: number; limit?: number; cursor?: string; search?: string; mailbox?: string }) {
     const query: Record<string, string> = {};
     if (params?.account_id) query.account_id = params.account_id;
     if (params?.page) query.page = String(params.page);
     if (params?.limit) query.limit = String(params.limit);
+    if (params?.cursor) query.cursor = params.cursor;
     if (params?.search) query.search = params.search;
     if (params?.mailbox) query.mailbox = params.mailbox;
-    return this.requestWithRetry<{ threads: any[]; pagination: any; total?: number; page?: number; pageSize?: number; hasMore?: boolean; mailbox?: string }>('GET', '/threads', undefined, query);
+    return this.requestWithRetry<{ threads: any[]; pagination: any; total?: number; totalCount?: number; page?: number; pageSize?: number; hasMore?: boolean; nextCursor?: string | null; mailbox?: string; accountCounts?: Record<string, number> }>('GET', '/threads', undefined, query);
   }
 
   async getThread(id: string) {
@@ -705,6 +706,10 @@ class ApiClient {
     digestTime?: number;
     uiTheme?: string;
     undoSendDelay?: number;
+    hasCompletedOnboarding?: boolean;
+    notificationSound?: boolean;
+    externalImages?: string;
+    compactMode?: boolean;
   }) {
     return this.request<{ settings: any }>('PATCH', '/user/settings', data);
   }

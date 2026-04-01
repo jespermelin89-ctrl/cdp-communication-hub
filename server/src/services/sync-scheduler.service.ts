@@ -20,6 +20,7 @@ import { matchClassificationRule } from './rule-engine.service';
 import { sendPushToUser, sendDigest } from './push.service';
 import { draftService } from './draft.service';
 import { gmailPushService } from './gmail-push.service';
+import { emitToUser } from '../routes/events';
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;           // 5 minutes
 const AI_INTERVAL_MS = 10 * 60 * 1000;             // 10 minutes
@@ -494,6 +495,13 @@ async function syncAllAccounts(): Promise<void> {
       accountBackoff.delete(account.id);
       console.log(`[Scheduler] Synced ${account.emailAddress}`);
 
+      // Emit SSE sync:complete to connected clients
+      emitToUser(account.userId, 'sync:complete', {
+        accountId: account.id,
+        email: account.emailAddress,
+        timestamp: new Date().toISOString(),
+      });
+
       // ── Post-sync intelligence (fire-and-forget per account) ────────────
       autoTriageNewThreads(account.id, account.userId).catch((e) =>
         console.warn(`[Triage] Error for ${account.emailAddress}:`, e?.message)
@@ -665,6 +673,13 @@ async function wakeSnoozedThreads(): Promise<void> {
         body: 'Snoozad tråd är tillbaka',
         url: `/threads/${thread.id}`,
       }).catch(() => {});
+
+      // Emit SSE thread:unsnoozed
+      emitToUser(thread.account.userId, 'thread:unsnoozed', {
+        threadId: thread.id,
+        subject: thread.subject,
+        timestamp: new Date().toISOString(),
+      });
 
       await prisma.actionLog.create({
         data: {

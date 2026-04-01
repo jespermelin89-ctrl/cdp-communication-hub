@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Mail, Bot, Bell, Keyboard, CheckCircle2, Zap, ChevronRight } from 'lucide-react';
+import { api } from '@/lib/api';
 
 const STEPS = [
   {
@@ -54,6 +55,8 @@ export default function OnboardingWizard() {
 
   function complete() {
     localStorage.setItem('cdp_onboarded', '1');
+    // Persist to server (fire-and-forget)
+    api.updateUserSettings({ hasCompletedOnboarding: true }).catch(() => {});
     setVisible(false);
   }
 

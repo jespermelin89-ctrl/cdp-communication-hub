@@ -9,6 +9,7 @@ import { useI18n } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { useNotifications } from '@/lib/use-notifications';
 import { useNotificationPermission } from '@/hooks/useNotificationPermission';
+import { useEventStream } from '@/hooks/use-event-stream';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useTheme } from './ThemeProvider';
 import type { Account } from '@/lib/types';
@@ -33,6 +34,7 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
   const { theme, toggleTheme } = useTheme();
   const { permission: legacyPermission, requestPermission } = useNotifications();
   const { permission, request: requestPushPermission } = useNotificationPermission();
+  const streamStatus = useEventStream();
   const [fetchedCount, setFetchedCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
@@ -173,6 +175,23 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
 
           {/* User Info + Language + Theme */}
           <div className="flex items-center gap-2">
+            {/* SSE connection indicator */}
+            <span
+              className={`hidden sm:inline-block w-2 h-2 rounded-full shrink-0 ${
+                streamStatus === 'connected'
+                  ? 'bg-emerald-400'
+                  : streamStatus === 'connecting'
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-red-400'
+              }`}
+              title={
+                streamStatus === 'connected'
+                  ? (t.realtime?.connected ?? 'Ansluten')
+                  : streamStatus === 'connecting'
+                  ? 'Ansluter...'
+                  : (t.realtime?.disconnected ?? 'Frånkopplad')
+              }
+            />
             {/* Active account indicator */}
             {activeAccount && (
               <Link

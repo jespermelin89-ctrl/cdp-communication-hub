@@ -172,6 +172,10 @@ export async function authRoutes(fastify: FastifyInstance) {
       digestTime?: number;
       uiTheme?: string;
       undoSendDelay?: number;
+      hasCompletedOnboarding?: boolean;
+      notificationSound?: boolean;
+      externalImages?: string;
+      compactMode?: boolean;
     };
 
     const allowed: Record<string, unknown> = {};
@@ -181,6 +185,10 @@ export async function authRoutes(fastify: FastifyInstance) {
     if (body.digestTime !== undefined) allowed.digestTime = Number(body.digestTime);
     if (body.uiTheme !== undefined) allowed.uiTheme = body.uiTheme;
     if (body.undoSendDelay !== undefined) allowed.undoSendDelay = Math.max(0, Math.min(30, Number(body.undoSendDelay)));
+    if (body.hasCompletedOnboarding !== undefined) allowed.hasCompletedOnboarding = Boolean(body.hasCompletedOnboarding);
+    if (body.notificationSound !== undefined) allowed.notificationSound = Boolean(body.notificationSound);
+    if (body.externalImages !== undefined && ['ask', 'allow', 'block'].includes(body.externalImages)) allowed.externalImages = body.externalImages;
+    if (body.compactMode !== undefined) allowed.compactMode = Boolean(body.compactMode);
 
     const settings = await prisma.userSettings.upsert({
       where: { userId: request.userId },

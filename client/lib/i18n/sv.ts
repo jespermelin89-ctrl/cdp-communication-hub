@@ -194,6 +194,10 @@ const sv = {
     useAsDraft: 'Använd som utkast',
     dismissSuggestion: 'Ignorera',
     expandAll: 'Expandera alla',
+    collapseAll: 'Kollapsa alla',
+    olderMessages: '{n} äldre meddelanden',
+    showQuoted: '··· Visa citerad text',
+    hideQuoted: 'Dölj citerad text',
     reportSpam: 'Rapportera som skräp',
     blockSender: 'Blockera avsändare',
     unsubscribe: 'Avregistrera',
@@ -620,6 +624,91 @@ const sv = {
     emailFrequency: 'Mailfrekvens',
     lastContact: 'Senast kontakt',
     preferredMode: 'Föredragen stil',
+  },
+
+  // Reply (Sprint 2)
+  reply: {
+    replyPlaceholder: 'Skriv ett svar...',
+    reply: 'Svara',
+    replyAll: 'Svara alla',
+    forward: 'Vidarebefordra',
+    saveAsDraft: 'Spara som utkast',
+    approveAndSend: 'Godkänn & Skicka',
+    quickReplies: 'Snabba svar',
+    forwardHeader: '---------- Vidarebefordrat meddelande ----------',
+  },
+
+  // Keyboard shortcuts (Sprint 3)
+  shortcuts: {
+    title: 'Tangentbordsgenvägar',
+    search: 'Sök genvägar...',
+    global: 'Globalt',
+    inbox: 'Inkorg',
+    thread: 'Tråd',
+    compose: 'Skriv',
+  },
+
+  // Real-time (Sprint 4)
+  realtime: {
+    connected: 'Ansluten',
+    disconnected: 'Frånkopplad',
+    newMail: 'Nytt mail',
+    newMailCount: '{n} nya mail',
+  },
+
+  // Snooze (Sprint 5)
+  snooze: {
+    snooze: 'Snooze',
+    snoozedUntil: 'Snoozad till {date}',
+    cancelSnooze: 'Avbryt snooze',
+    laterToday: 'Senare idag',
+    tomorrowMorning: 'Imorgon kl 08:00',
+    nextMonday: 'Nästa måndag kl 08:00',
+    nextWeek: 'Om 1 vecka',
+    customDateTime: 'Välj datum & tid...',
+    snoozedMessage: 'Snoozad till {date}',
+  },
+
+  // Onboarding (Sprint 7)
+  onboarding: {
+    welcome: 'Välkommen till CDP Mail',
+    welcomeBody: 'Din AI-drivna mailassistent hjälper dig att läsa, analysera och svara på mail — utan att skicka ett enda mail utan ditt godkännande.',
+    connectAccount: 'Anslut ditt konto',
+    connectAccountBody: 'Koppla ditt Gmail-konto för att börja synka och analysera mail.',
+    connectGoogle: 'Anslut med Google',
+    preferences: 'Dina preferenser',
+    preferencesBody: 'Välj språk och tema som passar dig.',
+    notifications: 'Notiser',
+    notificationsBody: 'Aktivera notiser för att få en pingis när viktigt mail anländer.',
+    enableNotifications: 'Aktivera notiser',
+    notificationsGranted: 'Notiser aktiverade',
+    notificationsDenied: 'Notiser blockerade i webbläsaren',
+    done: 'Klart!',
+    doneBody: 'Du är redo att börja. Amanda synkar och klassificerar din mail och alla utkast kräver ditt godkännande.',
+    skip: 'Hoppa över',
+    next: 'Nästa',
+    back: 'Tillbaka',
+    step: 'Steg {n} av {total}',
+    goToInbox: 'Gå till inkorgen',
+  },
+
+  // Settings sections (Sprint 7)
+  settingsSections: {
+    general: 'Allmänt',
+    accounts: 'Konton',
+    labels: 'Etiketter',
+    brainCore: 'Brain Core',
+    templates: 'Mallar',
+    shortcuts: 'Tangentbordsgenvägar',
+    notificationsSection: 'Notifikationer',
+    dataExport: 'Data & export',
+    compactMode: 'Kompakt vy',
+    compactModeHint: 'Minskar radstorlek och padding i inkorgen.',
+    notificationSound: 'Notisljud',
+    externalImages: 'Externa bilder',
+    externalImagesAsk: 'Fråga alltid',
+    externalImagesAllow: 'Tillåt alltid',
+    externalImagesBlock: 'Blockera alltid',
   },
 
   // Languages

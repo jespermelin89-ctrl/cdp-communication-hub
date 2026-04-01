@@ -38,7 +38,8 @@ export async function threadRoutes(fastify: FastifyInstance) {
     const rawQuery = query.data;
     const account_id = rawQuery.account_id;
     const page = rawQuery.page;
-    const limit = rawQuery.limit;
+    const limit = Math.min(rawQuery.limit ?? 25, 50);
+    const cursor = rawQuery.cursor as string | undefined;
     const search = rawQuery.search ? sanitizeSearch(rawQuery.search) : undefined;
     const label = rawQuery.label ? sanitizeLabel(rawQuery.label) : undefined;
 
@@ -97,8 +98,29 @@ export async function threadRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Cursor-based pagination: cursor = base64(lastMessageAt:id)
+    let cursorWhere: any = {};
+    if (cursor) {
+      try {
+        const decoded = Buffer.from(cursor, 'base64').toString('utf-8');
+        const [lastMsgAt, cursorId] = decoded.split('::');
+        if (lastMsgAt && cursorId) {
+          cursorWhere = {
+            OR: [
+              { lastMessageAt: { lt: new Date(lastMsgAt) } },
+              { lastMessageAt: new Date(lastMsgAt), id: { lt: cursorId } },
+            ],
+          };
+        }
+      } catch {
+        // Invalid cursor — ignore and use offset fallback
+      }
+    }
+
+    const effectiveWhere = cursor ? { AND: [where, cursorWhere] } : where;
+
     const threadSelect = {
-      where,
+      where: effectiveWhere,
       include: {
         account: { select: { id: true, emailAddress: true, provider: true } },
         analyses: {
@@ -116,11 +138,11 @@ export async function threadRoutes(fastify: FastifyInstance) {
         },
       },
       orderBy: { lastMessageAt: 'desc' } as const,
-      skip: (page - 1) * limit,
-      take: limit,
+      skip: cursor ? 0 : (page - 1) * limit,
+      take: limit + 1, // fetch one extra to determine hasMore
     };
 
-    let [threads, total, accountCountsRaw] = await Promise.all([
+    let [threadsRaw, total, accountCountsRaw] = await Promise.all([
       prisma.emailThread.findMany(threadSelect),
       prisma.emailThread.count({ where }),
       // Per-account unread counts for the unified inbox header
@@ -130,6 +152,10 @@ export async function threadRoutes(fastify: FastifyInstance) {
         _count: true,
       }),
     ]);
+
+    // Determine hasMore and nextCursor from the extra item
+    const hasMoreCursor = threadsRaw.length > limit;
+    const threads = hasMoreCursor ? threadsRaw.slice(0, limit) : threadsRaw;
     const accountCounts: Record<string, number> = {};
     for (const row of accountCountsRaw) {
       accountCounts[row.accountId] = row._count;
@@ -170,14 +196,19 @@ export async function threadRoutes(fastify: FastifyInstance) {
         );
 
         // Re-fetch after sync
-        [threads, total] = await Promise.all([
-          prisma.emailThread.findMany(threadSelect),
-          prisma.emailThread.count({ where }),
-        ]);
+        const refetchedRaw = await prisma.emailThread.findMany(threadSelect);
+        total = await prisma.emailThread.count({ where });
+        threadsRaw = refetchedRaw;
       } catch {
         // Non-fatal: return whatever local results we have
       }
     }
+
+    // Build next cursor from last thread in result
+    const lastThread = threads[threads.length - 1];
+    const nextCursor = (hasMoreCursor && lastThread?.lastMessageAt && lastThread?.id)
+      ? Buffer.from(`${lastThread.lastMessageAt.toISOString()}::${lastThread.id}`).toString('base64')
+      : null;
 
     return {
       threads: threads.map((t) => ({
@@ -187,9 +218,11 @@ export async function threadRoutes(fastify: FastifyInstance) {
       })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
       total,
+      totalCount: total,
       page,
       pageSize: limit,
-      hasMore: page * limit < total,
+      hasMore: cursor ? hasMoreCursor : (page * limit < total),
+      nextCursor,
       mailbox: mailbox ?? 'inbox',
       accountCounts, // unread count per accountId for unified inbox header
     };

@@ -4,6 +4,62 @@ All notable changes to CDP Communication Hub are documented here.
 
 ---
 
+## v1.3.0 — Communication Flow (2026-04-01)
+
+### Sprint 1 — Thread View Overhaul
+- **client/lib/i18n**: Added `thread.collapseAll`, `thread.olderMessages`, `thread.showQuoted`, `thread.hideQuoted` keys to all 4 locales (sv, en, es, ru)
+- **client/lib/sanitize-html.ts**: `wrapQuotedContent` wraps `<blockquote>` in `<details>` for quote collapse; `sanitizeHtml` strips scripts/events/dangerous elements; `replaceCidImages` proxies cid: URLs
+- **client/app/threads/[id]/page.tsx**: HTML email rendered via `dangerouslySetInnerHTML` with `sanitizeHtml` + `wrapQuotedContent`; `whitespace-pre-wrap` fallback for plain text; collapsible accordion for threads > 3 messages; avatar + sender + date + To/CC header per message
+
+### Sprint 2 — Inline Reply & Forward
+- **client/app/threads/[id]/page.tsx**: Inline reply form per message with `reply`/`replyAll`/`forward` modes; quick reply box; reply goes through Draft → Approve → Send gate
+- **client/lib/i18n**: Added `reply` namespace (replyPlaceholder, reply, replyAll, forward, saveAsDraft, approveAndSend, quickReplies, forwardHeader) to all 4 locales
+
+### Sprint 3 — Keyboard Shortcuts System
+- **client/lib/keyboard-shortcuts.ts**: Global shortcut registry with context switching (`global`, `inbox`, `thread`, `compose`); two-key combo support (g+i, g+d etc.); ignores input/textarea/contenteditable focus
+- **client/components/GlobalShortcuts.tsx**: Already registered `?`, `/`, `cmd+k`, `cmd+n`, `cmd+shift+m`, `cmd+shift+d`
+- **client/components/ShortcutsHelpModal.tsx**: `?` key opens modal; grouped shortcuts with `<kbd>` styling; Esc to close
+- **client/lib/i18n**: Added `shortcuts` namespace to all 4 locales
+
+### Sprint 4 — Real-Time Inbox Updates (SSE)
+- **server/src/routes/events.ts**: `GET /events/stream?token={jwt}` — SSE endpoint; auth via JWT query param; heartbeat every 30s; event types: `connected`, `thread:new`, `thread:updated`, `draft:status`, `sync:complete`, `notification`, `thread:unsnoozed`; max 50 connections per user; cleanup on disconnect
+- **server/src/index.ts**: Registered `eventRoutes` under `/api/v1`
+- **server/src/services/sync-scheduler.service.ts**: Emits `sync:complete` after each sync cycle; emits `thread:unsnoozed` when threads are woken from snooze
+- **client/hooks/use-event-stream.ts**: `useEventStream()` hook; auto-connect on mount; exponential backoff reconnect (1s→2s→4s→30s); invalidates SWR caches on events; fallback poll every 30s if EventSource unavailable
+- **client/components/TopBar.tsx**: Green/amber/red connection status dot in header with title tooltip
+- **client/lib/i18n**: Added `realtime` namespace to all 4 locales
+
+### Sprint 5 — Snooze UI + Quick Inbox Actions
+- **client/components/SnoozePicker.tsx**: Dropdown with preset times (later today +3h, tomorrow 08:00, next Monday 08:00, in 1 week, custom datetime picker); click-outside to close
+- **client/hooks/use-swipe.ts**: Touch swipe handler (threshold 80px); left swipe → trash, right swipe → snooze; `navigator.vibrate(30)` haptic feedback
+- **client/lib/i18n**: Added `snooze` namespace (snooze, snoozedUntil, cancelSnooze, laterToday, tomorrowMorning, nextMonday, nextWeek, customDateTime, snoozedMessage) to all 4 locales
+
+### Sprint 6 — Performance & Virtual Scrolling
+- **server/src/routes/threads.ts**: Cursor-based pagination — `cursor` query param; `nextCursor` + `hasMore` + `totalCount` in response; fetches `limit+1` to detect more pages; cursor = base64(ISO8601::id)
+- **server/src/utils/validators.ts**: `ThreadQuerySchema` updated: `cursor` optional, `limit` max 50, default 25
+- **client/lib/api.ts**: `getThreads()` accepts `cursor` param; returns `nextCursor`, `totalCount`, `accountCounts`
+- **client/hooks/use-infinite-threads.ts**: `useInfiniteThreads()` SWR infinite hook; IntersectionObserver sentinel loads next page at 200px from bottom; caches per filter combo; exposes `sentinelRef`, `mutate`, `hasMore`, `isLoadingMore`
+- **client/components/VirtualThreadList.tsx**: Renders only visible rows + 10-row buffer; `transform: translateY` absolute positioning; scroll position save/restore via sessionStorage; compact mode (72px) / normal (96px)
+
+### Sprint 7 — Settings Consolidation + Onboarding
+- **server/src/prisma/schema.prisma**: `UserSettings` extended with `hasCompletedOnboarding`, `notificationSound`, `externalImages` (ask/allow/block), `compactMode`; `npx prisma db push` applied
+- **server/src/routes/auth.ts**: `PATCH /user/settings` now accepts and persists the 4 new fields
+- **client/lib/api.ts**: `updateUserSettings()` accepts new fields
+- **client/app/settings/page.tsx**: Added compact mode toggle, notification sound toggle, external images selector (ask/allow/block); all persisted to backend
+- **client/components/OnboardingWizard.tsx**: On completion writes `hasCompletedOnboarding: true` to backend (fire-and-forget)
+- **client/lib/i18n**: Added `onboarding` and `settingsSections` namespaces to all 4 locales
+
+### Sprint 8 — v1.3.0 Release
+- **server tests**: 4 new test files — `sse-events.test.ts` (7 tests), `cursor-pagination.test.ts` (7 tests), `snooze.test.ts` (10 tests), `reply-forward.test.ts` (9 tests)
+- **client tests**: 3 new test files — `keyboard-shortcuts.test.ts` (9 tests), `virtual-list.test.ts` (8 tests), `onboarding.test.ts` (13 tests)
+- Full test suite: 429 server tests + 124 client tests — all passing
+- TypeScript: zero errors in both server and client (`npx tsc --noEmit`)
+- CHANGELOG updated with complete v1.3.0 history
+- Version bumped to 1.3.0 in client/package.json and server/package.json
+- Git tag `v1.3.0` created
+
+---
+
 ## v1.2.0 — Bulk Actions, Labels, Signatures, Contacts, Undo Send, Attachments, Search (2026-04-01)
 
 ### Sprint 8 — v1.2 Release (tests, CHANGELOG, version bump, git tag)

@@ -56,7 +56,8 @@ export type UpdateDraftInput = z.infer<typeof UpdateDraftSchema>;
 export const ThreadQuerySchema = z.object({
   account_id: z.string().uuid().optional(),
   page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+  cursor: z.string().optional(),
   search: z.string().optional(),
   label: z.string().optional(),
   mailbox: z.enum(['inbox', 'sent', 'trash', 'archive', 'snoozed', 'all']).optional(),

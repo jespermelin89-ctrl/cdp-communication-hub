@@ -165,7 +165,7 @@ describe('ThreadQuerySchema', () => {
   it('uses defaults for page and limit', () => {
     const result = ThreadQuerySchema.parse({});
     expect(result.page).toBe(1);
-    expect(result.limit).toBe(20);
+    expect(result.limit).toBe(25);
   });
 
   it('coerces string numbers to integers', () => {

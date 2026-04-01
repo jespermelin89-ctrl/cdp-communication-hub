@@ -4,6 +4,71 @@ All notable changes to CDP Communication Hub are documented here.
 
 ---
 
+## v1.2.0 — Bulk Actions, Labels, Signatures, Contacts, Undo Send, Attachments, Search (2026-04-01)
+
+### Sprint 8 — v1.2 Release (tests, CHANGELOG, version bump, git tag)
+- 7 new test files: bulk-actions (14), custom-labels (20), signatures (14), contact-search (17), undo-send (17), attachment-preview (22), advanced-search (20)
+- Full test suite: 395 server tests + 94 client tests — all passing
+- CHANGELOG updated with complete v1.2.0 history
+- Version bumped to 1.2.0 in client/package.json and server/package.json
+- Git tag `v1.2.0` created
+
+### Sprint 7 — Advanced Search
+- **server/routes/search.ts**: `GET /search` — full-text query + filters (from, to, dateFrom, dateTo, hasAttachment, classification, priority, accountId, labelIds); saves each search to SearchHistory
+- **server/routes/search.ts**: `GET/DELETE /search/history`, `DELETE /search/history/:id`
+- **server/prisma**: `SearchHistory` model (userId, query, filters JSON, resultCount, indexed by userId + createdAt desc)
+- **client/app/search/page.tsx**: Advanced filter panel (all filter fields), active filter chips with clear button, search history panel with individual delete and clear-all, save-as-view action, skeleton loader
+- **client/lib/api.ts**: `advancedSearch`, `getSearchHistory`, `clearSearchHistory`, `deleteSearchHistoryEntry`
+- **i18n**: `search` namespace extended in all 4 locales (sv, en, es, ru)
+
+### Sprint 6 — Attachment Preview
+- **client/components/AttachmentPreview.tsx**: Grid of file-type icons, download-on-hover, opens ImageLightbox for images, hover overlay
+- **client/components/ImageLightbox.tsx**: Fullscreen image overlay, keyboard arrow navigation, download button, ESC to close
+- **server/routes/threads.ts**: `GET /threads/:threadId/messages/:messageId/attachments/:attachmentId/data` — returns base64/buffer for attachment download
+- **client/app/threads/[id]/page.tsx**: Replaced pill attachment list with `AttachmentPreview` component
+- **i18n**: `attachments` namespace in all 4 locales
+
+### Sprint 5 — Undo Send
+- **server/prisma**: `undoSendDelay` field on UserSettings (Int, default 5)
+- **server/routes/drafts.ts**: `POST /drafts/:id/send-delayed` — sets status 'sending', scheduledAt = now + delay
+- **server/routes/drafts.ts**: `POST /drafts/:id/cancel-send` — reverts 'sending' → 'approved' if scheduledAt > now
+- **server/routes/auth.ts**: `PATCH /user/settings` now accepts `undoSendDelay` (clamped 0–30)
+- **server/services/sync-scheduler**: `sendScheduledDrafts` handles both 'approved' and 'sending' status
+- **client/components/UndoSendToast.tsx**: Countdown toast with progress bar and Ångra button; `showUndoSendToast(draftId, delaySec): Promise<'sent'|'cancelled'>`
+- **client/app/compose/page.tsx**: `executeSend` calls `showUndoSendToast`, cancels if user clicks Ångra
+- **client/app/settings/page.tsx**: Delay slider 0–30 s, saves to backend
+- **i18n**: `undoSend` namespace in all 4 locales
+
+### Sprint 4 — Contact Autocomplete
+- **client/components/ContactAutocomplete.tsx**: Chip-style multi-address input, debounced server-backed search, keyboard navigation (arrow/enter/backspace), avatar initials
+- **server/routes/search.ts**: `GET /contacts/search?q=&limit=`, `GET /contacts/recent?limit=`
+- **client/app/compose/page.tsx**: To / CC / BCC replaced with ContactAutocomplete
+
+### Sprint 3 — Email Signatures
+- **server/prisma**: `signatureHtml`, `useSignatureOnNew`, `useSignatureOnReply` added to EmailAccount
+- **server/routes/accounts.ts**: `GET /accounts/:id/signature`, `PUT /accounts/:id/signature`
+- **client/lib/api.ts**: `getSignature`, `saveSignature`
+- **client/app/settings/signatures/page.tsx**: Per-account signature editor (RichTextEditor), preview, copy-from-another-account
+- **client/app/compose/page.tsx**: Auto-injects HTML signature on compose open based on useOnNew/useOnReply flags
+- **i18n**: `signatures` namespace in all 4 locales
+
+### Sprint 2 — Custom Labels
+- **server/prisma**: `Label` model (userId, name, color, icon, position); `ThreadLabel` junction model
+- **server/routes/labels.ts**: Full CRUD for labels + thread assignment + bulk-label; auto-seeds 5 defaults
+- **server/index.ts**: Registered `labelRoutes`, `searchRoutes`
+- **client/lib/types.ts**: `CustomLabel` interface; `EmailThread.threadLabels`; `Account` signature fields
+- **client/app/settings/labels/page.tsx**: Label management UI — inline edit, color picker, delete confirmation
+- **client/app/inbox/page.tsx**: Custom label chips rendered in thread list
+
+### Sprint 1 — Bulk Actions
+- **server/routes/threads.ts**: `POST /threads/bulk/archive`, `bulk/trash`, `bulk/read`, `bulk/classify`, `bulk/priority`
+- **server/routes/labels.ts**: `POST /threads/bulk/label`
+- **client/lib/api.ts**: `bulkArchive`, `bulkTrash`, `bulkRead`, `bulkClassifyThreads`, `bulkPriority`, `bulkLabel`
+- **client/app/inbox/page.tsx**: Enhanced bulk toolbar (classify + priority dropdowns, blue highlight), Escape deselect, cmd+a select-all, keyboard shortcuts e / #
+- **i18n**: `bulk` namespace in all 4 locales
+
+---
+
 ## v1.1.0 — Intelligence & Power Features (2026-04-01)
 
 ### Sprint 8 — v1.1 Release (tests, CHANGELOG, version bump, git tag)

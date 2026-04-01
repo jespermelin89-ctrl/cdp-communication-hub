@@ -816,7 +816,13 @@ export default function DashboardPage() {
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {data.accounts.map((acc: Account) => (
-                  <AccountSyncCard key={acc.id} account={acc} formatTime={formatTime} t={t} />
+                  <AccountSyncCard
+                    key={acc.id}
+                    account={acc}
+                    formatTime={formatTime}
+                    t={t}
+                    perStats={data.per_account_stats?.[acc.id]}
+                  />
                 ))}
               </div>
             </div>
@@ -929,9 +935,10 @@ function PriorityBar({
 }
 
 function AccountSyncCard({
-  account, formatTime, t
+  account, formatTime, t, perStats
 }: {
   account: Account; formatTime: (d: string) => string; t: any;
+  perStats?: { unread: number; highPriority: number };
 }) {
   const hasError = !!account.syncError;
   const dot = hasError ? 'bg-red-500' : account.isActive ? 'bg-emerald-400' : 'bg-gray-300';
@@ -949,6 +956,20 @@ function AccountSyncCard({
         ) : (
           <div className="text-xs text-gray-400 mt-0.5">
             {account.lastSyncAt ? formatTime(account.lastSyncAt) : '—'}
+          </div>
+        )}
+        {perStats && (perStats.unread > 0 || perStats.highPriority > 0) && (
+          <div className="flex items-center gap-2 mt-1.5">
+            {perStats.unread > 0 && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300 text-xs font-medium">
+                <MailOpen size={10} /> {perStats.unread}
+              </span>
+            )}
+            {perStats.highPriority > 0 && (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs font-medium">
+                <AlertTriangle size={10} /> {perStats.highPriority}
+              </span>
+            )}
           </div>
         )}
       </div>

@@ -43,6 +43,8 @@ const PRIORITY_FILTER_COLORS: Record<string, string> = {
 
 const isDev = process.env.NODE_ENV === 'development';
 
+const ACCOUNT_COLORS = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'];
+
 const CLASSIFICATION_LABELS: Record<string, string> = {
   lead: 'Lead',
   partner: 'Partner',
@@ -141,6 +143,10 @@ export default function InboxPage() {
   const threads: EmailThread[] = pages ? pages.flatMap((p) => p.threads ?? []) : [];
   const hasMore = pages?.[pages.length - 1]?.hasMore ?? false;
   const isLoadingMore = size > (pages?.length ?? 0);
+
+  // Per-account unread counts from the latest thread response
+  const accountCounts: Record<string, number> = (pages?.[0] as any)?.accountCounts ?? {};
+  const totalUnread = Object.values(accountCounts).reduce((sum, n) => sum + n, 0);
 
   // IntersectionObserver — load next page when sentinel enters view
   useEffect(() => {
@@ -556,28 +562,53 @@ export default function InboxPage() {
           </div>
         </div>
 
-        {/* Account Tabs */}
+        {/* Unified Multi-Inbox Header — account tabs with color coding and unread badges */}
         {accounts.length > 1 && (
-          <div className="flex gap-2 mb-4 flex-wrap items-center">
+          <div className="flex gap-2 mb-4 overflow-x-auto scrollbar-hide pb-1">
+            {/* "All" tab */}
             <button
               onClick={() => setSelectedAccountId('')}
-              className={`px-3 py-2 rounded-full text-sm font-medium transition-all min-h-[36px] ${
+              className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-colors min-h-[36px] ${
                 !selectedAccountId
-                  ? 'bg-brand-500 text-white shadow-sm'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
-              {t.inbox.allAccounts}
+              Alla
+              {totalUnread > 0 && (
+                <span className="bg-violet-600 text-white text-xs px-1.5 py-0.5 rounded-full leading-none">
+                  {totalUnread > 99 ? '99+' : totalUnread}
+                </span>
+              )}
             </button>
-            {accounts.map((acc) => (
-              <AccountDropdown
-                key={acc.id}
-                account={acc}
-                selected={selectedAccountId === acc.id}
-                onSelect={() => setSelectedAccountId(acc.id)}
-                onSync={async () => { await api.syncThreads(acc.id, 30); await mutateThreads(); }}
-              />
-            ))}
+
+            {/* Per-account tabs */}
+            {accounts.map((acc, idx) => {
+              const color = (acc as any).color || ACCOUNT_COLORS[idx % ACCOUNT_COLORS.length];
+              const unread = accountCounts[acc.id] ?? 0;
+              const isSelected = selectedAccountId === acc.id;
+              const shortLabel = (acc as any).label || acc.emailAddress.split('@')[0];
+              return (
+                <button
+                  key={acc.id}
+                  onClick={() => setSelectedAccountId(acc.id)}
+                  className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors min-h-[36px] ${
+                    isSelected
+                      ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {/* Account color dot */}
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                  <span className="truncate max-w-[100px]">{shortLabel}</span>
+                  {unread > 0 && (
+                    <span className="bg-violet-600 text-white text-xs px-1.5 py-0.5 rounded-full leading-none shrink-0">
+                      {unread > 99 ? '99+' : unread}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 

@@ -128,6 +128,7 @@ export interface CommandCenterData {
     createdAt: string;
   }>;
   accounts: Account[];
+  per_account_stats: Record<string, { unread: number; highPriority: number }>;
 }
 
 export interface Pagination {

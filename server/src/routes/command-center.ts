@@ -116,6 +116,33 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
       return ext ? ext.split('@')[0] : t.subject?.split(' ')[0] || '—';
     });
 
+    // Per-account unread + high-priority counts
+    const [perAccountUnread, perAccountHighPrio] = await Promise.all([
+      prisma.emailThread.groupBy({
+        by: ['accountId'],
+        where: { accountId: { in: accountIds }, isRead: false },
+        _count: true,
+      }),
+      prisma.emailThread.groupBy({
+        by: ['accountId'],
+        where: {
+          accountId: { in: accountIds },
+          analyses: { some: { priority: 'high' } },
+          lastMessageAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        },
+        _count: true,
+      }),
+    ]);
+    const perAccountStats: Record<string, { unread: number; highPriority: number }> = {};
+    for (const row of perAccountUnread) {
+      if (!perAccountStats[row.accountId]) perAccountStats[row.accountId] = { unread: 0, highPriority: 0 };
+      perAccountStats[row.accountId].unread = row._count;
+    }
+    for (const row of perAccountHighPrio) {
+      if (!perAccountStats[row.accountId]) perAccountStats[row.accountId] = { unread: 0, highPriority: 0 };
+      perAccountStats[row.accountId].highPriority = row._count;
+    }
+
     // Get pending drafts for quick preview
     const pendingDraftsList = await prisma.draft.findMany({
       where: { userId, status: { in: ['pending', 'approved'] } },
@@ -141,6 +168,7 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
       drafts_preview: pendingDraftsList,
       recent_actions: recentActions,
       accounts,
+      per_account_stats: perAccountStats,
     };
   });
 }

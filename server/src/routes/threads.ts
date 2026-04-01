@@ -117,10 +117,20 @@ export async function threadRoutes(fastify: FastifyInstance) {
       take: limit,
     };
 
-    let [threads, total] = await Promise.all([
+    let [threads, total, accountCountsRaw] = await Promise.all([
       prisma.emailThread.findMany(threadSelect),
       prisma.emailThread.count({ where }),
+      // Per-account unread counts for the unified inbox header
+      prisma.emailThread.groupBy({
+        by: ['accountId'],
+        where: { account: { userId: request.userId }, isRead: false },
+        _count: true,
+      }),
     ]);
+    const accountCounts: Record<string, number> = {};
+    for (const row of accountCountsRaw) {
+      accountCounts[row.accountId] = row._count;
+    }
 
     // Gmail search fallback: if local results are sparse, query Gmail API and sync missing threads
     if (search && threads.length < 5) {
@@ -178,6 +188,7 @@ export async function threadRoutes(fastify: FastifyInstance) {
       pageSize: limit,
       hasMore: page * limit < total,
       mailbox: mailbox ?? 'inbox',
+      accountCounts, // unread count per accountId for unified inbox header
     };
   });
 

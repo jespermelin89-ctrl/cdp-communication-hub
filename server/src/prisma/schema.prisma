@@ -53,7 +53,10 @@ model EmailAccount {
   smtpUseSsl            Boolean   @default(true) @map("smtp_use_ssl")
   imapPasswordEncrypted String?   @map("imap_password_encrypted") // encrypted at rest
 
-  signature             String?   @map("signature") // email signature appended to drafts
+  signature             String?   @map("signature") // email signature appended to drafts (plain text, legacy)
+  signatureHtml         String?   @map("signature_html") // HTML signature (Sprint 3)
+  useSignatureOnNew     Boolean   @default(true)  @map("use_signature_on_new")
+  useSignatureOnReply   Boolean   @default(true)  @map("use_signature_on_reply")
   accountType           String    @default("personal") @map("account_type") // "personal" | "team" | "shared"
   teamMembers           String[]  @default([]) @map("team_members") // email addresses of other readers
   aiHandling            String    @default("normal") @map("ai_handling") // "normal" | "separate" | "notify_only"
@@ -101,6 +104,7 @@ model EmailThread {
   analyses          AIAnalysis[]
   drafts            Draft[]
   followUpReminders FollowUpReminder[]
+  threadLabels      ThreadLabel[]
 
   firstReceivedAt   DateTime? @map("first_received_at")
   firstRepliedAt    DateTime? @map("first_replied_at")
@@ -174,7 +178,7 @@ model Draft {
   bodyText       String    @map("body_text")
   bodyHtml       String?   @map("body_html")
   attachments    Json?     @default("[]") @map("attachments") // [{id, filename, mimeType, size, data}]
-  status         String    @default("pending") // pending|approved|sent|failed|discarded
+  status         String    @default("pending") // pending|approved|sending|sent|failed|discarded
   gmailMessageId String?   @map("gmail_message_id") // set after successful send
   approvedAt     DateTime? @map("approved_at")
   sentAt         DateTime? @map("sent_at")
@@ -464,8 +468,53 @@ model UserSettings {
   quietHoursEnd           Int?     @default(7)  @map("quiet_hours_end")
   digestEnabled           Boolean  @default(false) @map("digest_enabled")
   digestTime              Int?     @default(8)  @map("digest_time")
+  undoSendDelay           Int      @default(10) @map("undo_send_delay")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_settings")
+}
+
+// ============================================================
+// CUSTOM LABELS — Sprint 2
+// ============================================================
+model Label {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  color     String   @default("#6B7280")
+  icon      String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  threadLabels ThreadLabel[]
+
+  @@unique([userId, name])
+  @@map("labels")
+}
+
+model ThreadLabel {
+  id        String   @id @default(cuid())
+  threadId  String   @map("thread_id")
+  labelId   String   @map("label_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  thread EmailThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  label  Label       @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, labelId])
+  @@map("thread_labels")
+}
+
+// ============================================================
+// SEARCH HISTORY — Sprint 7
+// ============================================================
+model SearchHistory {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  query       String
+  filters     Json?
+  resultCount Int?     @map("result_count")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("search_history")
 }

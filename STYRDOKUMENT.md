@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-01 07:31:51 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-01 07:36:25 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -117,11 +117,22 @@ Prefix: `/api/v1`
 | `POST    /threads/:id/follow-up` | `follow-ups` |
 | `PATCH   /follow-ups/:id/complete` | `follow-ups` |
 | `DELETE  /follow-ups/:id` | `follow-ups` |
+| `GET     /labels` | `labels` |
+| `POST    /labels` | `labels` |
+| `PATCH   /labels/:id` | `labels` |
+| `DELETE  /labels/:id` | `labels` |
+| `POST    /threads/:id/labels` | `labels` |
+| `DELETE  /threads/:id/labels/:labelId` | `labels` |
+| `POST    /threads/bulk/label` | `labels` |
 | `POST    /providers/detect` | `providers` |
 | `GET     /providers` | `providers` |
 | `POST    /push/subscribe` | `push` |
 | `DELETE  /push/subscribe` | `push` |
 | `POST    /push/test` | `push` |
+| `GET     /search` | `search` |
+| `GET     /search/history` | `search` |
+| `DELETE  /search/history` | `search` |
+| `DELETE  /search/history/:id` | `search` |
 | `GET     /templates` | `templates` |
 | `POST    /templates` | `templates` |
 | `PATCH   /templates/:id` | `templates` |
@@ -179,7 +190,7 @@ Prefix: `/api/v1`
 
 ---
 
-## Databas — Tabeller (20 st)
+## Databas — Tabeller (23 st)
 
 - `User`
 - `EmailAccount`
@@ -201,6 +212,9 @@ Prefix: `/api/v1`
 - `SavedView`
 - `PushSubscription`
 - `UserSettings`
+- `Label`
+- `ThreadLabel`
+- `SearchHistory`
 
 ### Kritisk tabell: `Draft`
 
@@ -234,6 +248,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `/settings`
 - `/settings/accounts`
 - `/settings/brain-core`
+- `/settings/labels`
 - `/settings/templates`
 - `/setup-siri`
 - `/threads/[id]`

@@ -352,6 +352,29 @@ class ApiClient {
     return this.request('POST', '/threads/bulk/priority', { threadIds, priority });
   }
 
+  // Sprint 2 — Labels
+  async getLabels(): Promise<{ labels: any[] }> {
+    return this.request('GET', '/labels');
+  }
+  async createLabel(data: { name: string; color?: string; icon?: string }): Promise<{ label: any }> {
+    return this.request('POST', '/labels', data);
+  }
+  async updateLabel(id: string, data: { name?: string; color?: string; icon?: string; position?: number }): Promise<{ label: any }> {
+    return this.request('PATCH', `/labels/${id}`, data);
+  }
+  async deleteLabel(id: string): Promise<{ deleted: boolean }> {
+    return this.request('DELETE', `/labels/${id}`);
+  }
+  async setThreadLabels(threadId: string, labelIds: string[]): Promise<{ updated: number }> {
+    return this.request('POST', `/threads/${threadId}/labels`, { labelIds });
+  }
+  async removeThreadLabel(threadId: string, labelId: string): Promise<{ deleted: boolean }> {
+    return this.request('DELETE', `/threads/${threadId}/labels/${labelId}`);
+  }
+  async bulkLabel(threadIds: string[], labelId: string): Promise<{ updated: number }> {
+    return this.request('POST', '/threads/bulk/label', { threadIds, labelId });
+  }
+
   async restoreThread(id: string) {
     return this.request<{ message: string }>('POST', `/threads/${id}/restore`);
   }

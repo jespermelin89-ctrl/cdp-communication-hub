@@ -10,31 +10,19 @@ export interface User {
   settings: UserSettings | null;
 }
 
-export interface Account {
-  id: string;
-  emailAddress: string;
-  displayName: string | null;
-  provider: 'gmail' | 'imap' | string;
-  isDefault: boolean;
-  isActive: boolean;
-  label: string | null;
-  color: string | null;
-  badges: string[];
-  signature: string | null;
-  accountType: 'personal' | 'team' | 'shared';
-  teamMembers: string[];
-  aiHandling: 'normal' | 'separate' | 'notify_only';
-  lastSyncAt: string | null;
-  syncError: string | null;
-  createdAt: string;
-  threadCount?: number;
-}
 
 export interface UserSettings {
   id: string;
   defaultAccountId: string | null;
   uiTheme: string;
   aiTonePreference: string | null;
+}
+
+export interface CustomLabel {
+  id: string;
+  name: string;
+  color: string;
+  icon: string | null;
 }
 
 export interface EmailThread {
@@ -54,6 +42,30 @@ export interface EmailThread {
   latestAnalysis: AIAnalysis | null;
   messages?: EmailMessage[];
   drafts?: Draft[];
+  threadLabels?: Array<{ labelId: string; label: CustomLabel }>;
+}
+
+export interface Account {
+  id: string;
+  emailAddress: string;
+  displayName: string | null;
+  provider: 'gmail' | 'imap' | string;
+  isDefault: boolean;
+  isActive: boolean;
+  label: string | null;
+  color: string | null;
+  badges: string[];
+  signature: string | null;
+  signatureHtml: string | null;
+  useSignatureOnNew: boolean;
+  useSignatureOnReply: boolean;
+  accountType: 'personal' | 'team' | 'shared';
+  teamMembers: string[];
+  aiHandling: 'normal' | 'separate' | 'notify_only';
+  lastSyncAt: string | null;
+  syncError: string | null;
+  createdAt: string;
+  threadCount?: number;
 }
 
 export interface EmailMessage {

@@ -111,6 +111,9 @@ export async function threadRoutes(fastify: FastifyInstance) {
             suggestedAction: true,
           },
         },
+        threadLabels: {
+          include: { label: { select: { id: true, name: true, color: true, icon: true } } },
+        },
       },
       orderBy: { lastMessageAt: 'desc' } as const,
       skip: (page - 1) * limit,

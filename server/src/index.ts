@@ -40,6 +40,8 @@ import { followUpRoutes } from './routes/follow-ups';
 import { templatesRoutes } from './routes/templates';
 import { analyticsRoutes } from './routes/analytics';
 import { savedViewsRoutes } from './routes/views';
+import { labelRoutes } from './routes/labels';
+import { searchRoutes } from './routes/search';
 
 async function main() {
   // Validate environment before starting
@@ -213,6 +215,8 @@ async function main() {
     await api.register(templatesRoutes);
     await api.register(analyticsRoutes);
     await api.register(savedViewsRoutes);
+    await api.register(labelRoutes);
+    await api.register(searchRoutes);
   }, { prefix: '/api/v1' });
 
   // Start server FIRST (so Render sees the port binding)

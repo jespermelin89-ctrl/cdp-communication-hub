@@ -1128,6 +1128,16 @@ export default function InboxPage() {
                               </span>
                             </>
                           )}
+                          {/* Custom label chips */}
+                          {thread.threadLabels?.map((tl) => (
+                            <span
+                              key={tl.labelId}
+                              className="text-xs px-2 py-0.5 rounded-full font-medium text-white shrink-0"
+                              style={{ backgroundColor: tl.label.color }}
+                            >
+                              {tl.label.name}
+                            </span>
+                          ))}
                           {!thread.latestAnalysis && (
                             <span className="text-xs text-gray-400 dark:text-gray-500 border border-dashed border-gray-300 dark:border-gray-600 px-2 py-0.5 rounded-full">
                               {t.inbox.notAnalyzed}

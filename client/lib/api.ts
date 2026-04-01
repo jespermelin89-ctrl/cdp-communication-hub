@@ -352,6 +352,14 @@ class ApiClient {
     return this.request('POST', '/threads/bulk/priority', { threadIds, priority });
   }
 
+  // Sprint 4 — Contact autocomplete
+  async searchContacts(q: string, limit = 10): Promise<{ contacts: any[] }> {
+    return this.request('GET', '/contacts/search', undefined, { q, limit: String(limit) });
+  }
+  async getRecentContacts(limit = 5): Promise<{ contacts: any[] }> {
+    return this.request('GET', '/contacts/recent', undefined, { limit: String(limit) });
+  }
+
   // Sprint 3 — Signatures
   async getSignature(accountId: string): Promise<{ signature: any }> {
     return this.request('GET', `/accounts/${accountId}/signature`);

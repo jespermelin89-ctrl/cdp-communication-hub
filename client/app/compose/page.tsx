@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Account } from '@/lib/types';
 import RichTextEditor from '@/components/RichTextEditor';
+import ContactAutocomplete from '@/components/ContactAutocomplete';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -599,67 +600,17 @@ function ComposePageContent() {
             )}
           </div>
 
-          {/* To */}
-          <div className="flex items-start gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700 relative">
-            <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-12 shrink-0 mt-1.5">Till</span>
+          {/* To — ContactAutocomplete */}
+          <div className="flex items-start gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700">
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-12 shrink-0 mt-2">Till</span>
             <div className="flex-1">
-              <div className="flex flex-wrap gap-1 mb-1">
-                {toAddresses.map((addr) => (
-                  <span key={addr} className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 text-xs rounded-lg border border-brand-200 dark:border-brand-700">
-                    {addr}
-                    <button onClick={() => removeToAddress(addr)} className="hover:text-red-500">×</button>
-                  </span>
-                ))}
-              </div>
-              <input
-                ref={toInputRef}
-                type="text"
-                value={toInput}
-                onChange={(e) => {
-                  setToInput(e.target.value);
-                  setContactQuery(e.target.value);
-                  setShowContactDropdown(e.target.value.length > 0);
-                }}
-                onKeyDown={(e) => {
-                  if ((e.key === 'Enter' || e.key === ',') && toInput.trim()) {
-                    e.preventDefault();
-                    addToAddress(toInput);
-                  }
-                  if (e.key === 'Backspace' && !toInput && toAddresses.length > 0) {
-                    removeToAddress(toAddresses[toAddresses.length - 1]);
-                  }
-                }}
-                onBlur={() => {
-                  setTimeout(() => setShowContactDropdown(false), 150);
-                  if (toInput.trim()) addToAddress(toInput);
-                }}
-                placeholder={toAddresses.length === 0 ? 'E-postadress… (Enter eller komma för att lägga till)' : ''}
-                className="w-full text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none"
+              <ContactAutocomplete
+                value={toAddresses}
+                onChange={setToAddresses}
+                placeholder="E-postadress…"
               />
-              {/* Contact autocomplete dropdown */}
-              {showContactDropdown && filteredContacts.length > 0 && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg z-10 overflow-hidden">
-                  {filteredContacts.map((contact) => (
-                    <button
-                      key={contact.emailAddress}
-                      onMouseDown={(e) => { e.preventDefault(); addToAddress(contact.emailAddress); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 text-left transition-colors"
-                    >
-                      <div className="w-7 h-7 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center text-brand-600 dark:text-brand-400 text-xs font-bold shrink-0">
-                        {(contact.displayName || contact.emailAddress)[0].toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        {contact.displayName && (
-                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{contact.displayName}</div>
-                        )}
-                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{contact.emailAddress}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
-            <div className="flex items-center gap-2 shrink-0 mt-1.5">
+            <div className="flex items-center gap-2 shrink-0 mt-2.5">
               <button
                 onClick={() => setCcVisible(!ccVisible)}
                 className={`text-xs hover:text-brand-500 ${ccVisible ? 'text-brand-500' : 'text-gray-400'}`}
@@ -676,63 +627,29 @@ function ComposePageContent() {
             </div>
           </div>
 
-          {/* Cc */}
+          {/* Cc — ContactAutocomplete */}
           {ccVisible && (
             <div className="flex items-start gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-12 shrink-0 mt-1.5">Cc</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-12 shrink-0 mt-2">Cc</span>
               <div className="flex-1">
-                <div className="flex flex-wrap gap-1 mb-1">
-                  {ccAddresses.map((addr) => (
-                    <span key={addr} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-lg">
-                      {addr}
-                      <button onClick={() => removeCcAddress(addr)} className="hover:text-red-500">×</button>
-                    </span>
-                  ))}
-                </div>
-                <input
-                  type="text"
-                  value={ccInput}
-                  onChange={(e) => setCcInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.key === 'Enter' || e.key === ',') && ccInput.trim()) {
-                      e.preventDefault();
-                      addCcAddress(ccInput);
-                    }
-                  }}
-                  onBlur={() => { if (ccInput.trim()) addCcAddress(ccInput); }}
+                <ContactAutocomplete
+                  value={ccAddresses}
+                  onChange={setCcAddresses}
                   placeholder="Cc-adresser…"
-                  className="w-full text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none"
                 />
               </div>
             </div>
           )}
 
-          {/* Bcc */}
+          {/* Bcc — ContactAutocomplete */}
           {bccVisible && (
             <div className="flex items-start gap-3 px-5 py-3 border-b border-gray-100 dark:border-gray-700">
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-12 shrink-0 mt-1.5">Bcc</span>
+              <span className="text-sm font-medium text-gray-500 dark:text-gray-400 w-12 shrink-0 mt-2">Bcc</span>
               <div className="flex-1">
-                <div className="flex flex-wrap gap-1 mb-1">
-                  {bccAddresses.map((addr) => (
-                    <span key={addr} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 text-xs rounded-lg border border-purple-200 dark:border-purple-700">
-                      {addr}
-                      <button onClick={() => removeBccAddress(addr)} className="hover:text-red-500">×</button>
-                    </span>
-                  ))}
-                </div>
-                <input
-                  type="text"
-                  value={bccInput}
-                  onChange={(e) => setBccInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if ((e.key === 'Enter' || e.key === ',') && bccInput.trim()) {
-                      e.preventDefault();
-                      addBccAddress(bccInput);
-                    }
-                  }}
-                  onBlur={() => { if (bccInput.trim()) addBccAddress(bccInput); }}
+                <ContactAutocomplete
+                  value={bccAddresses}
+                  onChange={setBccAddresses}
                   placeholder="Bcc-adresser…"
-                  className="w-full text-sm bg-transparent text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none"
                 />
               </div>
             </div>

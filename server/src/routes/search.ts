@@ -6,8 +6,119 @@ import { FastifyInstance } from 'fastify';
 import { prisma } from '../config/database';
 import { authMiddleware } from '../middleware/auth.middleware';
 
+interface ContactResult {
+  email: string;
+  displayName: string | null;
+  lastContactAt: string | null;
+  totalEmails: number;
+}
+
 export async function searchRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
+
+  /**
+   * GET /contacts/search?q=&limit=10 — Sprint 4: Contact autocomplete search.
+   * Searches ContactProfile + email message addresses, deduplicates, sorts by recency.
+   */
+  fastify.get('/contacts/search', async (request) => {
+    const { q = '', limit: limitStr = '10' } = request.query as { q?: string; limit?: string };
+    const limit = Math.min(parseInt(limitStr, 10), 30);
+    const search = q.trim().toLowerCase();
+
+    // Pull from ContactProfile
+    const profileResults = await prisma.contactProfile.findMany({
+      where: {
+        userId: request.userId!,
+        OR: search ? [
+          { emailAddress: { contains: search, mode: 'insensitive' } },
+          { displayName: { contains: search, mode: 'insensitive' } },
+        ] : undefined,
+      },
+      orderBy: { lastContactAt: 'desc' },
+      take: limit,
+      select: { emailAddress: true, displayName: true, lastContactAt: true, totalEmails: true },
+    });
+
+    // Also pull recent senders from EmailMessage if search is active
+    let emailResults: ContactResult[] = [];
+    if (search) {
+      const messages = await prisma.emailMessage.findMany({
+        where: {
+          thread: { account: { userId: request.userId! } },
+          OR: [
+            { fromAddress: { contains: search, mode: 'insensitive' } },
+          ],
+        },
+        select: { fromAddress: true, receivedAt: true },
+        orderBy: { receivedAt: 'desc' },
+        take: 20,
+      });
+      // Deduplicate by email
+      const seen = new Set<string>();
+      for (const m of messages) {
+        const email = m.fromAddress.replace(/.*<(.+?)>/, '$1').trim();
+        if (!seen.has(email)) {
+          seen.add(email);
+          emailResults.push({ email, displayName: null, lastContactAt: m.receivedAt?.toISOString() ?? null, totalEmails: 1 });
+        }
+      }
+    }
+
+    // Merge: prefer ContactProfile entries, fall back to emailResults
+    const map = new Map<string, ContactResult>();
+    for (const p of profileResults) {
+      map.set(p.emailAddress.toLowerCase(), {
+        email: p.emailAddress,
+        displayName: p.displayName,
+        lastContactAt: p.lastContactAt?.toISOString() ?? null,
+        totalEmails: p.totalEmails,
+      });
+    }
+    for (const e of emailResults) {
+      if (!map.has(e.email.toLowerCase())) {
+        map.set(e.email.toLowerCase(), e);
+      }
+    }
+
+    const results = Array.from(map.values())
+      .sort((a, b) => {
+        if (!a.lastContactAt) return 1;
+        if (!b.lastContactAt) return -1;
+        return new Date(b.lastContactAt).getTime() - new Date(a.lastContactAt).getTime();
+      })
+      .slice(0, limit);
+
+    return { contacts: results };
+  });
+
+  /**
+   * GET /contacts/recent?limit=5 — Sprint 4: Most recently contacted.
+   */
+  fastify.get('/contacts/recent', async (request) => {
+    const { limit: limitStr = '5' } = request.query as { limit?: string };
+    const limit = Math.min(parseInt(limitStr, 10), 20);
+
+    const since30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const contacts = await prisma.contactProfile.findMany({
+      where: {
+        userId: request.userId!,
+        lastContactAt: { gte: since30Days },
+      },
+      orderBy: { lastContactAt: 'desc' },
+      take: limit,
+      select: { emailAddress: true, displayName: true, lastContactAt: true, totalEmails: true },
+    });
+
+    return {
+      contacts: contacts.map((c) => ({
+        email: c.emailAddress,
+        displayName: c.displayName,
+        lastContactAt: c.lastContactAt?.toISOString() ?? null,
+        totalEmails: c.totalEmails,
+      })),
+    };
+  });
 
   /**
    * GET /search — Advanced search with filters. Saves to search history.

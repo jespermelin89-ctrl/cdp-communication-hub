@@ -23,6 +23,24 @@ export function buildMessageLookupWhere(threadId: string, messageId: string) {
   };
 }
 
+export function buildThreadPage<T extends { id: string; lastMessageAt: Date | null }>(
+  threadsRaw: T[],
+  limit: number
+) {
+  const hasMoreCursor = threadsRaw.length > limit;
+  const threads = hasMoreCursor ? threadsRaw.slice(0, limit) : threadsRaw;
+  const lastThread = threads[threads.length - 1];
+  const nextCursor = (hasMoreCursor && lastThread?.lastMessageAt && lastThread?.id)
+    ? Buffer.from(`${lastThread.lastMessageAt.toISOString()}::${lastThread.id}`).toString('base64')
+    : null;
+
+  return {
+    hasMoreCursor,
+    nextCursor,
+    threads,
+  };
+}
+
 export async function threadRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
 
@@ -153,16 +171,15 @@ export async function threadRoutes(fastify: FastifyInstance) {
       }),
     ]);
 
-    // Determine hasMore and nextCursor from the extra item
-    const hasMoreCursor = threadsRaw.length > limit;
-    const threads = hasMoreCursor ? threadsRaw.slice(0, limit) : threadsRaw;
     const accountCounts: Record<string, number> = {};
     for (const row of accountCountsRaw) {
       accountCounts[row.accountId] = row._count;
     }
 
+    let pageData = buildThreadPage(threadsRaw, limit);
+
     // Gmail search fallback: if local results are sparse, query Gmail API and sync missing threads
-    if (search && threads.length < 5) {
+    if (search && pageData.threads.length < 5) {
       try {
         // Find all Gmail accounts in scope
         const gmailAccounts = await prisma.emailAccount.findMany({
@@ -175,43 +192,26 @@ export async function threadRoutes(fastify: FastifyInstance) {
           select: { id: true },
         });
 
-        const localGmailThreadIds = new Set(threads.map((t) => t.gmailThreadId));
-
         await Promise.allSettled(
           gmailAccounts.map(async (acc) => {
-            const gmailMessages = await gmailService.searchMessages(acc.id, search, 10);
-            // Deduplicate by threadId and sync only threads not already local
-            const seenThreadIds = new Set<string>();
-            for (const msg of gmailMessages) {
-              const gmailThreadId = msg.threadId ?? msg.id;
-              if (!gmailThreadId || seenThreadIds.has(gmailThreadId) || localGmailThreadIds.has(gmailThreadId)) continue;
-              seenThreadIds.add(gmailThreadId);
-              try {
-                await emailProviderFactory.fetchMessages(acc.id, gmailThreadId);
-              } catch {
-                // Non-fatal: skip individual thread sync failures
-              }
-            }
+            await gmailService.fetchThreads(acc.id, {
+              query: search,
+              maxResults: 10,
+            });
           })
         );
 
         // Re-fetch after sync
-        const refetchedRaw = await prisma.emailThread.findMany(threadSelect);
+        threadsRaw = await prisma.emailThread.findMany(threadSelect);
         total = await prisma.emailThread.count({ where });
-        threadsRaw = refetchedRaw;
+        pageData = buildThreadPage(threadsRaw, limit);
       } catch {
         // Non-fatal: return whatever local results we have
       }
     }
 
-    // Build next cursor from last thread in result
-    const lastThread = threads[threads.length - 1];
-    const nextCursor = (hasMoreCursor && lastThread?.lastMessageAt && lastThread?.id)
-      ? Buffer.from(`${lastThread.lastMessageAt.toISOString()}::${lastThread.id}`).toString('base64')
-      : null;
-
     return {
-      threads: threads.map((t) => ({
+      threads: pageData.threads.map((t) => ({
         ...t,
         latestAnalysis: (t.analyses as any[])[0] || null,
         analyses: undefined,
@@ -221,8 +221,8 @@ export async function threadRoutes(fastify: FastifyInstance) {
       totalCount: total,
       page,
       pageSize: limit,
-      hasMore: cursor ? hasMoreCursor : (page * limit < total),
-      nextCursor,
+      hasMore: cursor ? pageData.hasMoreCursor : (page * limit < total),
+      nextCursor: pageData.nextCursor,
       mailbox: mailbox ?? 'inbox',
       accountCounts, // unread count per accountId for unified inbox header
     };

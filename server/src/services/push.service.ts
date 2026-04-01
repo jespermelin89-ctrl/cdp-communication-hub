@@ -11,6 +11,14 @@ import { env } from '../config/env';
 
 let vapidConfigured = false;
 
+function markDeliveredMetadata(metadata: unknown): Record<string, unknown> {
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    return { ...(metadata as Record<string, unknown>), delivered: true };
+  }
+
+  return { delivered: true };
+}
+
 function ensureVapid() {
   if (vapidConfigured) return;
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) return;
@@ -95,7 +103,6 @@ export async function sendDigest(userId: string): Promise<void> {
       userId,
       actionType: 'notification_queued',
       createdAt: { gte: since },
-      metadata: { path: ['delivered'], equals: true }, // exclude already-delivered
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
@@ -116,8 +123,12 @@ export async function sendDigest(userId: string): Promise<void> {
   });
 
   // Mark all as delivered
-  await prisma.actionLog.updateMany({
-    where: { id: { in: pending.map((q) => q.id) } },
-    data: { metadata: { delivered: true } as any },
-  });
+  await Promise.all(
+    pending.map((q) =>
+      prisma.actionLog.update({
+        where: { id: q.id },
+        data: { metadata: markDeliveredMetadata(q.metadata) as any },
+      })
+    )
+  );
 }

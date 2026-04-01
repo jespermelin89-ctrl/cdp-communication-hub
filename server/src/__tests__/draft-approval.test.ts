@@ -323,7 +323,7 @@ describe('DraftService.send — safety gate', () => {
     );
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'sent', gmailMessageId: 'gmail-msg-123' }),
+        data: expect.objectContaining({ status: 'sent', gmailMessageId: 'gmail-msg-123', scheduledAt: null }),
       })
     );
   });
@@ -358,7 +358,7 @@ describe('DraftService.send — safety gate', () => {
     await expect(draftService.send(DRAFT_ID, USER_ID)).rejects.toThrow('Gmail API error');
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'failed' }),
+        data: expect.objectContaining({ status: 'failed', scheduledAt: null }),
       })
     );
   });

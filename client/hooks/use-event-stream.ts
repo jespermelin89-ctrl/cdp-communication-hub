@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { mutate } from 'swr';
 import { api } from '@/lib/api';
+import { isDraftCacheKey, isThreadCacheKey } from '@/lib/cache-keys';
 
 export type StreamStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -36,7 +37,7 @@ export function useEventStream(): StreamStatus {
     if (typeof EventSource === 'undefined') {
       // Fallback: poll every 30s
       const interval = setInterval(() => {
-        mutate((key: string) => key?.startsWith('/threads'));
+        mutate(isThreadCacheKey);
       }, 30_000);
       return () => clearInterval(interval);
     }
@@ -54,7 +55,7 @@ export function useEventStream(): StreamStatus {
     es.addEventListener('thread:new', (e: MessageEvent) => {
       try {
         // Revalidate thread list
-        mutate((key: unknown) => typeof key === 'string' && key.startsWith('/threads'));
+        mutate(isThreadCacheKey);
       } catch {
         // ignore
       }
@@ -66,7 +67,7 @@ export function useEventStream(): StreamStatus {
         if (data?.threadId) {
           mutate(`/threads/${data.threadId}`);
         }
-        mutate((key: unknown) => typeof key === 'string' && key.startsWith('/threads'));
+        mutate(isThreadCacheKey);
       } catch {
         // ignore
       }
@@ -74,14 +75,14 @@ export function useEventStream(): StreamStatus {
 
     es.addEventListener('draft:status', (e: MessageEvent) => {
       try {
-        mutate((key: unknown) => typeof key === 'string' && key.startsWith('/drafts'));
+        mutate(isDraftCacheKey);
       } catch {
         // ignore
       }
     });
 
     es.addEventListener('sync:complete', () => {
-      mutate((key: unknown) => typeof key === 'string' && key.startsWith('/threads'));
+      mutate(isThreadCacheKey);
     });
 
     es.addEventListener('thread:unsnoozed', (e: MessageEvent) => {
@@ -90,7 +91,7 @@ export function useEventStream(): StreamStatus {
         if (data?.threadId) {
           mutate(`/threads/${data.threadId}`);
         }
-        mutate((key: unknown) => typeof key === 'string' && key.startsWith('/threads'));
+        mutate(isThreadCacheKey);
       } catch {
         // ignore
       }

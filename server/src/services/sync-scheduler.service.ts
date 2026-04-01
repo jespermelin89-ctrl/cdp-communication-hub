@@ -704,7 +704,7 @@ async function wakeSnoozedThreads(): Promise<void> {
 
 async function sendScheduledDrafts(): Promise<void> {
   const now = new Date();
-  let ready: Array<{ id: string; subject: string; account: { userId: string } }> = [];
+  let ready: Array<{ id: string; subject: string; status: string; account: { userId: string } }> = [];
 
   try {
     ready = await prisma.draft.findMany({
@@ -712,7 +712,7 @@ async function sendScheduledDrafts(): Promise<void> {
         scheduledAt: { lte: now },
         status: { in: ['approved', 'sending'] },
       },
-      select: { id: true, subject: true, account: { select: { userId: true } } },
+      select: { id: true, subject: true, status: true, account: { select: { userId: true } } },
     });
   } catch {
     return; // DB unavailable — skip
@@ -722,6 +722,14 @@ async function sendScheduledDrafts(): Promise<void> {
 
   for (const draft of ready) {
     try {
+      // Normalize legacy undo-send drafts that were stored as "sending".
+      if (draft.status === 'sending') {
+        await prisma.draft.update({
+          where: { id: draft.id },
+          data: { status: 'approved' },
+        });
+      }
+
       await draftService.send(draft.id, draft.account.userId);
 
       await prisma.actionLog.create({

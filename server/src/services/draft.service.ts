@@ -199,6 +199,7 @@ export class DraftService {
             status: 'sent',
             gmailMessageId: result.messageId,
             sentAt: new Date(),
+            scheduledAt: null,
           },
         });
 
@@ -225,6 +226,7 @@ export class DraftService {
           data: {
             status: 'failed',
             errorMessage: error.message || 'Unknown error during send',
+            scheduledAt: null,
           },
         });
 

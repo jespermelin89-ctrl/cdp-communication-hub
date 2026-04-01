@@ -394,7 +394,7 @@ class ApiClient {
   }
 
   // Sprint 5 — Undo Send
-  async sendDelayed(draftId: string, delaySeconds?: number): Promise<{ draft: any; scheduledAt: string; delaySeconds: number }> {
+  async sendDelayed(draftId: string, delaySeconds?: number): Promise<{ draft: any; scheduledAt: string | null; delaySeconds: number; sentImmediately?: boolean }> {
     return this.request('POST', `/drafts/${draftId}/send-delayed`, { delay_seconds: delaySeconds });
   }
   async cancelSend(draftId: string): Promise<{ cancelled: boolean; draft?: any }> {

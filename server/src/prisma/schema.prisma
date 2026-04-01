@@ -178,7 +178,7 @@ model Draft {
   bodyText       String    @map("body_text")
   bodyHtml       String?   @map("body_html")
   attachments    Json?     @default("[]") @map("attachments") // [{id, filename, mimeType, size, data}]
-  status         String    @default("pending") // pending|approved|sending|sent|failed|discarded
+  status         String    @default("pending") // pending|approved|sent|failed|discarded (legacy "sending" may still exist)
   gmailMessageId String?   @map("gmail_message_id") // set after successful send
   approvedAt     DateTime? @map("approved_at")
   sentAt         DateTime? @map("sent_at")

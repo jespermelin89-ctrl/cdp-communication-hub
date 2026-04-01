@@ -2,8 +2,8 @@
  * Tests for undo-send / delayed-send logic
  *
  * Pure unit tests — no DB, no network.
- * Validates delay clamping, cancellability window, and
- * status-transition rules used in the drafts routes.
+ * Validates delay handling, cancellability window, and
+ * delayed-send status rules used in the drafts routes.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -30,14 +30,18 @@ function isCancellable(scheduledAt: Date, nowMs: number): boolean {
   return scheduledAt.getTime() > nowMs;
 }
 
-function canTransitionToSending(currentStatus: string): boolean {
-  return currentStatus === 'approved';
+function canQueueDelayedSend(currentStatus: string): boolean {
+  return currentStatus === 'pending' || currentStatus === 'approved';
 }
 
-function canCancelSending(currentStatus: string, scheduledAt: Date | null, nowMs: number): boolean {
-  if (currentStatus !== 'sending') return false;
+function canCancelDelayedSend(currentStatus: string, scheduledAt: Date | null, nowMs: number): boolean {
+  if (currentStatus !== 'approved') return false;
   if (!scheduledAt) return false;
   return isCancellable(scheduledAt, nowMs);
+}
+
+function shouldSendImmediately(delaySeconds: number): boolean {
+  return delaySeconds <= 0;
 }
 
 // ──────────────────────────────────────────────
@@ -122,44 +126,63 @@ describe('isCancellable', () => {
 });
 
 // ──────────────────────────────────────────────
-// canTransitionToSending
+// canQueueDelayedSend
 // ──────────────────────────────────────────────
 
-describe('canTransitionToSending', () => {
-  it('allows transition from approved', () => {
-    expect(canTransitionToSending('approved')).toBe(true);
+describe('canQueueDelayedSend', () => {
+  it('allows delayed send from pending and approved', () => {
+    expect(canQueueDelayedSend('pending')).toBe(true);
+    expect(canQueueDelayedSend('approved')).toBe(true);
   });
 
   it('disallows transition from other statuses', () => {
-    for (const s of ['draft', 'sending', 'sent', 'failed', 'pending_approval']) {
-      expect(canTransitionToSending(s)).toBe(false);
+    for (const s of ['draft', 'sending', 'sent', 'failed', 'pending_approval', 'discarded']) {
+      expect(canQueueDelayedSend(s)).toBe(false);
     }
   });
 });
 
 // ──────────────────────────────────────────────
-// canCancelSending
+// canCancelDelayedSend
 // ──────────────────────────────────────────────
 
-describe('canCancelSending', () => {
+describe('canCancelDelayedSend', () => {
   const now = 1_700_000_000_000;
   const future = new Date(now + 5_000);
   const past = new Date(now - 1);
 
-  it('allows cancellation when status is sending and scheduledAt is future', () => {
-    expect(canCancelSending('sending', future, now)).toBe(true);
+  it('allows cancellation when status is approved and scheduledAt is future', () => {
+    expect(canCancelDelayedSend('approved', future, now)).toBe(true);
   });
 
   it('disallows cancellation when scheduledAt is past', () => {
-    expect(canCancelSending('sending', past, now)).toBe(false);
+    expect(canCancelDelayedSend('approved', past, now)).toBe(false);
   });
 
-  it('disallows cancellation when status is not sending', () => {
-    expect(canCancelSending('approved', future, now)).toBe(false);
-    expect(canCancelSending('sent', future, now)).toBe(false);
+  it('disallows cancellation when status is not approved', () => {
+    expect(canCancelDelayedSend('pending', future, now)).toBe(false);
+    expect(canCancelDelayedSend('sent', future, now)).toBe(false);
   });
 
   it('disallows cancellation when scheduledAt is null', () => {
-    expect(canCancelSending('sending', null, now)).toBe(false);
+    expect(canCancelDelayedSend('approved', null, now)).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────
+// shouldSendImmediately
+// ──────────────────────────────────────────────
+
+describe('shouldSendImmediately', () => {
+  it('treats 0 seconds as immediate send', () => {
+    expect(shouldSendImmediately(0)).toBe(true);
+  });
+
+  it('treats negative values as immediate send', () => {
+    expect(shouldSendImmediately(-1)).toBe(true);
+  });
+
+  it('does not treat positive delays as immediate send', () => {
+    expect(shouldSendImmediately(1)).toBe(false);
   });
 });

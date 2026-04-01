@@ -489,6 +489,11 @@ function ComposePageContent() {
       await api.approveDraft(created.draft.id);
       // Use delayed send with undo window
       const delayedRes = await api.sendDelayed(created.draft.id);
+      if (delayedRes.sentImmediately || delayedRes.delaySeconds <= 0) {
+        toast.success('Mail skickat!');
+        router.push('/inbox');
+        return;
+      }
       const outcome = await showUndoSendToast(created.draft.id, delayedRes.delaySeconds);
       if (outcome === 'sent') {
         toast.success('Mail skickat!');

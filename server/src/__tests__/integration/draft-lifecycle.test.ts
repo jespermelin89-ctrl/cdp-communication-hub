@@ -34,7 +34,7 @@ function discardDraft(draft: Draft): Draft {
 }
 
 function scheduleDraft(draft: Draft, at: Date): Draft {
-  if (draft.status !== 'pending') throw new Error('Only pending drafts can be scheduled');
+  if (draft.status !== 'approved') throw new Error('Only approved drafts can be scheduled');
   return { ...draft, scheduledAt: at };
 }
 
@@ -88,11 +88,11 @@ describe('draft lifecycle — state transitions', () => {
     expect(() => discardDraft({ ...base, status: 'sent' })).toThrow();
   });
 
-  it('schedule sets scheduledAt on pending draft', () => {
+  it('schedule sets scheduledAt on approved draft', () => {
     const at = new Date('2026-04-01T08:00:00Z');
-    const d = scheduleDraft(base, at);
+    const d = scheduleDraft({ ...base, status: 'approved' }, at);
     expect(d.scheduledAt).toEqual(at);
-    expect(d.status).toBe('pending'); // status unchanged
+    expect(d.status).toBe('approved'); // status unchanged
   });
 
   it('cancel schedule clears scheduledAt', () => {
@@ -122,12 +122,12 @@ describe('draft lifecycle — state transitions', () => {
     expect(d.status).toBe('sent');
   });
 
-  it('full scheduled path: pending → schedule → approve → send', () => {
+  it('full scheduled path: pending → approve → schedule → send', () => {
     let d = base;
-    d = scheduleDraft(d, new Date('2026-04-02T08:00:00Z'));
-    expect(d.scheduledAt).toBeDefined();
     d = approveDraft(d);
     expect(d.status).toBe('approved');
+    d = scheduleDraft(d, new Date('2026-04-02T08:00:00Z'));
+    expect(d.scheduledAt).toBeDefined();
     d = sendDraft(d);
     expect(d.status).toBe('sent');
   });

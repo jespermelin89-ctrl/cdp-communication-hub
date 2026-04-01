@@ -300,7 +300,7 @@ export async function draftRoutes(fastify: FastifyInstance) {
   // ============================================================
 
   /**
-   * POST /drafts/:id/send-delayed — Approve + mark as 'sending' with delayed scheduledAt.
+   * POST /drafts/:id/send-delayed — Ensure approval, then schedule send after the undo window.
    * Body: { delay_seconds?: number } (default: user's undoSendDelay or 10s)
    */
   fastify.post('/drafts/:id/send-delayed', async (request, reply) => {
@@ -319,9 +319,18 @@ export async function draftRoutes(fastify: FastifyInstance) {
 
     // Get user's undo delay preference
     let delaySeconds = delay_seconds ?? 10;
-    if (!delay_seconds) {
+    if (delay_seconds === undefined) {
       const settings = await prisma.userSettings.findUnique({ where: { userId: request.userId } });
       if (settings?.undoSendDelay !== undefined) delaySeconds = settings.undoSendDelay;
+    }
+
+    if (draft.status === 'pending') {
+      await draftService.approve(id, request.userId);
+    }
+
+    if (delaySeconds <= 0) {
+      const sentDraft = await draftService.send(id, request.userId);
+      return { draft: sentDraft, scheduledAt: null, delaySeconds: 0, sentImmediately: true };
     }
 
     const scheduledAt = new Date(Date.now() + delaySeconds * 1000);
@@ -329,9 +338,8 @@ export async function draftRoutes(fastify: FastifyInstance) {
     const updated = await prisma.draft.update({
       where: { id },
       data: {
-        status: 'sending',
+        status: 'approved',
         scheduledAt,
-        approvedAt: new Date(),
       },
       include: { account: { select: { emailAddress: true, id: true } }, thread: { select: { id: true, subject: true } } },
     });
@@ -340,7 +348,7 @@ export async function draftRoutes(fastify: FastifyInstance) {
   });
 
   /**
-   * POST /drafts/:id/cancel-send — Cancel a delayed send (reverts to 'approved').
+   * POST /drafts/:id/cancel-send — Cancel a delayed send (reverts to unscheduled approved state).
    */
   fastify.post('/drafts/:id/cancel-send', async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -350,11 +358,14 @@ export async function draftRoutes(fastify: FastifyInstance) {
       where: { id, userId: request.userId },
     });
     if (!draft) return reply.code(404).send({ error: 'Draft not found' });
-    if (draft.status !== 'sending') {
-      return reply.code(400).send({ error: 'Draft is not in sending state' });
+    if (!['approved', 'sending'].includes(draft.status)) {
+      return reply.code(400).send({ error: 'Draft is not in a cancellable delayed-send state' });
+    }
+    if (!draft.scheduledAt) {
+      return reply.code(400).send({ error: 'Draft has no delayed send to cancel', cancelled: false });
     }
     // Check it hasn't passed the scheduled time yet
-    if (draft.scheduledAt && draft.scheduledAt < new Date()) {
+    if (draft.scheduledAt <= new Date()) {
       return reply.code(400).send({ error: 'Cannot cancel — email has already been sent', cancelled: false });
     }
 

@@ -550,6 +550,20 @@ const sv = {
     sendNote: 'Skapar utkast → godkänn → skickar direkt',
   },
 
+  // Bulk actions
+  bulk: {
+    selected: 'valda',
+    archive: 'Arkivera',
+    markRead: 'Markera läst',
+    markUnread: 'Markera oläst',
+    trash: 'Papperskorg',
+    classify: 'Klassificera',
+    selectAll: 'Välj alla',
+    deselectAll: 'Avmarkera alla',
+    priority: 'Prioritet',
+    cancel: 'Avbryt',
+  },
+
   // Brain Core insights
   brainInsights: {
     title: 'Inlärningsinsikter',

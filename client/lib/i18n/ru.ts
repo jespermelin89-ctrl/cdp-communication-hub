@@ -521,6 +521,18 @@ const ru: Translations = {
     cancelReply: 'Отмена',
     sendNote: 'Создаёт черновик → подтверждение → отправляет',
   },
+  bulk: {
+    selected: 'выбрано',
+    archive: 'Архивировать',
+    markRead: 'Отметить прочитанным',
+    markUnread: 'Отметить непрочитанным',
+    trash: 'Корзина',
+    classify: 'Классифицировать',
+    selectAll: 'Выбрать все',
+    deselectAll: 'Снять выбор',
+    priority: 'Приоритет',
+    cancel: 'Отмена',
+  },
   brainInsights: {
     title: 'Аналитика обучения',
     totalEvents: 'Всего событий',

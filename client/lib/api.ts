@@ -335,6 +335,23 @@ class ApiClient {
     return this.request('POST', '/threads/batch', { threadIds, action });
   }
 
+  // Sprint 1 — dedicated bulk endpoints
+  async bulkArchive(threadIds: string[]): Promise<{ updated: number }> {
+    return this.request('POST', '/threads/bulk/archive', { threadIds });
+  }
+  async bulkTrash(threadIds: string[]): Promise<{ updated: number }> {
+    return this.request('POST', '/threads/bulk/trash', { threadIds });
+  }
+  async bulkRead(threadIds: string[], isRead: boolean): Promise<{ updated: number }> {
+    return this.request('POST', '/threads/bulk/read', { threadIds, isRead });
+  }
+  async bulkClassifyThreads(threadIds: string[], classification: string): Promise<{ updated: number }> {
+    return this.request('POST', '/threads/bulk/classify', { threadIds, classification });
+  }
+  async bulkPriority(threadIds: string[], priority: string): Promise<{ updated: number }> {
+    return this.request('POST', '/threads/bulk/priority', { threadIds, priority });
+  }
+
   async restoreThread(id: string) {
     return this.request<{ message: string }>('POST', `/threads/${id}/restore`);
   }

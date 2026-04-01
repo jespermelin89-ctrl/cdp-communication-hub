@@ -523,6 +523,18 @@ const en: Translations = {
     cancelReply: 'Cancel',
     sendNote: 'Creates draft → approve → sends immediately',
   },
+  bulk: {
+    selected: 'selected',
+    archive: 'Archive',
+    markRead: 'Mark read',
+    markUnread: 'Mark unread',
+    trash: 'Trash',
+    classify: 'Classify',
+    selectAll: 'Select all',
+    deselectAll: 'Deselect all',
+    priority: 'Priority',
+    cancel: 'Cancel',
+  },
   brainInsights: {
     title: 'Learning insights',
     totalEvents: 'Total events',

@@ -521,6 +521,18 @@ const es: Translations = {
     cancelReply: 'Cancelar',
     sendNote: 'Crea borrador → aprueba → envía de inmediato',
   },
+  bulk: {
+    selected: 'seleccionados',
+    archive: 'Archivar',
+    markRead: 'Marcar como leído',
+    markUnread: 'Marcar como no leído',
+    trash: 'Papelera',
+    classify: 'Clasificar',
+    selectAll: 'Seleccionar todo',
+    deselectAll: 'Deseleccionar todo',
+    priority: 'Prioridad',
+    cancel: 'Cancelar',
+  },
   brainInsights: {
     title: 'Perspectivas de aprendizaje',
     totalEvents: 'Total de eventos',

@@ -909,4 +909,129 @@ export async function threadRoutes(fastify: FastifyInstance) {
       }
     }
   );
+
+  // ============================================================
+  // SPRINT 1 — Dedicated bulk endpoints
+  // ============================================================
+
+  /**
+   * POST /threads/bulk/archive — Bulk archive threads.
+   */
+  fastify.post('/threads/bulk/archive', async (request, reply) => {
+    const { threadIds } = request.body as { threadIds: string[] };
+    if (!Array.isArray(threadIds) || threadIds.length === 0)
+      return reply.code(400).send({ error: 'threadIds must be a non-empty array' });
+
+    const threads = await prisma.emailThread.findMany({
+      where: { id: { in: threadIds }, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+
+    await Promise.allSettled(threads.map(async (t) => {
+      if (t.account.provider === 'gmail') await gmailService.archiveThread(t.account.id, t.gmailThreadId).catch(() => {});
+      await prisma.emailThread.update({ where: { id: t.id }, data: { labels: t.labels.filter((l) => l !== 'INBOX') } });
+    }));
+
+    return { updated: threads.length };
+  });
+
+  /**
+   * POST /threads/bulk/trash — Bulk trash threads.
+   */
+  fastify.post('/threads/bulk/trash', async (request, reply) => {
+    const { threadIds } = request.body as { threadIds: string[] };
+    if (!Array.isArray(threadIds) || threadIds.length === 0)
+      return reply.code(400).send({ error: 'threadIds must be a non-empty array' });
+
+    const threads = await prisma.emailThread.findMany({
+      where: { id: { in: threadIds }, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+
+    await Promise.allSettled(threads.map(async (t) => {
+      if (t.account.provider === 'gmail') await gmailService.trashThread(t.account.id, t.gmailThreadId).catch(() => {});
+      await prisma.emailThread.update({
+        where: { id: t.id },
+        data: { labels: [...t.labels.filter((l) => l !== 'INBOX'), 'TRASH'] },
+      });
+    }));
+
+    return { updated: threads.length };
+  });
+
+  /**
+   * POST /threads/bulk/read — Bulk mark read/unread.
+   */
+  fastify.post('/threads/bulk/read', async (request, reply) => {
+    const { threadIds, isRead } = request.body as { threadIds: string[]; isRead: boolean };
+    if (!Array.isArray(threadIds) || threadIds.length === 0)
+      return reply.code(400).send({ error: 'threadIds must be a non-empty array' });
+
+    const threads = await prisma.emailThread.findMany({
+      where: { id: { in: threadIds }, account: { userId: request.userId } },
+      include: { account: { select: { id: true, provider: true } } },
+    });
+
+    await Promise.allSettled(threads.map(async (t) => {
+      if (t.account.provider === 'gmail') {
+        if (isRead) await gmailService.markAsRead(t.account.id, t.gmailThreadId).catch(() => {});
+        else await gmailService.markAsUnread(t.account.id, t.gmailThreadId).catch(() => {});
+      }
+      await prisma.emailThread.update({ where: { id: t.id }, data: { isRead } });
+    }));
+
+    return { updated: threads.length };
+  });
+
+  /**
+   * POST /threads/bulk/classify — Bulk set classification on AI analysis.
+   */
+  fastify.post('/threads/bulk/classify', async (request, reply) => {
+    const { threadIds, classification } = request.body as { threadIds: string[]; classification: string };
+    if (!Array.isArray(threadIds) || threadIds.length === 0)
+      return reply.code(400).send({ error: 'threadIds must be a non-empty array' });
+    if (!classification) return reply.code(400).send({ error: 'classification is required' });
+
+    // Only threads owned by user
+    const threads = await prisma.emailThread.findMany({
+      where: { id: { in: threadIds }, account: { userId: request.userId } },
+      select: { id: true },
+    });
+    const validIds = threads.map((t) => t.id);
+
+    // Update the latest AI analysis for each thread
+    await Promise.allSettled(validIds.map(async (threadId) => {
+      const latest = await prisma.aIAnalysis.findFirst({ where: { threadId }, orderBy: { createdAt: 'desc' } });
+      if (latest) {
+        await prisma.aIAnalysis.update({ where: { id: latest.id }, data: { classification } });
+      }
+    }));
+
+    return { updated: validIds.length };
+  });
+
+  /**
+   * POST /threads/bulk/priority — Bulk set priority on AI analysis.
+   */
+  fastify.post('/threads/bulk/priority', async (request, reply) => {
+    const { threadIds, priority } = request.body as { threadIds: string[]; priority: string };
+    if (!Array.isArray(threadIds) || threadIds.length === 0)
+      return reply.code(400).send({ error: 'threadIds must be a non-empty array' });
+    if (!priority) return reply.code(400).send({ error: 'priority is required' });
+
+    const threads = await prisma.emailThread.findMany({
+      where: { id: { in: threadIds }, account: { userId: request.userId } },
+      select: { id: true },
+    });
+    const validIds = threads.map((t) => t.id);
+
+    await Promise.allSettled(validIds.map(async (threadId) => {
+      const latest = await prisma.aIAnalysis.findFirst({ where: { threadId }, orderBy: { createdAt: 'desc' } });
+      if (latest) {
+        await prisma.aIAnalysis.update({ where: { id: latest.id }, data: { priority } });
+      }
+    }));
+
+    return { updated: validIds.length };
+  });
 }

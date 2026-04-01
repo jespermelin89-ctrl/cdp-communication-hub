@@ -10,7 +10,7 @@ import PriorityBadge from '@/components/PriorityBadge';
 import AccountBadge from '@/components/AccountBadge';
 import AccountDropdown from '@/components/AccountDropdown';
 import SwipeableThread from '@/components/SwipeableThread';
-import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon, WifiOff, Star, MailX, Send, Clock } from 'lucide-react';
+import { Archive, Trash2, AlertCircle, Bot, RefreshCw, ArrowUpDown, Inbox as InboxIcon, WifiOff, Star, MailX, Send, Clock, Mail, MailOpen, Tag, AlertTriangle, X, CheckSquare } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PullToRefresh from '@/components/PullToRefresh';
@@ -98,6 +98,9 @@ export default function InboxPage() {
   const [labelFilter, setLabelFilter] = useState('');
   const [starringIds, setStarringIds] = useState<Set<string>>(new Set());
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [bulkClassifyOpen, setBulkClassifyOpen] = useState(false);
+  const [bulkPriorityOpen, setBulkPriorityOpen] = useState(false);
   const [savedViews, setSavedViews] = useState<any[]>([]);
   const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [saveViewOpen, setSaveViewOpen] = useState(false);
@@ -401,7 +404,9 @@ export default function InboxPage() {
       return next;
     }),
     e: () => {
-      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+      if (selectedIds.size > 0) {
+        api.bulkArchive(Array.from(selectedIds)).then(() => { setSelectedIds(new Set()); setIsSelectMode(false); return mutateThreads(); }).catch(() => {});
+      } else if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
         handleArchive(visibleThreads[focusedIndex].id);
       }
     },
@@ -424,7 +429,10 @@ export default function InboxPage() {
       }
     },
     '#': () => {
-      if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
+      if (selectedIds.size > 0) {
+        setBatchTrashPending(Array.from(selectedIds));
+        setBatchTrashOpen(true);
+      } else if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
         setTrashConfirmId(visibleThreads[focusedIndex].id);
       }
     },
@@ -457,12 +465,25 @@ export default function InboxPage() {
     '?': () => {
       window.dispatchEvent(new Event('cdp:shortcuts-help'));
     },
+    escape: () => {
+      if (selectedIds.size > 0) {
+        setSelectedIds(new Set());
+        setIsSelectMode(false);
+        setBulkClassifyOpen(false);
+        setBulkPriorityOpen(false);
+      }
+    },
+    'cmd+a': () => {
+      setSelectedIds(new Set(visibleThreads.map((th) => th.id)));
+      setIsSelectMode(true);
+    },
   });
 
   async function executeBatchTrash() {
     setBatchTrashOpen(false);
-    await api.batchThreadAction(batchTrashPending, 'trash');
+    await api.bulkTrash(batchTrashPending);
     setSelectedIds(new Set());
+    setIsSelectMode(false);
     toast.success(`${batchTrashPending.length} trådar flyttade till papperskorgen`);
     setBatchTrashPending([]);
     await mutateThreads();
@@ -826,35 +847,139 @@ export default function InboxPage() {
           ))}
         </div>
 
-        {/* Bulk Actions Bar */}
+        {/* Bulk Actions Toolbar — fixed above thread list when threads selected */}
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-xl flex-wrap">
-            <span className="text-sm font-medium text-brand-700 dark:text-brand-300">
-              {selectedIds.size} {t.inbox.selected}
+          <div className="flex items-center gap-2 mb-4 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl flex-wrap sticky top-32 z-30 shadow-sm">
+            <CheckSquare size={16} className="text-blue-600 dark:text-blue-400 shrink-0" />
+            <span className="text-sm font-semibold text-blue-700 dark:text-blue-300 shrink-0">
+              {selectedIds.size} {t.bulk?.selected ?? 'valda'}
             </span>
+            <div className="w-px h-4 bg-blue-200 dark:bg-blue-700 shrink-0" />
+            {/* Archive */}
+            <button
+              onClick={async () => {
+                const ids = Array.from(selectedIds);
+                await api.bulkArchive(ids);
+                setSelectedIds(new Set());
+                setIsSelectMode(false);
+                await mutateThreads();
+                toast.success(`${ids.length} trådar arkiverade`);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
+            >
+              <Archive size={14} /> {t.bulk?.archive ?? 'Arkivera'}
+            </button>
+            {/* Mark read */}
+            <button
+              onClick={async () => {
+                const ids = Array.from(selectedIds);
+                await api.bulkRead(ids, true);
+                setSelectedIds(new Set());
+                setIsSelectMode(false);
+                await mutateThreads();
+                toast.success(`${ids.length} markerade som lästa`);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
+            >
+              <MailOpen size={14} /> {t.bulk?.markRead ?? 'Markera läst'}
+            </button>
+            {/* Mark unread */}
+            <button
+              onClick={async () => {
+                const ids = Array.from(selectedIds);
+                await api.bulkRead(ids, false);
+                setSelectedIds(new Set());
+                setIsSelectMode(false);
+                await mutateThreads();
+                toast.success(`${ids.length} markerade som olästa`);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
+            >
+              <Mail size={14} /> {t.bulk?.markUnread ?? 'Markera oläst'}
+            </button>
+            {/* Trash */}
+            <button
+              onClick={() => {
+                setBatchTrashPending(Array.from(selectedIds));
+                setBatchTrashOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <Trash2 size={14} /> {t.bulk?.trash ?? 'Papperskorg'}
+            </button>
+            {/* Classify dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => { setBulkClassifyOpen((o) => !o); setBulkPriorityOpen(false); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
+              >
+                <Tag size={14} /> {t.bulk?.classify ?? 'Klassificera'}
+              </button>
+              {bulkClassifyOpen && (
+                <div className="absolute top-full mt-1 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg min-w-[160px] py-1">
+                  {['lead', 'partner', 'personal', 'spam', 'operational', 'founder', 'outreach'].map((cls) => (
+                    <button
+                      key={cls}
+                      onClick={async () => {
+                        setBulkClassifyOpen(false);
+                        const ids = Array.from(selectedIds);
+                        await api.bulkClassifyThreads(ids, cls);
+                        setSelectedIds(new Set());
+                        setIsSelectMode(false);
+                        await mutateThreads();
+                        toast.success(`${ids.length} klassificerade som ${cls}`);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 capitalize"
+                    >
+                      {cls}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Priority dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => { setBulkPriorityOpen((o) => !o); setBulkClassifyOpen(false); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
+              >
+                <AlertTriangle size={14} /> {t.bulk?.priority ?? 'Prioritet'}
+              </button>
+              {bulkPriorityOpen && (
+                <div className="absolute top-full mt-1 left-0 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg min-w-[140px] py-1">
+                  {['high', 'medium', 'low'].map((p) => (
+                    <button
+                      key={p}
+                      onClick={async () => {
+                        setBulkPriorityOpen(false);
+                        const ids = Array.from(selectedIds);
+                        await api.bulkPriority(ids, p);
+                        setSelectedIds(new Set());
+                        setIsSelectMode(false);
+                        await mutateThreads();
+                        toast.success(`${ids.length} trådar prioriterade: ${p}`);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 capitalize"
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Analyze selected */}
             <button
               onClick={handleBulkAnalyze}
-              className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 underline flex items-center gap-1"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
             >
               <Bot size={14} /> {t.inbox.analyzeSelected}
             </button>
+            {/* Cancel */}
             <button
-              onClick={() => handleBatchAction('archive')}
-              className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 underline flex items-center gap-1"
+              onClick={() => { setSelectedIds(new Set()); setIsSelectMode(false); setBulkClassifyOpen(false); setBulkPriorityOpen(false); }}
+              className="ml-auto flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
             >
-              <Archive size={14} /> Arkivera valda
-            </button>
-            <button
-              onClick={() => handleBatchAction('trash')}
-              className="text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 underline flex items-center gap-1"
-            >
-              <Trash2 size={14} /> Radera valda
-            </button>
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="ml-auto text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              ✕
+              <X size={14} /> {t.bulk?.cancel ?? 'Avbryt'}
             </button>
           </div>
         )}
@@ -929,14 +1054,14 @@ export default function InboxPage() {
                     rightLabel="Öppna"
                   >
                   <div
-                    className={`bg-white dark:bg-gray-800 rounded-2xl border transition-all shadow-sm ${
+                    className={`rounded-2xl border transition-all shadow-sm ${
                       focusedIndex === visibleThreads.indexOf(thread)
-                        ? 'border-brand-400 dark:border-brand-600 ring-2 ring-brand-200 dark:ring-brand-800'
+                        ? 'bg-white dark:bg-gray-800 border-brand-400 dark:border-brand-600 ring-2 ring-brand-200 dark:ring-brand-800'
                         : isSelected
-                        ? 'border-brand-300 dark:border-brand-700 ring-1 ring-brand-200 dark:ring-brand-800'
+                        ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 ring-1 ring-blue-200 dark:ring-blue-800'
                         : isUnread
-                        ? 'border-l-4 border-l-brand-500 border-gray-200 dark:border-gray-700'
-                        : 'border-gray-200 dark:border-gray-700'
+                        ? 'bg-white dark:bg-gray-800 border-l-4 border-l-brand-500 border-gray-200 dark:border-gray-700'
+                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
                     }`}
                   >
                     {/* Thread Row */}

@@ -521,6 +521,14 @@ const ru: Translations = {
     cancelReply: 'Отмена',
     sendNote: 'Создаёт черновик → подтверждение → отправляет',
   },
+  undoSend: {
+    sending: 'Письмо отправится через',
+    undo: 'Отменить',
+    cancelled: 'Отправка отменена',
+    sent: 'Письмо отправлено!',
+    delay: 'Окно отмены',
+    delayDescription: 'Секунд перед отправкой (0 = сразу)',
+  },
   signatures: {
     title: 'Подписи',
     configured: 'Настроена',

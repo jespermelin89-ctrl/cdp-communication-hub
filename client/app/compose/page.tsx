@@ -14,6 +14,7 @@ import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import type { Account } from '@/lib/types';
 import RichTextEditor from '@/components/RichTextEditor';
 import ContactAutocomplete from '@/components/ContactAutocomplete';
+import { showUndoSendToast } from '@/components/UndoSendToast';
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -486,9 +487,16 @@ function ComposePageContent() {
         ...(editorMode === 'rich' && bodyHtml ? { body_html: bodyHtml } : {}),
       } as any);
       await api.approveDraft(created.draft.id);
-      await api.sendDraft(created.draft.id);
-      toast.success('Mail skickat!');
-      router.push('/inbox');
+      // Use delayed send with undo window
+      const delayedRes = await api.sendDelayed(created.draft.id);
+      const outcome = await showUndoSendToast(created.draft.id, delayedRes.delaySeconds);
+      if (outcome === 'sent') {
+        toast.success('Mail skickat!');
+        router.push('/inbox');
+      } else {
+        // Cancelled — go to drafts so user can edit
+        router.push('/drafts');
+      }
     } catch (err: any) {
       if (isDev) console.error('Send failed:', err);
       toast.error(`Misslyckades: ${err.message}`);

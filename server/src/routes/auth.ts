@@ -171,6 +171,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       digestEnabled?: boolean;
       digestTime?: number;
       uiTheme?: string;
+      undoSendDelay?: number;
     };
 
     const allowed: Record<string, unknown> = {};
@@ -179,6 +180,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     if (body.digestEnabled !== undefined) allowed.digestEnabled = Boolean(body.digestEnabled);
     if (body.digestTime !== undefined) allowed.digestTime = Number(body.digestTime);
     if (body.uiTheme !== undefined) allowed.uiTheme = body.uiTheme;
+    if (body.undoSendDelay !== undefined) allowed.undoSendDelay = Math.max(0, Math.min(30, Number(body.undoSendDelay)));
 
     const settings = await prisma.userSettings.upsert({
       where: { userId: request.userId },

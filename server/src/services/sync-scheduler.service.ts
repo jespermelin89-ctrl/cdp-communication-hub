@@ -695,7 +695,7 @@ async function sendScheduledDrafts(): Promise<void> {
     ready = await prisma.draft.findMany({
       where: {
         scheduledAt: { lte: now },
-        status: 'approved',
+        status: { in: ['approved', 'sending'] },
       },
       select: { id: true, subject: true, account: { select: { userId: true } } },
     });

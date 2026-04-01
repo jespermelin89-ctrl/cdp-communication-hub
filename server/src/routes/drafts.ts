@@ -294,4 +294,76 @@ export async function draftRoutes(fastify: FastifyInstance) {
       return reply.code(code).send({ error: error.message });
     }
   });
+
+  // ============================================================
+  // SPRINT 5 — Undo Send
+  // ============================================================
+
+  /**
+   * POST /drafts/:id/send-delayed — Approve + mark as 'sending' with delayed scheduledAt.
+   * Body: { delay_seconds?: number } (default: user's undoSendDelay or 10s)
+   */
+  fastify.post('/drafts/:id/send-delayed', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { delay_seconds } = (request.body ?? {}) as { delay_seconds?: number };
+
+    const { prisma } = await import('../config/database');
+
+    const draft = await prisma.draft.findFirst({
+      where: { id, userId: request.userId },
+    });
+    if (!draft) return reply.code(404).send({ error: 'Draft not found' });
+    if (!['pending', 'approved'].includes(draft.status)) {
+      return reply.code(400).send({ error: `Cannot delay-send a draft with status: ${draft.status}` });
+    }
+
+    // Get user's undo delay preference
+    let delaySeconds = delay_seconds ?? 10;
+    if (!delay_seconds) {
+      const settings = await prisma.userSettings.findUnique({ where: { userId: request.userId } });
+      if (settings?.undoSendDelay !== undefined) delaySeconds = settings.undoSendDelay;
+    }
+
+    const scheduledAt = new Date(Date.now() + delaySeconds * 1000);
+
+    const updated = await prisma.draft.update({
+      where: { id },
+      data: {
+        status: 'sending',
+        scheduledAt,
+        approvedAt: new Date(),
+      },
+      include: { account: { select: { emailAddress: true, id: true } }, thread: { select: { id: true, subject: true } } },
+    });
+
+    return { draft: updated, scheduledAt: scheduledAt.toISOString(), delaySeconds };
+  });
+
+  /**
+   * POST /drafts/:id/cancel-send — Cancel a delayed send (reverts to 'approved').
+   */
+  fastify.post('/drafts/:id/cancel-send', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const { prisma } = await import('../config/database');
+    const draft = await prisma.draft.findFirst({
+      where: { id, userId: request.userId },
+    });
+    if (!draft) return reply.code(404).send({ error: 'Draft not found' });
+    if (draft.status !== 'sending') {
+      return reply.code(400).send({ error: 'Draft is not in sending state' });
+    }
+    // Check it hasn't passed the scheduled time yet
+    if (draft.scheduledAt && draft.scheduledAt < new Date()) {
+      return reply.code(400).send({ error: 'Cannot cancel — email has already been sent', cancelled: false });
+    }
+
+    const updated = await prisma.draft.update({
+      where: { id },
+      data: { status: 'approved', scheduledAt: null },
+      include: { account: { select: { emailAddress: true, id: true } }, thread: { select: { id: true, subject: true } } },
+    });
+
+    return { draft: updated, cancelled: true };
+  });
 }

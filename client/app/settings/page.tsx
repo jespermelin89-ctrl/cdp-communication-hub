@@ -34,6 +34,7 @@ export default function SettingsPage() {
   const [quietEnd, setQuietEnd] = useState(7);
   const [digestEnabled, setDigestEnabled] = useState(false);
   const [digestTime, setDigestTime] = useState(8);
+  const [undoSendDelay, setUndoSendDelay] = useState(10);
   const [savingNotif, setSavingNotif] = useState(false);
   const [notifSaved, setNotifSaved] = useState(false);
 
@@ -45,6 +46,7 @@ export default function SettingsPage() {
         setQuietEnd(r.settings.quietHoursEnd ?? 7);
         setDigestEnabled(r.settings.digestEnabled ?? false);
         setDigestTime(r.settings.digestTime ?? 8);
+        setUndoSendDelay(r.settings.undoSendDelay ?? 10);
       }
     }).catch(() => {});
   }, []);
@@ -106,7 +108,7 @@ export default function SettingsPage() {
   async function saveNotifSettings() {
     setSavingNotif(true);
     try {
-      await api.updateUserSettings({ quietHoursStart: quietStart, quietHoursEnd: quietEnd, digestEnabled, digestTime });
+      await api.updateUserSettings({ quietHoursStart: quietStart, quietHoursEnd: quietEnd, digestEnabled, digestTime, undoSendDelay });
       setNotifSaved(true);
       setTimeout(() => setNotifSaved(false), 2500);
     } catch (err: any) {
@@ -477,6 +479,25 @@ export default function SettingsPage() {
                     </select>
                   </div>
                 )}
+              </div>
+
+              {/* Undo send delay */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Ångra-fönster vid utskick: {undoSendDelay}s
+                  <span className="text-xs text-gray-400 ml-2">(0 = skicka direkt)</span>
+                </label>
+                <input
+                  type="range"
+                  min={0}
+                  max={30}
+                  value={undoSendDelay}
+                  onChange={(e) => setUndoSendDelay(Number(e.target.value))}
+                  className="w-full accent-brand-500"
+                />
+                <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+                  <span>0s</span><span>30s</span>
+                </div>
               </div>
 
               <button

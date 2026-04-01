@@ -523,6 +523,14 @@ const en: Translations = {
     cancelReply: 'Cancel',
     sendNote: 'Creates draft → approve → sends immediately',
   },
+  undoSend: {
+    sending: 'Email sending in',
+    undo: 'Undo',
+    cancelled: 'Email cancelled',
+    sent: 'Email sent!',
+    delay: 'Undo window',
+    delayDescription: 'Seconds to wait before sending (0 = immediately)',
+  },
   signatures: {
     title: 'Signatures',
     configured: 'Configured',

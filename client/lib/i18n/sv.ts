@@ -550,6 +550,16 @@ const sv = {
     sendNote: 'Skapar utkast → godkänn → skickar direkt',
   },
 
+  // Undo Send
+  undoSend: {
+    sending: 'Mail skickas om',
+    undo: 'Ångra',
+    cancelled: 'Mail avbrutet',
+    sent: 'Mail skickat!',
+    delay: 'Ångra-fönster',
+    delayDescription: 'Sekunder att vänta innan mail skickas (0 = direkt)',
+  },
+
   // Signatures
   signatures: {
     title: 'Signaturer',

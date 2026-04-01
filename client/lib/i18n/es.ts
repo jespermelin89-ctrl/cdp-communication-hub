@@ -521,6 +521,14 @@ const es: Translations = {
     cancelReply: 'Cancelar',
     sendNote: 'Crea borrador → aprueba → envía de inmediato',
   },
+  undoSend: {
+    sending: 'Correo se envía en',
+    undo: 'Deshacer',
+    cancelled: 'Envío cancelado',
+    sent: '¡Correo enviado!',
+    delay: 'Ventana de deshacer',
+    delayDescription: 'Segundos antes de enviar (0 = inmediato)',
+  },
   signatures: {
     title: 'Firmas',
     configured: 'Configurada',

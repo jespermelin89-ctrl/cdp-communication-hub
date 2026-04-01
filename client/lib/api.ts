@@ -352,6 +352,14 @@ class ApiClient {
     return this.request('POST', '/threads/bulk/priority', { threadIds, priority });
   }
 
+  // Sprint 5 — Undo Send
+  async sendDelayed(draftId: string, delaySeconds?: number): Promise<{ draft: any; scheduledAt: string; delaySeconds: number }> {
+    return this.request('POST', `/drafts/${draftId}/send-delayed`, { delay_seconds: delaySeconds });
+  }
+  async cancelSend(draftId: string): Promise<{ cancelled: boolean; draft?: any }> {
+    return this.request('POST', `/drafts/${draftId}/cancel-send`);
+  }
+
   // Sprint 4 — Contact autocomplete
   async searchContacts(q: string, limit = 10): Promise<{ contacts: any[] }> {
     return this.request('GET', '/contacts/search', undefined, { q, limit: String(limit) });
@@ -656,6 +664,7 @@ class ApiClient {
     digestEnabled?: boolean;
     digestTime?: number;
     uiTheme?: string;
+    undoSendDelay?: number;
   }) {
     return this.request<{ settings: any }>('PATCH', '/user/settings', data);
   }

@@ -35,6 +35,7 @@ import { brainSummaryRoutes } from './routes/brain-summary';
 import agentRoutes from './routes/agent';
 import { pushRoutes } from './routes/push';
 import { docsRoutes } from './routes/docs';
+import { webhookRoutes } from './routes/webhooks';
 
 async function main() {
   // Validate environment before starting
@@ -152,6 +153,9 @@ async function main() {
     // API-key authenticated requests (agent/Amanda) are exempt — no browser session
     if (request.headers['x-api-key']) return;
 
+    // Webhook routes are exempt — they receive from external services (Google Pub/Sub)
+    if (request.url.includes('/webhooks/')) return;
+
     const cookieToken = request.cookies?.['csrf_token'];
     const headerToken = request.headers['x-csrf-token'] as string | undefined;
 
@@ -200,6 +204,7 @@ async function main() {
     await api.register(agentRoutes, { prefix: '/agent' });
     await api.register(pushRoutes);
     await api.register(docsRoutes);
+    await api.register(webhookRoutes); // No auth — receives from Google Pub/Sub
   }, { prefix: '/api/v1' });
 
   // Start server FIRST (so Render sees the port binding)

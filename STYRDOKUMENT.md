@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-01 06:15:47 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-01 06:18:45 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -132,6 +132,7 @@ Prefix: `/api/v1`
 | `POST    /threads/batch` | `threads` |
 | `PATCH   /threads/:id` | `threads` |
 | `GET     /threads/export` | `threads` |
+| `POST    /webhooks/gmail` | `webhooks` |
 
 ---
 
@@ -145,6 +146,7 @@ Prefix: `/api/v1`
 - `chat-command.service.ts`
 - `draft.service.ts`
 - `email-provider.factory.ts`
+- `gmail-push.service.ts`
 - `gmail.service.ts`
 - `imap.service.ts`
 - `push.service.ts`

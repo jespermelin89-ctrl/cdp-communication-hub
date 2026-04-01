@@ -64,6 +64,8 @@ model EmailAccount {
   isActive              Boolean   @default(true) @map("is_active") // disable without deleting
   lastSyncAt            DateTime? @map("last_sync_at")
   syncError             String?   @map("sync_error") // last sync error message
+  gmailHistoryId        String?   @map("gmail_history_id") // for Gmail Push incremental sync
+  gmailWatchExpiry      DateTime? @map("gmail_watch_expiry") // watch expires after 7 days
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 

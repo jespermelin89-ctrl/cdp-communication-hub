@@ -373,6 +373,75 @@ export class GmailService {
   }
 
   /**
+   * Incremental sync using Gmail History API.
+   * Much faster than a full sync — only fetches changes since the given historyId.
+   * Falls back to triggering a regular fetchThreads() if history has expired (404).
+   */
+  async incrementalSync(accountId: string, sinceHistoryId: string): Promise<void> {
+    const gmail = await this.getClient(accountId);
+
+    try {
+      const response = await gmail.users.history.list({
+        userId: 'me',
+        startHistoryId: sinceHistoryId,
+        historyTypes: ['messageAdded'],
+      });
+
+      const histories = response.data.history ?? [];
+      const newGmailIds = new Set<string>();
+
+      for (const history of histories) {
+        for (const added of history.messagesAdded ?? []) {
+          if (added.message?.id) newGmailIds.add(added.message.id);
+        }
+      }
+
+      if (newGmailIds.size > 0) {
+        // Find which message IDs we don't yet have locally
+        const existing = await prisma.emailMessage.findMany({
+          where: { gmailMessageId: { in: [...newGmailIds] } },
+          select: { gmailMessageId: true },
+        });
+        const existingIds = new Set(existing.map((m) => m.gmailMessageId));
+        const toFetch = [...newGmailIds].filter((id) => !existingIds.has(id));
+
+        if (toFetch.length > 0) {
+          // Get the thread IDs for the new messages and trigger a thread sync
+          const threadIds = new Set<string>();
+          for (const msgId of toFetch) {
+            try {
+              const msg = await gmail.users.messages.get({ userId: 'me', id: msgId, format: 'metadata', metadataHeaders: ['Subject'] });
+              if (msg.data.threadId) threadIds.add(msg.data.threadId);
+            } catch {
+              // ignore individual message errors
+            }
+          }
+          // Re-fetch affected threads (reuses existing fetch + store logic)
+          for (const gmailThreadId of threadIds) {
+            await this.fetchMessages(accountId, gmailThreadId).catch(() => {});
+          }
+        }
+      }
+
+      // Update stored historyId
+      if (response.data.historyId) {
+        await prisma.emailAccount.update({
+          where: { id: accountId },
+          data: { gmailHistoryId: response.data.historyId.toString() },
+        });
+      }
+    } catch (err: any) {
+      if (err?.status === 404 || err?.code === 404) {
+        // History expired — fall back to regular thread fetch
+        console.warn(`[GmailPush] History expired for account ${accountId}, triggering regular sync`);
+        await this.fetchThreads(accountId, { maxResults: 20 }).catch(() => {});
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  /**
    * Get the last message ID from a Gmail thread (for In-Reply-To header)
    */
   async getLastMessageId(accountId: string, gmailThreadId: string): Promise<string | null> {

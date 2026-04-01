@@ -19,12 +19,14 @@ import { brainCoreService } from './brain-core.service';
 import { matchClassificationRule } from './rule-engine.service';
 import { sendPushToUser, sendDigest } from './push.service';
 import { draftService } from './draft.service';
+import { gmailPushService } from './gmail-push.service';
 
-const SYNC_INTERVAL_MS = 5 * 60 * 1000;       // 5 minutes
-const AI_INTERVAL_MS = 10 * 60 * 1000;         // 10 minutes
-const SNOOZE_INTERVAL_MS = 60 * 1000;          // 1 minute
-const SCHEDULED_SEND_INTERVAL_MS = 60 * 1000;  // 1 minute
-const BRIEFING_CHECK_INTERVAL_MS = 60 * 1000;  // 1 minute (checks if it's 07:00)
+const SYNC_INTERVAL_MS = 5 * 60 * 1000;           // 5 minutes
+const AI_INTERVAL_MS = 10 * 60 * 1000;             // 10 minutes
+const SNOOZE_INTERVAL_MS = 60 * 1000;              // 1 minute
+const SCHEDULED_SEND_INTERVAL_MS = 60 * 1000;      // 1 minute
+const BRIEFING_CHECK_INTERVAL_MS = 60 * 1000;      // 1 minute (checks if it's 07:00)
+const WATCH_RENEWAL_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_THREADS_PER_SYNC = 20;
 const MAX_THREADS_TO_CLASSIFY = 10;
 const MAX_FAILURES_BEFORE_BACKOFF = 5;
@@ -47,6 +49,7 @@ let aiInterval: ReturnType<typeof setInterval> | null = null;
 let snoozeInterval: ReturnType<typeof setInterval> | null = null;
 let scheduledSendInterval: ReturnType<typeof setInterval> | null = null;
 let briefingInterval: ReturnType<typeof setInterval> | null = null;
+let watchRenewalInterval: ReturnType<typeof setInterval> | null = null;
 
 // ──────────────────────────────────────────────
 // Helper: extract display name from email address
@@ -700,6 +703,18 @@ export function startSyncScheduler(): void {
   briefingInterval = setInterval(() => {
     runMorningBriefings().catch((e) => console.error('[Briefing] Error:', e));
   }, BRIEFING_CHECK_INTERVAL_MS);
+
+  // Gmail Push: renew watches every 24 hours (watches expire after 7 days)
+  if (gmailPushService.isEnabled) {
+    console.log('[Scheduler] Gmail Push: enabled — starting watch renewal every 24h');
+    // Register watches on startup
+    gmailPushService.renewAllWatches().catch((e) => console.error('[GmailPush] Initial watch setup error:', e));
+    watchRenewalInterval = setInterval(() => {
+      gmailPushService.renewAllWatches().catch((e) => console.error('[GmailPush] Watch renewal error:', e));
+    }, WATCH_RENEWAL_INTERVAL_MS);
+  } else {
+    console.log('[Scheduler] Gmail Push: disabled (no GOOGLE_CLOUD_PROJECT_ID), using polling fallback');
+  }
 }
 
 /**
@@ -731,6 +746,10 @@ export function stopSyncScheduler(): void {
   if (briefingInterval) {
     clearInterval(briefingInterval);
     briefingInterval = null;
+  }
+  if (watchRenewalInterval) {
+    clearInterval(watchRenewalInterval);
+    watchRenewalInterval = null;
   }
   console.log('[Scheduler] Stopped');
 }

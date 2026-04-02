@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock, MoreVertical, ShieldBan, BellOff, Copy, Reply, Users, Bell, Loader2 } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock, MoreVertical, ShieldBan, BellOff, Copy, Reply, Users, Bell, Loader2, CalendarDays, MapPin } from 'lucide-react';
 import { sanitizeHtml, replaceCidImages, wrapQuotedContent } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -25,6 +25,11 @@ import {
   detectMeetingIntent,
   formatAvailabilitySlot,
 } from '@/lib/meeting-intent';
+import {
+  formatCalendarInviteWindow,
+  getCalendarInviteLabel,
+  getMessageCalendarInvite,
+} from '@/lib/calendar-invite';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
   lead: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
@@ -686,7 +691,8 @@ export default function ThreadDetailPage() {
   }
 
   const analysis = thread.latestAnalysis as AIAnalysis | null;
-  const hasMeetingIntent = detectMeetingIntent(thread);
+  const hasCalendarInvite = thread?.messages?.some((message: any) => Boolean(getMessageCalendarInvite(message))) ?? false;
+  const hasMeetingIntent = detectMeetingIntent(thread) || hasCalendarInvite;
   const calendarReplyLocale = locale === 'sv'
     ? 'sv-SE'
     : locale === 'en'
@@ -1487,6 +1493,14 @@ export default function ThreadDetailPage() {
                 {thread.messages.map((msg: any) => {
                   const shouldCollapse = thread.messages.length > 3;
                   const isExpanded = !shouldCollapse || expandedMessages.has(msg.id);
+                  const calendarInvite = getMessageCalendarInvite(msg);
+                  const calendarInviteLabel = getCalendarInviteLabel(calendarInvite);
+                  const calendarInviteWindow = formatCalendarInviteWindow(
+                    calendarInvite,
+                    locale === 'sv' ? 'sv-SE' : 'en-US',
+                    Intl.DateTimeFormat().resolvedOptions().timeZone
+                  );
+                  const isCancelledInvite = calendarInvite?.method === 'CANCEL' || calendarInvite?.status === 'CANCELLED';
 
                   if (!isExpanded) {
                     return (
@@ -1597,6 +1611,52 @@ export default function ThreadDetailPage() {
                       ) : (
                         <div className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
                           {msg.bodyText || '(No text content)'}
+                        </div>
+                      )}
+                      {calendarInvite && (
+                        <div className="px-5 pb-4">
+                          <div className={`rounded-xl border px-4 py-3 ${
+                            isCancelledInvite
+                              ? 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'
+                              : 'border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <CalendarDays size={16} className={isCancelledInvite ? 'text-rose-500' : 'text-sky-500'} />
+                              <span className={`text-sm font-medium ${isCancelledInvite ? 'text-rose-700 dark:text-rose-300' : 'text-sky-700 dark:text-sky-300'}`}>
+                                {calendarInviteLabel}
+                              </span>
+                            </div>
+                            <div className="space-y-1.5">
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {calendarInvite.summary ?? msg.subject ?? 'Kalenderhändelse'}
+                              </p>
+                              {calendarInviteWindow && (
+                                <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                  <Clock size={13} className="text-gray-400" />
+                                  {calendarInviteWindow}
+                                </p>
+                              )}
+                              {(calendarInvite.organizerName || calendarInvite.organizer) && (
+                                <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                  <Users size={13} className="text-gray-400" />
+                                  {calendarInvite.organizerName
+                                    ? `${calendarInvite.organizerName}${calendarInvite.organizer ? ` (${calendarInvite.organizer})` : ''}`
+                                    : calendarInvite.organizer}
+                                </p>
+                              )}
+                              {calendarInvite.location && (
+                                <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                  <MapPin size={13} className="text-gray-400" />
+                                  {calendarInvite.location}
+                                </p>
+                              )}
+                              {calendarInvite.description && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed pt-1">
+                                  {calendarInvite.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       )}
                       {/* Attachment Preview — Sprint 6 */}

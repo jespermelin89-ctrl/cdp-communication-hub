@@ -5,16 +5,11 @@ import { Download, FileText, FileImage, File, Film, Archive } from 'lucide-react
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import ImageLightbox from './ImageLightbox';
-
-interface Attachment {
-  attachmentId: string;
-  filename: string;
-  mimeType: string;
-  size: number;
-}
+import type { EmailAttachment } from '@/lib/types';
+import { isInviteAttachmentDownloadable } from '@/lib/calendar-invite';
 
 interface AttachmentPreviewProps {
-  attachments: Attachment[];
+  attachments: EmailAttachment[];
   threadId: string;
   messageId: string;
 }
@@ -56,7 +51,11 @@ export default function AttachmentPreview({ attachments, threadId, messageId }: 
 
   const imageAttachments = attachments.filter((a) => isImage(a.mimeType));
 
-  async function handleDownload(att: Attachment) {
+  async function handleDownload(att: EmailAttachment) {
+    if (!isInviteAttachmentDownloadable(att)) {
+      return;
+    }
+
     setDownloadingId(att.attachmentId);
     try {
       const blob = await api.downloadAttachment(threadId, messageId, att.attachmentId);
@@ -90,15 +89,15 @@ export default function AttachmentPreview({ attachments, threadId, messageId }: 
             return (
               <div
                 key={att.attachmentId}
-                className="group flex flex-col items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-brand-300 dark:hover:border-brand-600 transition-colors cursor-pointer"
-                onClick={() => {
-                  if (isImg && imageIdx >= 0) {
-                    setLightboxIndex(imageIdx);
-                    setLightboxOpen(true);
-                  } else {
-                    handleDownload(att);
-                  }
-                }}
+              className="group flex flex-col items-center p-3 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 hover:border-brand-300 dark:hover:border-brand-600 transition-colors cursor-pointer"
+              onClick={() => {
+                if (isImg && imageIdx >= 0) {
+                  setLightboxIndex(imageIdx);
+                  setLightboxOpen(true);
+                } else if (isInviteAttachmentDownloadable(att)) {
+                  handleDownload(att);
+                }
+              }}
               >
                 <div className="mb-2">
                   <Icon size={28} className={getIconColor(att.mimeType)} />
@@ -111,8 +110,8 @@ export default function AttachmentPreview({ attachments, threadId, messageId }: 
                 </p>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleDownload(att); }}
-                  disabled={downloadingId === att.attachmentId}
-                  className="mt-2 flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+                  disabled={downloadingId === att.attachmentId || !isInviteAttachmentDownloadable(att)}
+                  className="mt-2 flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:underline opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-0"
                 >
                   <Download size={11} />
                   {downloadingId === att.attachmentId ? 'Laddar...' : 'Ladda ner'}

@@ -1,0 +1,56 @@
+import { describe, expect, it } from 'vitest';
+import {
+  formatCalendarInviteWindow,
+  getCalendarInviteLabel,
+  getMessageCalendarInvite,
+  isInviteAttachmentDownloadable,
+} from '@/lib/calendar-invite';
+
+describe('calendar invite helpers', () => {
+  const invite = {
+    uid: 'demo-123',
+    method: 'REQUEST',
+    status: 'CONFIRMED',
+    summary: 'Demo med Jesper',
+    description: null,
+    location: 'Google Meet',
+    organizer: 'jesper@example.com',
+    organizerName: 'Jesper Melin',
+    start: '2026-04-09T08:00:00.000Z',
+    end: '2026-04-09T08:30:00.000Z',
+    timeZone: 'Europe/Stockholm',
+    isAllDay: false,
+  };
+
+  it('extracts the first invite from message attachments', () => {
+    const result = getMessageCalendarInvite({
+      attachments: [
+        {
+          attachmentId: 'att_1',
+          filename: 'invite.ics',
+          mimeType: 'text/calendar',
+          size: 1024,
+          downloadable: true,
+          calendarInvite: invite,
+        },
+      ],
+    } as any);
+
+    expect(result?.summary).toBe('Demo med Jesper');
+  });
+
+  it('formats invite windows with timezone info', () => {
+    const result = formatCalendarInviteWindow(invite, 'sv-SE');
+    expect(result).toContain('10:00');
+    expect(result).toContain('Europe/Stockholm');
+  });
+
+  it('labels cancel invites differently', () => {
+    expect(getCalendarInviteLabel({ ...invite, method: 'CANCEL' } as any)).toContain('Inställd');
+  });
+
+  it('disables downloads for inline invite metadata without attachment ids', () => {
+    expect(isInviteAttachmentDownloadable({ attachmentId: '', downloadable: false })).toBe(false);
+    expect(isInviteAttachmentDownloadable({ attachmentId: 'att_1', downloadable: true })).toBe(true);
+  });
+});

@@ -11,6 +11,7 @@
 
 import { FastifyInstance } from 'fastify';
 import { gmailPushService } from '../services/gmail-push.service';
+import { env } from '../config/env';
 
 export async function webhookRoutes(fastify: FastifyInstance) {
   /**
@@ -32,6 +33,17 @@ export async function webhookRoutes(fastify: FastifyInstance) {
     config: { skipCsrf: true }, // mark for our CSRF hook to skip
   }, async (request, reply) => {
     try {
+      // Verify Pub/Sub push token if configured
+      const verificationToken = env.GOOGLE_PUBSUB_VERIFICATION_TOKEN;
+      if (verificationToken) {
+        const authHeader = request.headers['authorization'];
+        const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+        if (bearerToken !== verificationToken) {
+          fastify.log.warn('[GmailPush] Invalid verification token — rejecting');
+          return reply.code(200).send(); // 200 to prevent Google retries
+        }
+      }
+
       const body = request.body as any;
       const message = body?.message;
 

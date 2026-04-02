@@ -224,21 +224,45 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
 - **Tester**: 443 server (38 filer) + 129 client (9 filer) = 572 totalt
 
-## Kända Buggar / TODO (2026-04-01)
+## Completed Security Sprint (2026-04-02)
+
+All 7 issues from the security review have been fixed and merged to main:
+- ✅ S1: API key prefix removed from startup log (index.ts)
+- ✅ S2: Webhook Pub/Sub token verification added (webhooks.ts + env.ts)
+- ✅ S3: XSS in signature preview fixed (sanitizeHtml applied)
+- ✅ S4: XSS in compose text extraction fixed (DOMParser)
+- ✅ W3: Rate limiting on search endpoints (30 req/min)
+- ✅ W4: Gmail token refresh error logging added
+- ✅ W5: MIME type whitelist validation on attachment upload
+- ✅ W1/W2: Already resolved (send_at validation existed, no CSV export)
+
+## Completed TypeScript Sprint (2026-04-02)
+
+- ✅ `client/lib/api.ts`: 0 `any` kvar (var ~80). 24 typade interfaces i `types.ts`
+- ✅ `brain-core.ts`: Alla `request.body as any` ersatta med Zod-schemas (4 st)
+- ✅ `threads.ts`: Typade ValidAction i batch route
+- ✅ Security tests: 3 testfiler (server security-sprint, server security, client security-sprint)
+- ✅ Lokala feature-branches städade (codex/calendar-invite-awareness, feat/sprint2-docs-and-config, master)
+- Totalt: 56 testfiler (43 server + 13 client)
+
+## TODO (prio-ordning)
+
+### Nästa sprint — Sista `as any`-städning + Zod
+Kvar: ~25 `as any` i backend routes. Av dessa:
+- **Fixbara (behöver Zod-schemas):** templates.ts (2), auth.ts (1), categories.ts (4), agent.ts (2) = 9 st
+- **Prisma JSON-fields (acceptabla):** drafts.ts (2), search.ts (2-3), threads.ts (5), views.ts (2), templates.ts (2) = ~14 st
+- **Auth union type (kräver refactor):** auth.ts (4) — authService.handleCallback() returnerar otypad union
+
+### Post-deploy (manuellt)
+1. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell
+2. **Sätt GOOGLE_PUBSUB_VERIFICATION_TOKEN** i Render dashboard
+3. **Städa remote branches** — `origin/codex-meeting-calendar-flow`, `origin/codex/calendar-hold-release`
 
 ### ⏳ Framtida (bygg inte nu)
 - n8n workflow automation (ersätt setInterval-cronjobs)
 - Microsoft OAuth
 - Push notifications browser-permission prompt i onboarding
-
-## TODO (prio-ordning)
-
-1. ✅ Allt v1.0–v1.3 levererat — se completed work ovan
-16. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell efter deploy
-17. **n8n integration** (framtida — planera bara, bygg inte)
-15. ✅ **Account dropdown** — AccountDropdown i Inbox + settings editor för accountType/aiHandling/teamMembers
-16. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell efter deploy
-17. **n8n integration** (framtida — planera bara, bygg inte)
+- Circuit breaker för AI provider fallback (W6)
 
 ## Key API Patterns
 - All API calls go through `client/lib/api.ts` which handles auth headers + base URL

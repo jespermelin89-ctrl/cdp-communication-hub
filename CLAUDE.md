@@ -57,16 +57,16 @@ Tables: users, email_accounts, email_threads, email_messages, ai_analyses, draft
   - URL: https://cdp-communication-hub.vercel.app/
   - Root directory: `client`
 - **Backend**: Render — auto-deploys from GitHub main branch
-  - URL: https://cdp-communication-hub.onrender.com
+  - URL: https://cdp-hub-api.onrender.com
   - Build command: `cd server && npm install && npm run build`
   - (`npm run build` = `prisma generate && (prisma migrate resolve --applied 0_init 2>/dev/null || true) && prisma migrate deploy && tsc`)
 - **GitHub**: github.com/jespermelin89-ctrl/cdp-communication-hub (private)
-  - Default branch: main (remote) / master (local — needs alignment)
+  - Default branch: main
 
-## Current Git Status (2026-03-27)
+## Current Git Status (2026-04-02)
 
-All work is committed and pushed to `origin/main`. Local branch `master` tracks `origin/main`.
-Latest commit: `057146b` feat: brain-summary tests + Render deploy fix + client api method
+All work is committed and pushed to `origin/main`. Local branch `main` tracks `origin/main`.
+Latest commit: `0a84aa8` feat: harden mail trust flow and add calendar assist (#2)
 
 ## Completed Work (2026-03-27)
 
@@ -114,7 +114,7 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 
 ### ✅ Cleanup
 - Removed `POST /auth/admin/merge-accounts` temporary endpoint
-- Local `master` tracks `origin/main`
+- Local `main` tracks `origin/main`
 
 ### ✅ AI Endpoint Fix (Sprint 2)
 - Fixed wrong model name: `claude-sonnet-4-20250514` → `claude-sonnet-4-5`

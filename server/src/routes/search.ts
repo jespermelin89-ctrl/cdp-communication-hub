@@ -20,7 +20,7 @@ export async function searchRoutes(fastify: FastifyInstance) {
    * GET /contacts/search?q=&limit=10 — Sprint 4: Contact autocomplete search.
    * Searches ContactProfile + email message addresses, deduplicates, sorts by recency.
    */
-  fastify.get('/contacts/search', async (request) => {
+  fastify.get('/contacts/search', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
     const { q = '', limit: limitStr = '10' } = request.query as { q?: string; limit?: string };
     const limit = Math.min(parseInt(limitStr, 10), 30);
     const search = q.trim().toLowerCase();
@@ -123,7 +123,7 @@ export async function searchRoutes(fastify: FastifyInstance) {
   /**
    * GET /search — Advanced search with filters. Saves to search history.
    */
-  fastify.get('/search', async (request) => {
+  fastify.get('/search', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
     const q = request.query as {
       q?: string;
       from?: string;

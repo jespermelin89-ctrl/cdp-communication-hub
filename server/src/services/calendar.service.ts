@@ -27,6 +27,8 @@ export type CalendarCreatedEvent = {
   status: string | null;
 };
 
+export const MAIL_OS_TENTATIVE_HOLD_MARKER = 'Skapad från Mail OS som en tentativ reservation i Google Calendar.';
+
 type AvailabilityOptions = {
   days?: number;
   limit?: number;
@@ -77,6 +79,14 @@ type CalendarCreateEventSuccessResult = {
   timeZone: string;
 };
 
+type CalendarReleaseEventSuccessResult = {
+  supported: true;
+  requiresReconnect: false;
+  released: true;
+  eventId: string;
+  timeZone: string;
+};
+
 export function clampCalendarDays(days?: number): number {
   const value = Number(days);
   if (!Number.isFinite(value)) return DEFAULT_DAYS;
@@ -124,7 +134,7 @@ export function buildCalendarEventDescription(options: {
   threadSubject?: string | null;
   participants?: string[];
 } = {}): string {
-  const lines = ['Skapad från Mail OS som en tentativ reservation i Google Calendar.'];
+  const lines = [MAIL_OS_TENTATIVE_HOLD_MARKER];
 
   if (options.threadSubject?.trim()) {
     lines.push(`Tråd: ${options.threadSubject.trim()}`);
@@ -137,6 +147,18 @@ export function buildCalendarEventDescription(options: {
 
   lines.push('Ingen extern mötesinbjudan har skickats automatiskt.');
   return lines.join('\n');
+}
+
+export function isManagedTentativeHold(event: Pick<calendar_v3.Schema$Event, 'status' | 'description'> | null | undefined): boolean {
+  if (!event) {
+    return false;
+  }
+
+  if (event.status !== 'tentative') {
+    return false;
+  }
+
+  return typeof event.description === 'string' && event.description.includes(MAIL_OS_TENTATIVE_HOLD_MARKER);
 }
 
 function roundUpToInterval(date: Date, minutes: number): Date {
@@ -551,6 +573,83 @@ export class CalendarService {
           reason: 'Google Calendar skrivåtkomst saknas eller behöver kopplas om för det här kontot.',
           timeZone,
         };
+      }
+
+      throw error;
+    }
+  }
+
+  async releaseTentativeEvent(
+    accountId: string,
+    eventId: string,
+    options: { timeZone?: string } = {}
+  ): Promise<CalendarUnsupportedResult | CalendarReconnectResult | CalendarReleaseEventSuccessResult> {
+    const account = await prisma.emailAccount.findUniqueOrThrow({
+      where: { id: accountId },
+      select: {
+        id: true,
+        provider: true,
+        userId: true,
+        emailAddress: true,
+      },
+    });
+
+    const timeZone = resolveCalendarTimeZone(options.timeZone);
+
+    if (account.provider !== 'gmail') {
+      return {
+        supported: false,
+        requiresReconnect: false,
+        reason: 'Google Calendar-reservationer stöds just nu bara för Gmail-konton.',
+        timeZone,
+      };
+    }
+
+    try {
+      const calendar = await this.getClient(accountId);
+      const existing = await calendar.events.get({
+        calendarId: 'primary',
+        eventId,
+      });
+
+      if (!isManagedTentativeHold(existing.data)) {
+        throw new Error('Only tentative Mail OS reservations can be released here');
+      }
+
+      await calendar.events.delete({
+        calendarId: 'primary',
+        eventId,
+        sendUpdates: 'none',
+      });
+
+      await actionLogService.log(account.userId, 'calendar_hold_released', 'calendar_event', eventId, {
+        accountId,
+        accountEmail: account.emailAddress,
+        summary: existing.data.summary ?? null,
+        start: existing.data.start?.dateTime ?? null,
+        end: existing.data.end?.dateTime ?? null,
+      }).catch(() => {});
+
+      return {
+        supported: true,
+        requiresReconnect: false,
+        released: true,
+        eventId,
+        timeZone,
+      };
+    } catch (error: any) {
+      if (isCalendarReconnectError(error)) {
+        return {
+          supported: true,
+          requiresReconnect: true,
+          reason: 'Google Calendar skrivåtkomst saknas eller behöver kopplas om för det här kontot.',
+          timeZone,
+        };
+      }
+
+      const status = error?.response?.status ?? error?.status;
+      if (status === 404) {
+        throw new Error('Calendar event not found');
       }
 
       throw error;

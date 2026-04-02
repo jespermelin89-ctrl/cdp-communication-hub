@@ -778,6 +778,28 @@ class ApiClient {
     });
   }
 
+  async releaseCalendarEvent(data: {
+    accountId: string;
+    eventId: string;
+    timeZone?: string;
+    returnTo?: string;
+  }) {
+    return this.request<{
+      supported: boolean;
+      requiresReconnect: boolean;
+      reason?: string;
+      reauthUrl?: string;
+      timeZone: string;
+      released?: boolean;
+      eventId?: string;
+    }>('POST', '/calendar/events/release', {
+      account_id: data.accountId,
+      event_id: data.eventId,
+      time_zone: data.timeZone,
+      return_to: data.returnTo,
+    });
+  }
+
   async reportSpam(threadId: string) {
     return this.request<{ message: string }>('POST', `/threads/${threadId}/spam`);
   }

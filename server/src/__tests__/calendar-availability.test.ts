@@ -6,6 +6,8 @@ import {
   clampCalendarDays,
   clampCalendarLimit,
   clampSlotMinutes,
+  isManagedTentativeHold,
+  MAIL_OS_TENTATIVE_HOLD_MARKER,
   resolveCalendarTimeZone,
 } from '../services/calendar.service';
 import {
@@ -87,8 +89,26 @@ describe('calendar availability helpers', () => {
       participants: ['alice@example.com', 'alice@example.com', 'bob@example.com'],
     });
 
+    expect(description).toContain(MAIL_OS_TENTATIVE_HOLD_MARKER);
     expect(description).toContain('Demo med kund');
     expect(description).toContain('alice@example.com, bob@example.com');
     expect(description).toContain('Ingen extern mötesinbjudan har skickats automatiskt.');
+  });
+
+  it('only treats Mail OS tentative reservations as releasable holds', () => {
+    expect(isManagedTentativeHold({
+      status: 'tentative',
+      description: `${MAIL_OS_TENTATIVE_HOLD_MARKER}\nTråd: Demo med kund`,
+    })).toBe(true);
+
+    expect(isManagedTentativeHold({
+      status: 'confirmed',
+      description: `${MAIL_OS_TENTATIVE_HOLD_MARKER}\nTråd: Demo med kund`,
+    })).toBe(false);
+
+    expect(isManagedTentativeHold({
+      status: 'tentative',
+      description: 'Vanlig kalenderhändelse',
+    })).toBe(false);
   });
 });

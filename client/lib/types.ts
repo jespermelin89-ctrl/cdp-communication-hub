@@ -64,6 +64,16 @@ export interface CalendarCreateEventResponse {
   event?: CalendarCreatedEvent;
 }
 
+export interface CalendarReleaseEventResponse {
+  supported: boolean;
+  requiresReconnect: boolean;
+  reason?: string;
+  reauthUrl?: string;
+  timeZone: string;
+  released?: boolean;
+  eventId?: string;
+}
+
 export interface CustomLabel {
   id: string;
   name: string;

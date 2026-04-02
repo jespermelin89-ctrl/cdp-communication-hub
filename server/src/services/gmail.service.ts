@@ -80,7 +80,9 @@ export class GmailService {
           }).catch(() => {});
           throw new Error(`REAUTH_REQUIRED:${account.emailAddress}`);
         }
-        // Non-fatal (e.g. network error) — continue with current token
+        // Unexpected network/server error — log but don't crash
+        console.error(`[Gmail] Token refresh failed for account ${accountId}:`, (err as Error).message);
+        throw new Error(`Gmail token refresh failed: ${(err as Error).message}`);
       }
     }
 

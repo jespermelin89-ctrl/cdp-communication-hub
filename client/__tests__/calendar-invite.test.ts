@@ -4,6 +4,7 @@ import {
   formatCalendarInviteWindow,
   getCalendarInviteLabel,
   getCalendarInviteReplyRecipients,
+  getCalendarInviteResponseStatusLabel,
   getMessageCalendarInvite,
   isInviteAttachmentDownloadable,
 } from '@/lib/calendar-invite';
@@ -87,5 +88,10 @@ describe('calendar invite helpers', () => {
     expect(result[0]).toBe('jesper@example.com');
     expect(result).toContain('participant@example.com');
     expect(result).not.toContain('owner@example.com');
+  });
+
+  it('renders a readable label for calendar response status', () => {
+    expect(getCalendarInviteResponseStatusLabel('accepted')).toContain('Accepterad');
+    expect(getCalendarInviteResponseStatusLabel('declined')).toContain('Avböjd');
   });
 });

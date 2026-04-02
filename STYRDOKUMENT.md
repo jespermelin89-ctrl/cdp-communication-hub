@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-02 11:19:09 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-02 14:19:43 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -105,6 +105,7 @@ Prefix: `/api/v1`
 | `GET     /calendar/availability` | `calendar` |
 | `POST    /calendar/events` | `calendar` |
 | `POST    /calendar/events/release` | `calendar` |
+| `POST    /calendar/invites/respond` | `calendar` |
 | `GET     /command-center` | `command-center` |
 | `GET     /docs` | `docs` |
 | `POST    /drafts` | `drafts` |

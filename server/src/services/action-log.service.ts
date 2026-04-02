@@ -21,7 +21,8 @@ type ActionType =
   | 'token_refreshed'
   | 'reauth_completed'
   | 'calendar_hold_created'
-  | 'calendar_hold_released';
+  | 'calendar_hold_released'
+  | 'calendar_invite_responded';
 
 export class ActionLogService {
   /**

@@ -27,6 +27,8 @@ export type CalendarCreatedEvent = {
   status: string | null;
 };
 
+export type CalendarInviteResponseStatus = 'accepted' | 'declined';
+
 export const MAIL_OS_TENTATIVE_HOLD_MARKER = 'Skapad från Mail OS som en tentativ reservation i Google Calendar.';
 
 type AvailabilityOptions = {
@@ -85,6 +87,16 @@ type CalendarReleaseEventSuccessResult = {
   released: true;
   eventId: string;
   timeZone: string;
+};
+
+type CalendarRespondInviteSuccessResult = {
+  supported: true;
+  requiresReconnect: false;
+  responseStatus: CalendarInviteResponseStatus;
+  timeZone: string;
+  event: CalendarCreatedEvent & {
+    responseStatus: CalendarInviteResponseStatus;
+  };
 };
 
 export function clampCalendarDays(days?: number): number {
@@ -159,6 +171,100 @@ export function isManagedTentativeHold(event: Pick<calendar_v3.Schema$Event, 'st
   }
 
   return typeof event.description === 'string' && event.description.includes(MAIL_OS_TENTATIVE_HOLD_MARKER);
+}
+
+function normalizeCalendarEventDate(dateValue?: string | null): string | null {
+  if (!dateValue) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    return new Date(`${dateValue}T00:00:00.000Z`).toISOString();
+  }
+
+  const parsed = new Date(dateValue);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+export function getCalendarEventStartIso(
+  event: Pick<calendar_v3.Schema$Event, 'start' | 'originalStartTime'> | null | undefined
+): string | null {
+  if (!event) {
+    return null;
+  }
+
+  return normalizeCalendarEventDate(
+    event.originalStartTime?.dateTime
+      ?? event.originalStartTime?.date
+      ?? event.start?.dateTime
+      ?? event.start?.date
+      ?? null
+  );
+}
+
+export function getCalendarEventEndIso(
+  event: Pick<calendar_v3.Schema$Event, 'end'> | null | undefined
+): string | null {
+  if (!event) {
+    return null;
+  }
+
+  return normalizeCalendarEventDate(event.end?.dateTime ?? event.end?.date ?? null);
+}
+
+export function pickInviteEventMatch(
+  events: calendar_v3.Schema$Event[] = [],
+  inviteStart?: string | null
+): calendar_v3.Schema$Event | null {
+  if (events.length === 0) {
+    return null;
+  }
+
+  const nonCancelled = events.filter((event) => event.status !== 'cancelled');
+  const pool = nonCancelled.length > 0 ? nonCancelled : events;
+
+  if (!inviteStart) {
+    return pool[0] ?? null;
+  }
+
+  const inviteStartMs = new Date(inviteStart).getTime();
+  if (Number.isNaN(inviteStartMs)) {
+    return pool[0] ?? null;
+  }
+
+  let bestMatch: calendar_v3.Schema$Event | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const event of pool) {
+    const eventStart = getCalendarEventStartIso(event);
+    if (!eventStart) continue;
+
+    const distance = Math.abs(new Date(eventStart).getTime() - inviteStartMs);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestMatch = event;
+    }
+  }
+
+  return bestMatch ?? pool[0] ?? null;
+}
+
+export function resolveInviteResponseAttendeeEmail(
+  event: Pick<calendar_v3.Schema$Event, 'attendees'> | null | undefined,
+  accountEmail: string
+): string {
+  const attendees = event?.attendees ?? [];
+  const selfAttendee = attendees.find((attendee) => attendee.self && attendee.email);
+  if (selfAttendee?.email) {
+    return selfAttendee.email;
+  }
+
+  const matchingAttendee = attendees.find((attendee) => attendee.email === accountEmail);
+  if (matchingAttendee?.email) {
+    return matchingAttendee.email;
+  }
+
+  return accountEmail;
 }
 
 function roundUpToInterval(date: Date, minutes: number): Date {
@@ -650,6 +756,119 @@ export class CalendarService {
       const status = error?.response?.status ?? error?.status;
       if (status === 404) {
         throw new Error('Calendar event not found');
+      }
+
+      throw error;
+    }
+  }
+
+  async respondToInvite(
+    accountId: string,
+    options: {
+      inviteUid: string;
+      responseStatus: CalendarInviteResponseStatus;
+      inviteStart?: string | null;
+      timeZone?: string;
+    }
+  ): Promise<CalendarUnsupportedResult | CalendarReconnectResult | CalendarRespondInviteSuccessResult> {
+    const account = await prisma.emailAccount.findUniqueOrThrow({
+      where: { id: accountId },
+      select: {
+        id: true,
+        provider: true,
+        userId: true,
+        emailAddress: true,
+      },
+    });
+
+    const timeZone = resolveCalendarTimeZone(options.timeZone);
+
+    if (account.provider !== 'gmail') {
+      return {
+        supported: false,
+        requiresReconnect: false,
+        reason: 'Kalendersvar stöds just nu bara för Gmail-konton.',
+        timeZone,
+      };
+    }
+
+    try {
+      const calendar = await this.getClient(accountId);
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        iCalUID: options.inviteUid,
+        maxResults: 10,
+        showDeleted: true,
+      });
+
+      const matchedEvent = pickInviteEventMatch(response.data.items ?? [], options.inviteStart);
+      if (!matchedEvent?.id) {
+        throw new Error('Calendar invite not found');
+      }
+
+      const attendeeEmail = resolveInviteResponseAttendeeEmail(matchedEvent, account.emailAddress);
+      const patched = await calendar.events.patch({
+        calendarId: 'primary',
+        eventId: matchedEvent.id,
+        sendUpdates: 'none',
+        requestBody: {
+          attendeesOmitted: true,
+          attendees: [
+            {
+              email: attendeeEmail,
+              responseStatus: options.responseStatus,
+            },
+          ],
+        },
+      });
+
+      const updatedEvent = patched.data;
+      const start = getCalendarEventStartIso(updatedEvent) ?? getCalendarEventStartIso(matchedEvent);
+      const end = getCalendarEventEndIso(updatedEvent) ?? getCalendarEventEndIso(matchedEvent);
+
+      if (!start || !end) {
+        throw new Error('Google Calendar did not return a complete invite payload');
+      }
+
+      await actionLogService.log(account.userId, 'calendar_invite_responded', 'calendar_event', matchedEvent.id, {
+        accountId,
+        accountEmail: account.emailAddress,
+        inviteUid: options.inviteUid,
+        responseStatus: options.responseStatus,
+        summary: updatedEvent.summary ?? matchedEvent.summary ?? null,
+        start,
+        end,
+        htmlLink: updatedEvent.htmlLink ?? matchedEvent.htmlLink ?? null,
+      }).catch(() => {});
+
+      return {
+        supported: true,
+        requiresReconnect: false,
+        responseStatus: options.responseStatus,
+        timeZone,
+        event: {
+          id: updatedEvent.id ?? matchedEvent.id,
+          htmlLink: updatedEvent.htmlLink ?? matchedEvent.htmlLink ?? null,
+          summary: updatedEvent.summary ?? matchedEvent.summary ?? null,
+          start,
+          end,
+          status: updatedEvent.status ?? matchedEvent.status ?? null,
+          responseStatus: options.responseStatus,
+        },
+      };
+    } catch (error: any) {
+      if (isCalendarReconnectError(error)) {
+        return {
+          supported: true,
+          requiresReconnect: true,
+          reason: 'Google Calendar skrivåtkomst saknas eller behöver kopplas om för det här kontot.',
+          timeZone,
+        };
+      }
+
+      const status = error?.response?.status ?? error?.status;
+      if (status === 404) {
+        throw new Error('Calendar invite not found');
       }
 
       throw error;

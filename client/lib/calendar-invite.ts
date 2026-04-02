@@ -1,4 +1,9 @@
-import type { CalendarInvite, EmailAttachment, EmailMessage } from '@/lib/types';
+import type {
+  CalendarInvite,
+  CalendarInviteResponseStatus,
+  EmailAttachment,
+  EmailMessage,
+} from '@/lib/types';
 
 export function getMessageCalendarInvite(
   message: Pick<EmailMessage, 'attachments'> | null | undefined
@@ -147,4 +152,12 @@ export function getCalendarInviteReplyRecipients(
   }
 
   return Array.from(recipients);
+}
+
+export function getCalendarInviteResponseStatusLabel(
+  responseStatus: CalendarInviteResponseStatus
+): string {
+  return responseStatus === 'accepted'
+    ? 'Accepterad i Google Calendar'
+    : 'Avböjd i Google Calendar';
 }

@@ -79,6 +79,8 @@ export interface CalendarInvite {
   isAllDay: boolean;
 }
 
+export type CalendarInviteResponseStatus = 'accepted' | 'declined';
+
 export interface EmailAttachment {
   attachmentId: string;
   filename: string;
@@ -96,6 +98,16 @@ export interface CalendarReleaseEventResponse {
   timeZone: string;
   released?: boolean;
   eventId?: string;
+}
+
+export interface CalendarInviteResponse {
+  supported: boolean;
+  requiresReconnect: boolean;
+  reason?: string;
+  reauthUrl?: string;
+  timeZone: string;
+  responseStatus?: CalendarInviteResponseStatus;
+  event?: (CalendarCreatedEvent & { responseStatus: CalendarInviteResponseStatus }) | undefined;
 }
 
 export interface CustomLabel {

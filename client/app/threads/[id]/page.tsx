@@ -1604,8 +1604,8 @@ export default function ThreadDetailPage() {
                     </button>
                   </div>
                 )}
-                {thread.messages.map((msg: any) => {
-                  const shouldCollapse = thread.messages.length > 3;
+                {(thread.messages ?? []).map((msg: any) => {
+                  const shouldCollapse = (thread.messages?.length ?? 0) > 3;
                   const isExpanded = !shouldCollapse || expandedMessages.has(msg.id);
                   const calendarInvite = getMessageCalendarInvite(msg);
                   const calendarInviteLabel = getCalendarInviteLabel(calendarInvite);

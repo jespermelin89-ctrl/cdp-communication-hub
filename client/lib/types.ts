@@ -241,3 +241,140 @@ export interface Pagination {
   total: number;
   totalPages: number;
 }
+
+export interface Label {
+  id: string;
+  name: string;
+  color: string;
+  icon: string | null;
+  position: number;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  subject?: string | null;
+  bodyText: string;
+  bodyHtml?: string | null;
+  category?: string | null;
+  useCount?: number;
+  createdAt: string;
+}
+
+export interface SavedView {
+  id: string;
+  name: string;
+  icon?: string | null;
+  filters: Record<string, string>;
+  sortKey?: string | null;
+  position?: number;
+}
+
+export interface ContactProfile {
+  id: string;
+  emailAddress: string;
+  displayName?: string | null;
+  relationship?: string | null;
+  preferredMode?: string | null;
+  language?: string | null;
+  notes?: string | null;
+  totalEmails?: number;
+  lastContactAt?: string | null;
+}
+
+export interface FollowUpReminder {
+  id: string;
+  threadId: string;
+  remindAt: string;
+  note?: string | null;
+  completed: boolean;
+  createdAt: string;
+  thread?: { subject: string | null };
+}
+
+export interface ActionLog {
+  id: string;
+  actionType: string;
+  targetType: string | null;
+  targetId?: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface SearchHistoryEntry {
+  id: string;
+  query: string;
+  filters?: Record<string, unknown> | null;
+  resultCount: number;
+  createdAt: string;
+}
+
+export interface WritingMode {
+  id: string;
+  modeKey: string;
+  name: string;
+  description?: string | null;
+  signOff?: string | null;
+  isDefault?: boolean;
+  enabled?: boolean;
+  tone?: string | null;
+  formality?: string | null;
+  characteristics?: Record<string, unknown>;
+}
+
+export interface VoiceAttribute {
+  id: string;
+  attribute: string;
+  value: string;
+  source?: string | null;
+}
+
+export interface DailySummary {
+  id: string;
+  date: string;
+  needsReply: number;
+  goodToKnow: number;
+  totalThreads?: number;
+  recommendation?: string | null;
+  topSenders?: string[];
+  generatedAt?: string;
+}
+
+export interface LearningEvent {
+  id: string;
+  eventType: string;
+  data: Record<string, unknown>;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  createdAt: string;
+}
+
+export interface SenderRule {
+  id: string;
+  senderPattern: string;
+  action: 'spam' | 'archive' | 'categorize' | 'mute' | 'star';
+  subjectPattern?: string | null;
+  categoryId?: string | null;
+  priority?: string | null;
+  isActive: boolean;
+  confidence?: number;
+}
+
+export interface ClassificationRule {
+  id: string;
+  name: string;
+  color?: string | null;
+  icon?: string | null;
+  description?: string | null;
+  slug?: string;
+  priority?: number;
+  isSystem?: boolean;
+}
+
+export interface AnalyticsOverview {
+  mailVolume: Record<string, unknown>;
+  responseTime: Record<string, unknown>;
+  topSenders: Array<{ email: string; count: number }>;
+  classification?: Record<string, number>;
+  period?: { days: number; start: string; end: string };
+}

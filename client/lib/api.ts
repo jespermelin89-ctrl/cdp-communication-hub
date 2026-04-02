@@ -3,6 +3,36 @@
  * All requests go through this module.
  */
 
+import type {
+  User,
+  Account,
+  EmailThread,
+  EmailMessage,
+  Draft,
+  AIAnalysis,
+  Pagination,
+  CommandCenterData,
+  CustomLabel,
+  Label,
+  Template,
+  SavedView,
+  ContactProfile,
+  FollowUpReminder,
+  ActionLog,
+  SearchHistoryEntry,
+  WritingMode,
+  VoiceAttribute,
+  DailySummary,
+  LearningEvent,
+  SenderRule,
+  ClassificationRule,
+  AnalyticsOverview,
+  CalendarAvailabilityResponse,
+  CalendarCreateEventResponse,
+  CalendarReleaseEventResponse,
+  CalendarInviteResponse,
+} from './types';
+
 const API_BASE = '/api/v1';
 
 // Circuit breaker — opens after 3 consecutive network failures, self-heals after 30s
@@ -73,18 +103,19 @@ class ApiClient {
   private async requestWithRetry<T>(
     method: string,
     path: string,
-    body?: any,
+    body?: unknown,
     query?: Record<string, string>,
     retries = 2
   ): Promise<T> {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
         return await this.request<T>(method, path, body, query);
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
         // Never retry auth errors — redirect is already in flight
-        if (err.message === 'Session expired') throw err;
+        if (message === 'Session expired') throw err;
         // Never retry client errors (4xx) — retrying won't help
-        if (err.message?.startsWith('Request failed') && attempt === 0) throw err;
+        if (message?.startsWith('Request failed') && attempt === 0) throw err;
         // Last attempt — propagate
         if (attempt === retries) throw err;
         // Exponential backoff: 2s, 4s
@@ -97,7 +128,7 @@ class ApiClient {
   private async request<T>(
     method: string,
     path: string,
-    body?: any,
+    body?: unknown,
     query?: Record<string, string>
   ): Promise<T> {
     if (typeof window === 'undefined') {
@@ -150,9 +181,9 @@ class ApiClient {
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
-    } catch (fetchErr: any) {
+    } catch (fetchErr: unknown) {
       clearTimeout(timeoutId);
-      if (fetchErr?.name === 'AbortError') {
+      if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
         consecutiveFailures++;
         if (consecutiveFailures >= 3) {
           circuitOpenUntil = Date.now() + 30000;
@@ -177,12 +208,12 @@ class ApiClient {
     }
 
     if (response.status === 401) {
-      let body: any = {};
-      try { body = await response.json(); } catch { /* ignore parse error */ }
+      let parsed: { reauth?: boolean; email?: string } = {};
+      try { parsed = await response.json(); } catch { /* ignore parse error */ }
 
       // REAUTH: OAuth token revoked for a Gmail account — do NOT log out the session
-      if (body.reauth) {
-        throw new Error(`REAUTH_REQUIRED:${body.email || ''}`);
+      if (parsed.reauth) {
+        throw new Error(`REAUTH_REQUIRED:${parsed.email || ''}`);
       }
 
       this.clearToken();
@@ -209,16 +240,16 @@ class ApiClient {
   }
 
   async getProfile() {
-    return this.requestWithRetry<{ user: any }>('GET', '/auth/me');
+    return this.requestWithRetry<{ user: User }>('GET', '/auth/me');
   }
 
   // Accounts
   async getAccounts() {
-    return this.requestWithRetry<{ accounts: any[] }>('GET', '/accounts');
+    return this.requestWithRetry<{ accounts: Account[] }>('GET', '/accounts');
   }
 
   async setDefaultAccount(accountId: string) {
-    return this.request('POST', '/accounts/set-default', { account_id: accountId });
+    return this.request<{ message: string }>('POST', '/accounts/set-default', { account_id: accountId });
   }
 
   async addImapAccount(data: {
@@ -234,7 +265,7 @@ class ApiClient {
     smtp_use_ssl?: boolean;
     password: string;
   }) {
-    return this.request<{ account: any; message: string; mailboxes?: string[] }>(
+    return this.request<{ account: Account; message: string; mailboxes?: string[] }>(
       'POST', '/accounts/imap', data
     );
   }
@@ -249,7 +280,7 @@ class ApiClient {
     smtp_use_ssl?: boolean;
     password: string;
   }) {
-    return this.request<{ success: boolean; error?: string; details?: any }>(
+    return this.request<{ success: boolean; error?: string; details?: Record<string, unknown> }>(
       'POST', '/accounts/test-imap', data
     );
   }
@@ -264,7 +295,7 @@ class ApiClient {
     ai_handling?: 'normal' | 'separate' | 'notify_only';
     team_members?: string[];
   }) {
-    return this.request<{ account: any }>('PATCH', `/accounts/${id}`, data);
+    return this.request<{ account: Account }>('PATCH', `/accounts/${id}`, data);
   }
 
   async syncAccount(id: string) {
@@ -277,11 +308,11 @@ class ApiClient {
 
   // Badges
   async addBadge(accountId: string, badge: string) {
-    return this.request<any>('POST', `/accounts/${accountId}/badges`, { badge });
+    return this.request<{ account: Account }>('POST', `/accounts/${accountId}/badges`, { badge });
   }
 
   async removeBadge(accountId: string, badge: string) {
-    return this.request<any>('DELETE', `/accounts/${accountId}/badges/${badge}`);
+    return this.request<{ account: Account }>('DELETE', `/accounts/${accountId}/badges/${badge}`);
   }
 
   // Threads
@@ -293,43 +324,54 @@ class ApiClient {
     if (params?.cursor) query.cursor = params.cursor;
     if (params?.search) query.search = params.search;
     if (params?.mailbox) query.mailbox = params.mailbox;
-    return this.requestWithRetry<{ threads: any[]; pagination: any; total?: number; totalCount?: number; page?: number; pageSize?: number; hasMore?: boolean; nextCursor?: string | null; mailbox?: string; accountCounts?: Record<string, number> }>('GET', '/threads', undefined, query);
+    return this.requestWithRetry<{
+      threads: EmailThread[];
+      pagination: Pagination;
+      total?: number;
+      totalCount?: number;
+      page?: number;
+      pageSize?: number;
+      hasMore?: boolean;
+      nextCursor?: string | null;
+      mailbox?: string;
+      accountCounts?: Record<string, number>;
+    }>('GET', '/threads', undefined, query);
   }
 
   async getThread(id: string) {
-    return this.requestWithRetry<{ thread: any }>('GET', `/threads/${id}`);
+    return this.requestWithRetry<{ thread: EmailThread }>('GET', `/threads/${id}`);
   }
 
   async syncThreads(accountId: string, maxResults = 20) {
-    return this.request('POST', '/threads/sync', { account_id: accountId, max_results: maxResults });
+    return this.request<{ message: string }>('POST', '/threads/sync', { account_id: accountId, max_results: maxResults });
   }
 
   async syncMessages(threadId: string) {
-    return this.request('POST', `/threads/${threadId}/sync-messages`);
+    return this.request<{ message: string }>('POST', `/threads/${threadId}/sync-messages`);
   }
 
   async archiveThread(threadId: string) {
-    return this.request('POST', `/threads/${threadId}/archive`);
+    return this.request<{ message: string }>('POST', `/threads/${threadId}/archive`);
   }
 
   async trashThread(threadId: string) {
-    return this.request('POST', `/threads/${threadId}/trash`);
+    return this.request<{ message: string }>('POST', `/threads/${threadId}/trash`);
   }
 
   async markThreadAsRead(threadId: string) {
-    return this.request('POST', `/threads/${threadId}/read`);
+    return this.request<{ message: string }>('POST', `/threads/${threadId}/read`);
   }
 
   async markThreadAsUnread(threadId: string) {
-    return this.request('POST', `/threads/${threadId}/unread`);
+    return this.request<{ message: string }>('POST', `/threads/${threadId}/unread`);
   }
 
   async starThread(threadId: string) {
-    return this.request('POST', `/threads/${threadId}/star`);
+    return this.request<{ message: string }>('POST', `/threads/${threadId}/star`);
   }
 
   async unstarThread(threadId: string) {
-    return this.request('POST', `/threads/${threadId}/unstar`);
+    return this.request<{ message: string }>('POST', `/threads/${threadId}/unstar`);
   }
 
   async batchThreadAction(
@@ -370,7 +412,7 @@ class ApiClient {
     labelIds?: string;
     page?: number;
     limit?: number;
-  }): Promise<{ threads: any[]; total: number; page: number; hasMore: boolean }> {
+  }): Promise<{ threads: EmailThread[]; total: number; page: number; hasMore: boolean }> {
     const query: Record<string, string> = {};
     if (params.q) query.q = params.q;
     if (params.from) query.from = params.from;
@@ -386,7 +428,7 @@ class ApiClient {
     if (params.limit) query.limit = String(params.limit);
     return this.request('GET', '/search', undefined, query);
   }
-  async getSearchHistory(): Promise<{ history: any[] }> {
+  async getSearchHistory(): Promise<{ history: SearchHistoryEntry[] }> {
     return this.request('GET', '/search/history');
   }
   async clearSearchHistory(): Promise<{ deleted: boolean }> {
@@ -397,37 +439,37 @@ class ApiClient {
   }
 
   // Sprint 5 — Undo Send
-  async sendDelayed(draftId: string, delaySeconds?: number): Promise<{ draft: any; scheduledAt: string | null; delaySeconds: number; sentImmediately?: boolean }> {
+  async sendDelayed(draftId: string, delaySeconds?: number): Promise<{ draft: Draft; scheduledAt: string | null; delaySeconds: number; sentImmediately?: boolean }> {
     return this.request('POST', `/drafts/${draftId}/send-delayed`, { delay_seconds: delaySeconds });
   }
-  async cancelSend(draftId: string): Promise<{ cancelled: boolean; draft?: any }> {
+  async cancelSend(draftId: string): Promise<{ cancelled: boolean; draft?: Draft }> {
     return this.request('POST', `/drafts/${draftId}/cancel-send`);
   }
 
-  // Sprint 4 — Contact autocomplete
-  async searchContacts(q: string, limit = 10): Promise<{ contacts: any[] }> {
+  // Sprint 4 — Contact autocomplete (returns {email} shape used by ContactAutocomplete component)
+  async searchContacts(q: string, limit = 10): Promise<{ contacts: Array<{ email: string; displayName: string | null; lastContactAt: string | null; totalEmails: number }> }> {
     return this.request('GET', '/contacts/search', undefined, { q, limit: String(limit) });
   }
-  async getRecentContacts(limit = 5): Promise<{ contacts: any[] }> {
+  async getRecentContacts(limit = 5): Promise<{ contacts: Array<{ email: string; displayName: string | null; lastContactAt: string | null; totalEmails: number }> }> {
     return this.request('GET', '/contacts/recent', undefined, { limit: String(limit) });
   }
 
   // Sprint 3 — Signatures
-  async getSignature(accountId: string): Promise<{ signature: any }> {
+  async getSignature(accountId: string): Promise<{ signature: { id: string; emailAddress: string; signature: string | null; signatureHtml: string | null; useSignatureOnNew: boolean; useSignatureOnReply: boolean } }> {
     return this.request('GET', `/accounts/${accountId}/signature`);
   }
-  async saveSignature(accountId: string, data: { text?: string; html?: string; useOnNew?: boolean; useOnReply?: boolean }): Promise<{ signature: any }> {
+  async saveSignature(accountId: string, data: { text?: string; html?: string; useOnNew?: boolean; useOnReply?: boolean }): Promise<{ signature: { id: string; emailAddress: string; signature: string | null; signatureHtml: string | null; useSignatureOnNew: boolean; useSignatureOnReply: boolean } }> {
     return this.request('PUT', `/accounts/${accountId}/signature`, data);
   }
 
   // Sprint 2 — Labels
-  async getLabels(): Promise<{ labels: any[] }> {
+  async getLabels(): Promise<{ labels: Label[] }> {
     return this.request('GET', '/labels');
   }
-  async createLabel(data: { name: string; color?: string; icon?: string }): Promise<{ label: any }> {
+  async createLabel(data: { name: string; color?: string; icon?: string }): Promise<{ label: Label }> {
     return this.request('POST', '/labels', data);
   }
-  async updateLabel(id: string, data: { name?: string; color?: string; icon?: string; position?: number }): Promise<{ label: any }> {
+  async updateLabel(id: string, data: { name?: string; color?: string; icon?: string; position?: number }): Promise<{ label: Label }> {
     return this.request('PATCH', `/labels/${id}`, data);
   }
   async deleteLabel(id: string): Promise<{ deleted: boolean }> {
@@ -448,7 +490,7 @@ class ApiClient {
   }
 
   async updateThread(id: string, data: { labels?: string[] }) {
-    return this.request<{ thread: any }>('PATCH', `/threads/${id}`, data);
+    return this.request<{ thread: EmailThread }>('PATCH', `/threads/${id}`, data);
   }
 
   async downloadAttachment(threadId: string, messageId: string, attachmentId: string): Promise<Blob> {
@@ -468,11 +510,11 @@ class ApiClient {
     if (params?.status) query.status = params.status;
     if (params?.account_id) query.account_id = params.account_id;
     if (params?.page) query.page = String(params.page);
-    return this.requestWithRetry<{ drafts: any[]; pagination: any }>('GET', '/drafts', undefined, query);
+    return this.requestWithRetry<{ drafts: Draft[]; pagination: Pagination }>('GET', '/drafts', undefined, query);
   }
 
   async getDraft(id: string) {
-    return this.requestWithRetry<{ draft: any }>('GET', `/drafts/${id}`);
+    return this.requestWithRetry<{ draft: Draft }>('GET', `/drafts/${id}`);
   }
 
   async createDraft(data: {
@@ -484,7 +526,7 @@ class ApiClient {
     subject: string;
     body_text: string;
   }) {
-    return this.request<{ draft: any }>('POST', '/drafts', data);
+    return this.request<{ draft: Draft }>('POST', '/drafts', data);
   }
 
   async updateDraft(id: string, data: {
@@ -494,32 +536,32 @@ class ApiClient {
     subject?: string;
     body_text?: string;
   }) {
-    return this.request<{ draft: any }>('PATCH', `/drafts/${id}`, data);
+    return this.request<{ draft: Draft }>('PATCH', `/drafts/${id}`, data);
   }
 
   async approveDraft(id: string) {
-    return this.request<{ draft: any; message: string }>('POST', `/drafts/${id}/approve`);
+    return this.request<{ draft: Draft; message: string }>('POST', `/drafts/${id}/approve`);
   }
 
   async sendDraft(id: string) {
-    return this.request<{ draft: any; message: string }>('POST', `/drafts/${id}/send`);
+    return this.request<{ draft: Draft; message: string }>('POST', `/drafts/${id}/send`);
   }
 
   async discardDraft(id: string) {
-    return this.request<{ draft: any }>('POST', `/drafts/${id}/discard`);
+    return this.request<{ draft: Draft }>('POST', `/drafts/${id}/discard`);
   }
 
   async scheduleDraft(id: string, sendAt: string) {
-    return this.request<{ draft: any; message: string }>('POST', `/drafts/${id}/schedule`, { send_at: sendAt });
+    return this.request<{ draft: Draft; message: string }>('POST', `/drafts/${id}/schedule`, { send_at: sendAt });
   }
 
   async cancelSchedule(id: string) {
-    return this.request<{ draft: any; message: string }>('DELETE', `/drafts/${id}/schedule`);
+    return this.request<{ draft: Draft; message: string }>('DELETE', `/drafts/${id}/schedule`);
   }
 
   // AI
   async analyzeThread(threadId: string) {
-    return this.request<{ analysis: any; draft: any; message: string }>('POST', '/ai/analyze-thread', {
+    return this.request<{ analysis: AIAnalysis; draft: Draft | null; message: string }>('POST', '/ai/analyze-thread', {
       thread_id: threadId,
     });
   }
@@ -531,7 +573,7 @@ class ApiClient {
     to_addresses?: string[];
     subject?: string;
   }) {
-    return this.request<{ draft: any; message: string }>('POST', '/ai/generate-draft', data);
+    return this.request<{ draft: Draft; message: string }>('POST', '/ai/generate-draft', data);
   }
 
   async summarizeInbox(accountId: string) {
@@ -540,18 +582,18 @@ class ApiClient {
     });
   }
 
-  // Command Center
+  // Command Center — returns flat shape (pending_drafts, unread_threads) used by TopBar
   async getCommandCenter() {
-    return this.requestWithRetry<any>('GET', '/command-center');
+    return this.requestWithRetry<CommandCenterData & { pending_drafts?: number; unread_threads?: number }>('GET', '/command-center');
   }
 
-  // Categories & Rules
+  // Categories & Rules — use generic shapes to avoid conflicts with local page types
   async getCategories() {
-    return this.requestWithRetry<{ categories: any[] }>('GET', '/categories');
+    return this.requestWithRetry<{ categories: Array<{ id: string; name: string; slug: string; color: string | null; icon: string | null; description: string | null; isSystem: boolean; _count?: { rules: number } }> }>('GET', '/categories');
   }
 
   async createCategory(data: { name: string; color?: string; icon?: string; description?: string }) {
-    return this.request<{ category: any }>('POST', '/categories', data);
+    return this.request<{ category: ClassificationRule }>('POST', '/categories', data);
   }
 
   async deleteCategory(id: string) {
@@ -559,7 +601,7 @@ class ApiClient {
   }
 
   async getRules() {
-    return this.requestWithRetry<{ rules: any[] }>('GET', '/categories/rules');
+    return this.requestWithRetry<{ rules: Array<{ id: string; senderPattern: string; subjectPattern: string | null; action: string; priority: string | null; timesApplied: number; category: { name: string; icon: string | null } | null }> }>('GET', '/categories/rules');
   }
 
   async createRule(data: {
@@ -569,7 +611,7 @@ class ApiClient {
     category_slug?: string;
     priority?: string;
   }) {
-    return this.request<{ rule: any; message: string }>('POST', '/categories/rules', data);
+    return this.request<{ rule: ClassificationRule; message: string }>('POST', '/categories/rules', data);
   }
 
   async deleteRule(id: string) {
@@ -577,13 +619,13 @@ class ApiClient {
   }
 
   async classifyThreads() {
-    return this.request<{ classified: number; total: number; results: any }>('POST', '/categories/classify');
+    return this.request<{ classified: number; total: number; results: Record<string, unknown> }>('POST', '/categories/classify');
   }
 
   // Provider detection — passes current token for add-account OAuth state
   async detectProvider(email: string) {
     const currentToken = this.getToken();
-    const body: any = { email };
+    const body: { email: string; token?: string } = { email };
     if (currentToken) {
       body.token = currentToken; // Embed in OAuth state for add-account flow
     }
@@ -606,16 +648,16 @@ class ApiClient {
   }
 
   async getProviders() {
-    return this.requestWithRetry<{ providers: any[] }>('GET', '/providers');
+    return this.requestWithRetry<{ providers: Array<{ id: string; name: string; type: string; icon: string; authMethod: string }> }>('GET', '/providers');
   }
 
   // Chat commands
-  async chatCommand(command: string, params?: any) {
-    return this.request<{ type: string; message: string; data?: any }>('POST', '/chat/command', { command, params });
+  async chatCommand(command: string, params?: Record<string, unknown>) {
+    return this.request<{ type: string; message: string; data?: Record<string, unknown> }>('POST', '/chat/command', { command, params });
   }
 
   async chatAsk(message: string, threadIds?: string[]) {
-    return this.request<{ type: string; message: string; data?: any }>('POST', '/chat/ask', {
+    return this.request<{ type: string; message: string; data?: Record<string, unknown> }>('POST', '/chat/ask', {
       message,
       ...(threadIds && threadIds.length > 0 ? { thread_ids: threadIds } : {}),
     });
@@ -623,41 +665,41 @@ class ApiClient {
 
   // Brain Summary (BRAIN-OS / external consumer endpoint)
   async getBrainSummary() {
-    return this.requestWithRetry<any>('GET', '/brain-summary');
+    return this.requestWithRetry<Record<string, unknown>>('GET', '/brain-summary');
   }
 
   // Brain Core
   async getDailySummary() {
-    return this.requestWithRetry<{ summary: any }>('GET', '/brain-core/daily-summary');
+    return this.requestWithRetry<{ summary: DailySummary | null }>('GET', '/brain-core/daily-summary');
   }
 
   async regenerateDailySummary() {
-    return this.request<{ summary: any }>('POST', '/brain-core/daily-summary');
+    return this.request<{ summary: DailySummary }>('POST', '/brain-core/daily-summary');
   }
 
   async getWritingProfile() {
-    return this.requestWithRetry<{ profile: { modes: any[]; attributes: any[] } }>('GET', '/brain-core/writing-profile');
+    return this.requestWithRetry<{ profile: { modes: WritingMode[]; attributes: VoiceAttribute[] } }>('GET', '/brain-core/writing-profile');
   }
 
   async getContacts(search?: string) {
     const url = search ? `/brain-core/contacts?search=${encodeURIComponent(search)}` : '/brain-core/contacts';
-    return this.requestWithRetry<{ contacts: any[] }>('GET', url);
+    return this.requestWithRetry<{ contacts: Array<{ id: string; emailAddress: string; displayName: string | null; relationship: string | null; preferredMode: string | null; language: string | null; notes: string | null; totalEmails: number; lastContactAt: string | null }> }>('GET', url);
   }
 
   async updateContact(id: string, data: { displayName?: string; relationship?: string; preferredMode?: string; language?: string; notes?: string }) {
-    return this.request<{ contact: any }>('PATCH', `/brain-core/contacts/${id}`, data);
+    return this.request<{ contact: ContactProfile }>('PATCH', `/brain-core/contacts/${id}`, data);
   }
 
   async getContactThreads(id: string) {
-    return this.request<{ threads: any[] }>('GET', `/brain-core/contacts/${id}/threads`);
+    return this.request<{ threads: Array<{ id: string; subject: string | null; lastMessageAt: string | null; messageCount: number; isRead: boolean }> }>('GET', `/brain-core/contacts/${id}/threads`);
   }
 
   async getClassificationRules() {
-    return this.requestWithRetry<{ rules: any[] }>('GET', '/brain-core/classification');
+    return this.requestWithRetry<{ rules: ClassificationRule[] }>('GET', '/brain-core/classification');
   }
 
   async recordLearning(eventType: string, data?: object, sourceType?: string, sourceId?: string) {
-    return this.request<{ event: any }>('POST', '/brain-core/learn', {
+    return this.request<{ event: LearningEvent }>('POST', '/brain-core/learn', {
       event_type: eventType,
       data,
       source_type: sourceType,
@@ -679,7 +721,7 @@ class ApiClient {
     const query: Record<string, string> = {};
     if (params?.page) query.page = String(params.page);
     if (params?.limit) query.limit = String(params.limit);
-    return this.requestWithRetry<{ logs: any[]; pagination: any }>('GET', '/action-logs', undefined, query);
+    return this.requestWithRetry<{ logs: ActionLog[]; pagination: Pagination }>('GET', '/action-logs', undefined, query);
   }
 
   async subscribePush(data: { endpoint: string; keys: { p256dh: string; auth: string } }) {
@@ -699,7 +741,7 @@ class ApiClient {
   }
 
   async getUserSettings() {
-    return this.request<{ settings: any }>('GET', '/user/settings');
+    return this.request<{ settings: import('./types').UserSettings }>('GET', '/user/settings');
   }
 
   async updateUserSettings(data: {
@@ -715,7 +757,7 @@ class ApiClient {
     externalImages?: string;
     compactMode?: boolean;
   }) {
-    return this.request<{ settings: any }>('PATCH', '/user/settings', data);
+    return this.request<{ settings: import('./types').UserSettings }>('PATCH', '/user/settings', data);
   }
 
   async getCalendarAvailability(accountId: string, params?: {
@@ -731,19 +773,7 @@ class ApiClient {
     if (params?.slotMinutes !== undefined) query.slot_minutes = String(params.slotMinutes);
     if (params?.timeZone) query.time_zone = params.timeZone;
     if (params?.returnTo) query.return_to = params.returnTo;
-    return this.request<{
-      supported: boolean;
-      requiresReconnect: boolean;
-      slots: Array<{ start: string; end: string }>;
-      reason?: string;
-      reauthUrl?: string;
-      timeZone: string;
-      days?: number;
-      limit?: number;
-      slotMinutes?: number;
-      windowStart?: string;
-      windowEnd?: string;
-    }>('GET', '/calendar/availability', undefined, query);
+    return this.request<CalendarAvailabilityResponse>('GET', '/calendar/availability', undefined, query);
   }
 
   async createCalendarEvent(data: {
@@ -754,21 +784,7 @@ class ApiClient {
     timeZone?: string;
     returnTo?: string;
   }) {
-    return this.request<{
-      supported: boolean;
-      requiresReconnect: boolean;
-      reason?: string;
-      reauthUrl?: string;
-      timeZone: string;
-      event?: {
-        id: string;
-        htmlLink: string | null;
-        summary: string | null;
-        start: string;
-        end: string;
-        status: string | null;
-      };
-    }>('POST', '/calendar/events', {
+    return this.request<CalendarCreateEventResponse>('POST', '/calendar/events', {
       account_id: data.accountId,
       thread_id: data.threadId,
       start: data.start,
@@ -784,15 +800,7 @@ class ApiClient {
     timeZone?: string;
     returnTo?: string;
   }) {
-    return this.request<{
-      supported: boolean;
-      requiresReconnect: boolean;
-      reason?: string;
-      reauthUrl?: string;
-      timeZone: string;
-      released?: boolean;
-      eventId?: string;
-    }>('POST', '/calendar/events/release', {
+    return this.request<CalendarReleaseEventResponse>('POST', '/calendar/events/release', {
       account_id: data.accountId,
       event_id: data.eventId,
       time_zone: data.timeZone,
@@ -808,23 +816,7 @@ class ApiClient {
     timeZone?: string;
     returnTo?: string;
   }) {
-    return this.request<{
-      supported: boolean;
-      requiresReconnect: boolean;
-      reason?: string;
-      reauthUrl?: string;
-      timeZone: string;
-      responseStatus?: 'accepted' | 'declined';
-      event?: {
-        id: string;
-        htmlLink: string | null;
-        summary: string | null;
-        start: string;
-        end: string;
-        status: string | null;
-        responseStatus: 'accepted' | 'declined';
-      };
-    }>('POST', '/calendar/invites/respond', {
+    return this.request<CalendarInviteResponse>('POST', '/calendar/invites/respond', {
       account_id: data.accountId,
       invite_uid: data.inviteUid,
       invite_start: data.inviteStart,
@@ -839,7 +831,7 @@ class ApiClient {
   }
 
   async blockSender(senderPattern: string) {
-    return this.request<{ rule: any }>('POST', '/brain-core/sender-rules', {
+    return this.request<{ rule: SenderRule }>('POST', '/brain-core/sender-rules', {
       senderPattern,
       action: 'spam',
     });
@@ -847,18 +839,18 @@ class ApiClient {
 
   // Follow-up reminders
   async getFollowUps() {
-    return this.requestWithRetry<{ reminders: any[] }>('GET', '/follow-ups');
+    return this.requestWithRetry<{ reminders: FollowUpReminder[] }>('GET', '/follow-ups');
   }
 
   async createFollowUp(threadId: string, remindAt: string, note?: string) {
-    return this.request<{ reminder: any }>('POST', `/threads/${threadId}/follow-up`, {
+    return this.request<{ reminder: FollowUpReminder }>('POST', `/threads/${threadId}/follow-up`, {
       remind_at: remindAt,
       note,
     });
   }
 
   async completeFollowUp(id: string) {
-    return this.request<{ reminder: any }>('PATCH', `/follow-ups/${id}/complete`, {});
+    return this.request<{ reminder: FollowUpReminder }>('PATCH', `/follow-ups/${id}/complete`, {});
   }
 
   async deleteFollowUp(id: string) {
@@ -867,7 +859,7 @@ class ApiClient {
 
   // Email templates
   async getTemplates() {
-    return this.requestWithRetry<{ templates: any[] }>('GET', '/templates');
+    return this.requestWithRetry<{ templates: Template[] }>('GET', '/templates');
   }
 
   async createTemplate(data: {
@@ -877,7 +869,7 @@ class ApiClient {
     body_html?: string;
     category?: string;
   }) {
-    return this.request<{ template: any }>('POST', '/templates', data);
+    return this.request<{ template: Template }>('POST', '/templates', data);
   }
 
   async updateTemplate(id: string, data: {
@@ -887,7 +879,7 @@ class ApiClient {
     body_html?: string;
     category?: string;
   }) {
-    return this.request<{ template: any }>('PATCH', `/templates/${id}`, data);
+    return this.request<{ template: Template }>('PATCH', `/templates/${id}`, data);
   }
 
   async deleteTemplate(id: string) {
@@ -895,11 +887,11 @@ class ApiClient {
   }
 
   async useTemplate(id: string) {
-    return this.request<{ template: any }>('POST', `/templates/${id}/use`, {});
+    return this.request<{ template: Template }>('POST', `/templates/${id}/use`, {});
   }
 
   async generateTemplate(instructions: string, name?: string, category?: string) {
-    return this.request<{ template: any }>('POST', '/templates/generate', {
+    return this.request<{ template: Template }>('POST', '/templates/generate', {
       instructions,
       name,
       category,
@@ -908,20 +900,20 @@ class ApiClient {
 
   // Analytics
   async getAnalytics(days = 30) {
-    return this.requestWithRetry<any>('GET', '/analytics/overview', undefined, { days: String(days) });
+    return this.requestWithRetry<AnalyticsOverview>('GET', '/analytics/overview', undefined, { days: String(days) });
   }
 
   // Saved views
   async getSavedViews() {
-    return this.requestWithRetry<{ views: any[] }>('GET', '/views');
+    return this.requestWithRetry<{ views: SavedView[] }>('GET', '/views');
   }
 
-  async createSavedView(data: { name: string; icon?: string; filters: Record<string, any>; sort_key?: string }) {
-    return this.request<{ view: any }>('POST', '/views', data);
+  async createSavedView(data: { name: string; icon?: string; filters: Record<string, string>; sort_key?: string }) {
+    return this.request<{ view: SavedView }>('POST', '/views', data);
   }
 
-  async updateSavedView(id: string, data: { name?: string; icon?: string; filters?: Record<string, any>; sort_key?: string }) {
-    return this.request<{ view: any }>('PATCH', `/views/${id}`, data);
+  async updateSavedView(id: string, data: { name?: string; icon?: string; filters?: Record<string, string>; sort_key?: string }) {
+    return this.request<{ view: SavedView }>('PATCH', `/views/${id}`, data);
   }
 
   async deleteSavedView(id: string) {
@@ -929,12 +921,18 @@ class ApiClient {
   }
 
   async reorderViews(ids: string[]) {
-    return this.request<{ views: any[] }>('PATCH', '/views/reorder', { ids });
+    return this.request<{ views: SavedView[] }>('PATCH', '/views/reorder', { ids });
   }
 
   // Brain Core insights
   async getLearningInsights() {
-    return this.requestWithRetry<any>('GET', '/brain-core/learning-insights');
+    return this.requestWithRetry<{
+      totalEvents: number;
+      byType: Array<{ type: string; count: number }>;
+      recentEvents: LearningEvent[];
+      weeklyTrend: Array<{ date: string; count: number }>;
+      topContacts: ContactProfile[];
+    }>('GET', '/brain-core/learning-insights');
   }
 
   async testVoiceMode(modeKey: string, instruction: string) {

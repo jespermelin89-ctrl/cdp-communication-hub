@@ -240,7 +240,7 @@ async function main() {
   }
 
   // Log AI provider status
-  console.log(`[AI] Provider: ${env.AI_PROVIDER} | Groq: ${env.GROQ_API_KEY ? 'SET' : 'MISSING'} | Anthropic: ${env.ANTHROPIC_API_KEY ? `SET (${env.ANTHROPIC_API_KEY.slice(0, 8)}…)` : 'MISSING'} | OpenAI: ${env.OPENAI_API_KEY ? 'SET' : 'MISSING'}`);
+  console.log(`[AI] Provider: ${env.AI_PROVIDER} | Groq: ${env.GROQ_API_KEY ? 'SET' : 'MISSING'} | Anthropic: ${env.ANTHROPIC_API_KEY ? 'SET' : 'MISSING'} | OpenAI: ${env.OPENAI_API_KEY ? 'SET' : 'MISSING'}`);
 
   // Connect database AFTER server is listening
   const dbConnected = await connectDatabase();

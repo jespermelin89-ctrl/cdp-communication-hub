@@ -24,12 +24,13 @@ import { prisma } from '../config/database';
 import { aiService } from '../services/ai.service';
 import { draftService } from '../services/draft.service';
 import { brainCoreService } from '../services/brain-core.service';
+import { seedBrainCore } from '../services/seed-brain-core.service';
 import { env } from '../config/env';
 import { getAgentDraftStatusError } from '../utils/agent-safety';
 
 const ALLOWED_ACTIONS = [
   'briefing', 'classify', 'draft', 'search', 'brain-status', 'learn',
-  'bulk-classify', 'sync', 'cleanup',
+  'bulk-classify', 'sync', 'cleanup', 'seed-brain-core',
   // v2 actions:
   'send', 'schedule', 'snooze', 'export', 'contacts', 'stats', 'compose', 'chat',
 ] as const;
@@ -745,6 +746,16 @@ export default async function agentRoutes(app: FastifyInstance) {
               pruned_old_events: pruned,
               pattern: patterns,
             },
+          };
+        }
+
+        // ── SEED-BRAIN-CORE ───────────────────────────────────────────────
+        case 'seed-brain-core': {
+          const result = await seedBrainCore(userId);
+          return {
+            success: true,
+            action,
+            data: { seeded: result },
           };
         }
       }

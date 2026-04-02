@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-02 15:38:20 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-02 17:48:09 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -197,6 +197,7 @@ Prefix: `/api/v1`
 - `imap.service.ts`
 - `push.service.ts`
 - `rule-engine.service.ts`
+- `seed-brain-core.service.ts`
 - `smtp.service.ts`
 - `sync-scheduler.service.ts`
 
@@ -322,49 +323,5 @@ GitHub: [jespermelin89-ctrl](https://github.com/jespermelin89-ctrl)
 
 ---
 
-## Projektstatus (2026-04-02)
-
-| Fält | Värde |
-|------|-------|
-| Version | 1.3.0 |
-| Branch | `main` (clean — alla feature-branches mergade) |
-| Testfiler | 56 totalt (43 server + 13 client) |
-| TypeScript | 0 kompileringsfel |
-| `any` i api.ts | 0 (var ~80) |
-| `as any` i routes | ~25 kvar (~14 Prisma JSON, ~9 fixbara, ~2 acceptabla) |
-
-### Säkerhetsstatus — alla åtgärdade
-
-| # | Issue | Commit |
-|---|-------|--------|
-| S1 | API-nyckelprefix borttagen | `7190572` |
-| S2 | Webhook token-verifiering | `be2da96` |
-| S3 | XSS signatur-preview | `3b30d47` |
-| S4 | XSS compose DOMParser | `4806f72` |
-| W3 | Rate limiting sök (30/min) | `07bf92e` |
-| W4 | Gmail token refresh logging | `07681a2` |
-| W5 | MIME whitelist attachments | `a7ffe5e` |
-
-### TypeScript-härdning — klar
-
-| # | Åtgärd | Commit |
-|---|--------|--------|
-| T1 | api.ts alla `any` → typade interfaces | `a745456` |
-| T2 | brain-core Zod-validering | `997d8b0` |
-| T3 | batch route typad ValidAction | `962744d` |
-| T4 | Security test suite (S1-S4, W3, W5) | `0b9f164` |
-
-### Roadmap
-
-#### ~~Fas 1 — Säkerhetshärdning~~ ✅
-#### ~~Fas 2 — TypeScript-härdning~~ ✅
-#### Fas 3 — Sista `as any`-städning (nästa)
-Zod-schemas för templates.ts, categories.ts, agent.ts, auth.ts settings. Remote branch-cleanup.
-
-#### Fas 4 — Framtida features
-n8n workflow automation, Microsoft OAuth, push notification prompt, circuit breaker.
-
----
-
-_API-rutter, tjänster och tabeller genereras av `scripts/update-styrdokument.js`.
-Status- och roadmap-sektionen underhålls manuellt._
+_Detta dokument genereras automatiskt av `scripts/update-styrdokument.js`.
+Ändra inte manuellt — kör `npm run styrdokument` igen efter kodändringar._

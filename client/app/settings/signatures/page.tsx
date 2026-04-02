@@ -6,6 +6,7 @@ import RichTextEditor from '@/components/RichTextEditor';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { PenLine, Check, Copy } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/sanitize-html';
 import type { Account } from '@/lib/types';
 
 interface SignatureData {
@@ -203,7 +204,7 @@ export default function SignaturesSettingsPage() {
                   <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                     <p className="text-xs text-gray-400 mb-2">Förhandsvisning:</p>
                     <div className="text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-600 pt-2 mt-2">
-                      <div dangerouslySetInnerHTML={{ __html: htmlContent }} className="signature-preview" />
+                      <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }} className="signature-preview" />
                     </div>
                   </div>
                 )}

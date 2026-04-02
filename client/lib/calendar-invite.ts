@@ -85,3 +85,66 @@ export function formatCalendarInviteWindow(
 export function isInviteAttachmentDownloadable(attachment: Pick<EmailAttachment, 'attachmentId' | 'downloadable'>): boolean {
   return Boolean(attachment.attachmentId) && attachment.downloadable !== false;
 }
+
+export function buildCalendarInviteResponseText(
+  invite: CalendarInvite,
+  response: 'accept' | 'decline',
+  options: {
+    locale?: string;
+    fallbackTimeZone?: string;
+    bookingLink?: string;
+  } = {}
+): string {
+  const slotLabel = formatCalendarInviteWindow(
+    invite,
+    options.locale ?? 'sv-SE',
+    options.fallbackTimeZone
+  );
+
+  if (response === 'accept') {
+    return [
+      'Hej!',
+      '',
+      slotLabel
+        ? `Den föreslagna tiden ${slotLabel} passar bra för mig.`
+        : 'Den föreslagna tiden passar bra för mig.',
+      'Jag bekräftar gärna mötet.',
+    ].join('\n');
+  }
+
+  const lines = [
+    'Hej!',
+    '',
+    slotLabel
+      ? `Jag kan tyvärr inte den föreslagna tiden ${slotLabel}.`
+      : 'Jag kan tyvärr inte den föreslagna tiden.',
+  ];
+
+  if (options.bookingLink) {
+    lines.push(`Du får gärna boka en annan tid här i stället: ${options.bookingLink}`);
+  } else {
+    lines.push('Skicka gärna ett annat förslag så hittar vi en tid som fungerar.');
+  }
+
+  return lines.join('\n');
+}
+
+export function getCalendarInviteReplyRecipients(
+  invite: CalendarInvite | null | undefined,
+  participants: string[],
+  accountEmail?: string | null
+): string[] {
+  const recipients = new Set<string>();
+
+  if (invite?.organizer && invite.organizer !== accountEmail) {
+    recipients.add(invite.organizer);
+  }
+
+  for (const participant of participants) {
+    if (participant && participant !== accountEmail) {
+      recipients.add(participant);
+    }
+  }
+
+  return Array.from(recipients);
+}

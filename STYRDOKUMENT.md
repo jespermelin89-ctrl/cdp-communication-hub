@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-02 11:15:19 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-02 11:19:09 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCalendarInviteResponseText,
   formatCalendarInviteWindow,
   getCalendarInviteLabel,
+  getCalendarInviteReplyRecipients,
   getMessageCalendarInvite,
   isInviteAttachmentDownloadable,
 } from '@/lib/calendar-invite';
@@ -52,5 +54,38 @@ describe('calendar invite helpers', () => {
   it('disables downloads for inline invite metadata without attachment ids', () => {
     expect(isInviteAttachmentDownloadable({ attachmentId: '', downloadable: false })).toBe(false);
     expect(isInviteAttachmentDownloadable({ attachmentId: 'att_1', downloadable: true })).toBe(true);
+  });
+
+  it('builds an accept response draft body from the invite details', () => {
+    const result = buildCalendarInviteResponseText(invite as any, 'accept', {
+      locale: 'sv-SE',
+      fallbackTimeZone: 'Europe/Stockholm',
+    });
+
+    expect(result).toContain('passar bra för mig');
+    expect(result).toContain('10:00');
+  });
+
+  it('builds a decline response and includes booking link when provided', () => {
+    const result = buildCalendarInviteResponseText(invite as any, 'decline', {
+      locale: 'sv-SE',
+      fallbackTimeZone: 'Europe/Stockholm',
+      bookingLink: 'https://www.meet-r.com/en/jesper',
+    });
+
+    expect(result).toContain('kan tyvärr inte');
+    expect(result).toContain('https://www.meet-r.com/en/jesper');
+  });
+
+  it('prefers the organizer for invite reply recipients', () => {
+    const result = getCalendarInviteReplyRecipients(
+      invite as any,
+      ['participant@example.com', 'owner@example.com'],
+      'owner@example.com'
+    );
+
+    expect(result[0]).toBe('jesper@example.com');
+    expect(result).toContain('participant@example.com');
+    expect(result).not.toContain('owner@example.com');
   });
 });

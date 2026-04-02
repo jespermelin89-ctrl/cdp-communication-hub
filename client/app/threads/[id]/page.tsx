@@ -26,8 +26,10 @@ import {
   formatAvailabilitySlot,
 } from '@/lib/meeting-intent';
 import {
+  buildCalendarInviteResponseText,
   formatCalendarInviteWindow,
   getCalendarInviteLabel,
+  getCalendarInviteReplyRecipients,
   getMessageCalendarInvite,
 } from '@/lib/calendar-invite';
 
@@ -119,6 +121,7 @@ export default function ThreadDetailPage() {
   const [creatingCalendarSlot, setCreatingCalendarSlot] = useState<string | null>(null);
   const [releasingCalendarEvent, setReleasingCalendarEvent] = useState(false);
   const [creatingHeldSlotDraft, setCreatingHeldSlotDraft] = useState(false);
+  const [creatingInviteReplyDraft, setCreatingInviteReplyDraft] = useState<string | null>(null);
   const [calendarAvailability, setCalendarAvailability] = useState<CalendarAvailabilityResponse | null>(null);
   const [calendarWriteReconnect, setCalendarWriteReconnect] = useState<Pick<CalendarCreateEventResponse, 'reason' | 'reauthUrl'> | null>(null);
   const [createdCalendarEvent, setCreatedCalendarEvent] = useState<NonNullable<CalendarCreateEventResponse['event']> | null>(null);
@@ -709,6 +712,54 @@ export default function ThreadDetailPage() {
       (email: unknown): email is string => typeof email === 'string' && !!email && email !== accountEmail
     );
     return [...new Set<string>(participants)];
+  }
+
+  async function handleCreateInviteReplyDraft(
+    invite: NonNullable<ReturnType<typeof getMessageCalendarInvite>>,
+    response: 'accept' | 'decline'
+  ) {
+    if (!thread) return;
+
+    const toAddresses = getCalendarInviteReplyRecipients(
+      invite,
+      getThreadReplyRecipients(),
+      thread.account?.emailAddress
+    );
+
+    if (toAddresses.length === 0) {
+      toast.error('Kunde inte hitta någon mottagare för kalendersvaret');
+      return;
+    }
+
+    setCreatingInviteReplyDraft(response);
+    try {
+      const result = await api.createDraft({
+        account_id: thread.account.id,
+        thread_id: threadId,
+        to_addresses: toAddresses,
+        subject: thread.subject?.toLowerCase().startsWith('re:') ? thread.subject : `Re: ${thread.subject ?? ''}`,
+        body_text: buildCalendarInviteResponseText(invite, response, {
+          locale: calendarReplyLocale,
+          fallbackTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          bookingLink: bookingLink || undefined,
+        }),
+      });
+
+      toast.success(
+        response === 'accept'
+          ? ((t.thread as any).inviteAcceptDraftCreated ?? 'Utkast för att acceptera mötet skapat')
+          : ((t.thread as any).inviteDeclineDraftCreated ?? 'Utkast för att avböja mötet skapat')
+      );
+      router.push(`/drafts/${result.draft.id}`);
+    } catch (err: any) {
+      toast.error(
+        response === 'accept'
+          ? `Kunde inte skapa accept-utkast: ${err.message}`
+          : `Kunde inte skapa avböj-utkast: ${err.message}`
+      );
+    } finally {
+      setCreatingInviteReplyDraft(null);
+    }
   }
 
   async function handleCopyBookingLink() {
@@ -1654,6 +1705,28 @@ export default function ThreadDetailPage() {
                                 <p className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed pt-1">
                                   {calendarInvite.description}
                                 </p>
+                              )}
+                              {!isCancelledInvite && calendarInvite.method === 'REQUEST' && (
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                  <button
+                                    onClick={() => handleCreateInviteReplyDraft(calendarInvite, 'accept')}
+                                    disabled={creatingInviteReplyDraft !== null}
+                                    className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-60"
+                                  >
+                                    {creatingInviteReplyDraft === 'accept'
+                                      ? '...'
+                                      : ((t.thread as any).createInviteAcceptDraft ?? 'Skapa ja-svar')}
+                                  </button>
+                                  <button
+                                    onClick={() => handleCreateInviteReplyDraft(calendarInvite, 'decline')}
+                                    disabled={creatingInviteReplyDraft !== null}
+                                    className="text-xs px-3 py-1.5 bg-white dark:bg-gray-950 text-amber-700 dark:text-amber-300 rounded-lg border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-950 disabled:opacity-60"
+                                  >
+                                    {creatingInviteReplyDraft === 'decline'
+                                      ? '...'
+                                      : ((t.thread as any).createInviteDeclineDraft ?? 'Skapa nej-svar')}
+                                  </button>
+                                </div>
                               )}
                             </div>
                           </div>

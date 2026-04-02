@@ -15,6 +15,12 @@
 import { FastifyInstance } from 'fastify';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { brainCoreService } from '../services/brain-core.service';
+import {
+  UpdateWritingModeSchema,
+  UpdateContactSchema,
+  LearnEventSchema,
+  VoiceTestSchema,
+} from '../utils/validators';
 
 export async function brainCoreRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
@@ -28,10 +34,11 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
   // PATCH /brain-core/writing-mode/:key
   fastify.patch('/brain-core/writing-mode/:key', async (request, reply) => {
     const { key } = request.params as { key: string };
-    const body = request.body as any;
+    const parsed = UpdateWritingModeSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Invalid body', details: parsed.error.flatten() });
 
     try {
-      const updated = await brainCoreService.updateWritingMode(request.userId, key, body);
+      const updated = await brainCoreService.updateWritingMode(request.userId, key, parsed.data);
       return { mode: updated };
     } catch (_) {
       return reply.code(404).send({ error: 'Writing mode not found' });
@@ -48,7 +55,8 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
   // PATCH /brain-core/contacts/:id — update contact by ID
   fastify.patch('/brain-core/contacts/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as any;
+    const parsed = UpdateContactSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Invalid body', details: parsed.error.flatten() });
 
     try {
       const { prisma } = await import('../config/database');
@@ -57,19 +65,13 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
       });
       if (!existing) return reply.code(404).send({ error: 'Contact not found' });
 
-      const allowed = ['displayName', 'relationship', 'preferredMode', 'language', 'notes'];
-      const updateData: Record<string, string> = {};
-      for (const key of allowed) {
-        if (body[key] !== undefined) updateData[key] = body[key];
-      }
-
       const contact = await prisma.contactProfile.update({
         where: { id },
-        data: updateData,
+        data: parsed.data,
       });
       return { contact };
-    } catch (error: any) {
-      return reply.code(500).send({ error: error.message });
+    } catch (error: unknown) {
+      return reply.code(500).send({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
@@ -100,14 +102,15 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
   });
 
   // PATCH /brain-core/contact/:email (legacy — kept for backwards compat)
-  fastify.patch('/brain-core/contact/:email', async (request) => {
+  fastify.patch('/brain-core/contact/:email', async (request, reply) => {
     const { email } = request.params as { email: string };
-    const body = request.body as any;
+    const parsed = UpdateContactSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Invalid body', details: parsed.error.flatten() });
 
     const contact = await brainCoreService.upsertContact(
       request.userId,
       decodeURIComponent(email),
-      body
+      parsed.data
     );
     return { contact };
   });
@@ -132,18 +135,15 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
 
   // POST /brain-core/learn
   fastify.post('/brain-core/learn', async (request, reply) => {
-    const { event_type, data, source_type, source_id } = request.body as any;
-
-    if (!event_type) {
-      return reply.code(400).send({ error: 'event_type is required' });
-    }
+    const parsed = LearnEventSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Invalid body', details: parsed.error.flatten() });
 
     const event = await brainCoreService.recordLearning(
       request.userId,
-      event_type,
-      data || {},
-      source_type,
-      source_id
+      parsed.data.event_type,
+      parsed.data.data,
+      parsed.data.source_type,
+      parsed.data.source_id
     );
     return { event };
   });
@@ -266,11 +266,9 @@ export async function brainCoreRoutes(fastify: FastifyInstance) {
 
   // POST /brain-core/voice-test — Test writing mode
   fastify.post('/brain-core/voice-test', async (request, reply) => {
-    const { mode_key, instruction } = request.body as { mode_key: string; instruction: string };
-
-    if (!mode_key || !instruction) {
-      return reply.code(400).send({ error: 'mode_key and instruction are required' });
-    }
+    const parsed = VoiceTestSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Invalid body', details: parsed.error.flatten() });
+    const { mode_key, instruction } = parsed.data;
 
     const { prisma } = await import('../config/database');
     const mode = await prisma.writingMode.findFirst({

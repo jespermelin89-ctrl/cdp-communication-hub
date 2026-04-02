@@ -95,3 +95,42 @@ export const GenerateDraftRequestSchema = z.object({
 export const SummarizeInboxRequestSchema = z.object({
   account_id: z.string().uuid(),
 });
+
+// ============================================================
+// Brain Core Schemas
+// ============================================================
+export const UpdateWritingModeSchema = z.object({
+  tone: z.string().optional(),
+  formality: z.string().optional(),
+  enabled: z.boolean().optional(),
+  description: z.string().optional(),
+  signOff: z.string().optional(),
+});
+
+export type UpdateWritingModeInput = z.infer<typeof UpdateWritingModeSchema>;
+
+export const UpdateContactSchema = z.object({
+  displayName: z.string().optional(),
+  relationship: z.string().optional(),
+  preferredMode: z.string().optional(),
+  language: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+export type UpdateContactInput = z.infer<typeof UpdateContactSchema>;
+
+export const LearnEventSchema = z.object({
+  event_type: z.string().min(1),
+  data: z.record(z.unknown()).optional().default({}),
+  source_type: z.string().optional(),
+  source_id: z.string().optional(),
+});
+
+export type LearnEventInput = z.infer<typeof LearnEventSchema>;
+
+export const VoiceTestSchema = z.object({
+  mode_key: z.string().min(1),
+  instruction: z.string().min(1).max(2000),
+});
+
+export type VoiceTestInput = z.infer<typeof VoiceTestSchema>;

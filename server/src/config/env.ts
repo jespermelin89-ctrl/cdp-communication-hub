@@ -29,6 +29,9 @@ const envSchema = z.object({
   // External API key for Apple Shortcuts / Siri integration
   COMMAND_API_KEY: z.string().optional(),
 
+  // Google Pub/Sub webhook verification token
+  GOOGLE_PUBSUB_VERIFICATION_TOKEN: z.string().optional(),
+
   // Web Push (VAPID)
   VAPID_PUBLIC_KEY: z.string().optional(),
   VAPID_PRIVATE_KEY: z.string().optional(),

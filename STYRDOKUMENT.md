@@ -1,7 +1,43 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-02 10:54:53 UTC
-> Kör `npm run styrdokument` för att uppdatera.
+> **Senast uppdaterat:** 2026-04-02 (manuell review + auto-genererat)
+> Kör `npm run styrdokument` för att regenerera API-rutter och tabeller.
+
+---
+
+## Version & Status
+
+| Fält | Värde |
+|------|-------|
+| Version | 1.3.0 |
+| Branch | `codex/calendar-invite-awareness` (ej mergad till main) |
+| Tester | 572 totalt (443 server + 129 client) |
+| TypeScript | 0 kompileringsfel |
+| Deploy | Vercel (frontend) + Render (backend), auto-deploy på push till `main` |
+
+---
+
+## AKUTA SÄKERHETSÅTGÄRDER (Review 2026-04-02)
+
+### Kritiska — fixa innan merge till main
+
+| # | Issue | Fil | Fix |
+|---|-------|-----|-----|
+| S1 | API-nyckelprefix loggas vid startup | `server/src/index.ts:243` | Logga bara `'SET'` eller `'MISSING'`, aldrig nyckelprefix |
+| S2 | Webhook saknar signaturverifiering | `server/src/routes/webhooks.ts:31-68` | Verifiera `GOOGLE_PUBSUB_VERIFICATION_TOKEN` innan processing |
+| S3 | XSS i signatur-preview | `client/app/settings/signatures/page.tsx:206` | Sanitera `htmlContent` med `sanitizeHtml()` innan `dangerouslySetInnerHTML` |
+| S4 | XSS i compose text-extraktion | `client/app/compose/page.tsx:841` | Byt `tmp.innerHTML` till `DOMParser` |
+
+### Viktiga — fixa i nästa sprint
+
+| # | Issue | Fil | Fix |
+|---|-------|-----|-----|
+| ~~W1~~ | ~~Draft schedule datum~~ | `server/src/routes/drafts.ts:154` | ✅ Redan fixat — `sendAt <= new Date()` valideras |
+| ~~W2~~ | ~~CSV-injection i export~~ | `server/src/routes/action-logs.ts` | ✅ Ej aktuell — ingen CSV-export finns |
+| W3 | Saknar rate limiting på sök | `server/src/routes/search.ts` | Begränsa query-komplexitet + `take: max 100` |
+| W4 | Gmail token refresh ignorerar nätverksfel | `server/src/services/gmail.service.ts:50-80` | Logga non-401/400 errors, returnera tydligt felmeddelande |
+| W5 | MIME-type validering saknas på attachments | `server/src/services/draft.service.ts:187-192` | Whitelist-validering av MIME-typer |
+| W6 | Ingen circuit breaker för AI fallback | `server/src/services/ai.service.ts` | Persistent blacklist (Redis eller fil) istället för instance-level |
 
 ---
 
@@ -47,8 +83,8 @@ Gmail API ← Backend (Fastify :3001) ← AI Layer (Claude API) ← Frontend (Ne
 | Backend | Node.js + Fastify + TypeScript + Prisma |
 | Databas | PostgreSQL (Supabase) |
 | Frontend | Next.js 15 + Tailwind CSS + TypeScript |
-| AI primär | Anthropic Claude (claude-sonnet-4-20250514) |
-| AI fallback | OpenAI GPT |
+| AI primär | Groq (llama-3.3-70b-versatile, free tier) |
+| AI fallback | Anthropic Claude (claude-sonnet-4-5) → OpenAI (gpt-4o) |
 | Auth | Google OAuth 2.0 + JWT |
 | Kryptering | AES-256-GCM för OAuth-tokens i vila |
 | Hosting | Vercel (frontend) + Render (backend) |
@@ -105,6 +141,7 @@ Prefix: `/api/v1`
 | `GET     /calendar/availability` | `calendar` |
 | `POST    /calendar/events` | `calendar` |
 | `POST    /calendar/events/release` | `calendar` |
+| `POST    /calendar/invites/respond` | `calendar` |
 | `GET     /command-center` | `command-center` |
 | `GET     /docs` | `docs` |
 | `POST    /drafts` | `drafts` |
@@ -321,5 +358,21 @@ GitHub: [jespermelin89-ctrl](https://github.com/jespermelin89-ctrl)
 
 ---
 
-_Detta dokument genereras automatiskt av `scripts/update-styrdokument.js`.
-Ändra inte manuellt — kör `npm run styrdokument` igen efter kodändringar._
+## Roadmap
+
+### Fas 1 — Säkerhetshärdning (pågående)
+Fixa S1–S4 och W1–W2 enligt tabellen ovan.
+
+### Fas 2 — Merge & stabilisera
+Merga `codex/calendar-invite-awareness` till `main`. Deploya. Kör `npm run seed:brain-core` i Render Shell.
+
+### Fas 3 — Härdning & kodkvalitet
+Rate limiting på sök (W3), MIME-validering (W5), ersätt `any[]` i frontend API-klient med riktiga typer, Gmail token refresh (W4).
+
+### Fas 4 — Framtida features
+n8n workflow automation, Microsoft OAuth, push notification browser-prompt i onboarding.
+
+---
+
+_Sektionerna API-rutter, Tjänster, Tabeller genereras av `scripts/update-styrdokument.js`.
+Säkerhets- och roadmap-sektionerna underhålls manuellt._

@@ -800,6 +800,40 @@ class ApiClient {
     });
   }
 
+  async respondToCalendarInvite(data: {
+    accountId: string;
+    inviteUid: string;
+    inviteStart?: string;
+    responseStatus: 'accepted' | 'declined';
+    timeZone?: string;
+    returnTo?: string;
+  }) {
+    return this.request<{
+      supported: boolean;
+      requiresReconnect: boolean;
+      reason?: string;
+      reauthUrl?: string;
+      timeZone: string;
+      responseStatus?: 'accepted' | 'declined';
+      event?: {
+        id: string;
+        htmlLink: string | null;
+        summary: string | null;
+        start: string;
+        end: string;
+        status: string | null;
+        responseStatus: 'accepted' | 'declined';
+      };
+    }>('POST', '/calendar/invites/respond', {
+      account_id: data.accountId,
+      invite_uid: data.inviteUid,
+      invite_start: data.inviteStart,
+      response_status: data.responseStatus,
+      time_zone: data.timeZone,
+      return_to: data.returnTo,
+    });
+  }
+
   async reportSpam(threadId: string) {
     return this.request<{ message: string }>('POST', `/threads/${threadId}/spam`);
   }

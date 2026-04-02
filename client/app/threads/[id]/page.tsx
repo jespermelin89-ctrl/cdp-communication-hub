@@ -6,7 +6,7 @@ import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import PriorityBadge from '@/components/PriorityBadge';
-import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock, MoreVertical, ShieldBan, BellOff, Copy, Reply, Users, Bell, Loader2 } from 'lucide-react';
+import { Archive, Trash2, Bot, MailOpen, UserCircle2, PenLine, ChevronDown, ChevronUp, Check, Zap, Send, CornerDownLeft, MailX, Forward, Star, Paperclip, Download, Tag, X, Clock, MoreVertical, ShieldBan, BellOff, Copy, Reply, Users, Bell, Loader2, CalendarDays, MapPin } from 'lucide-react';
 import { sanitizeHtml, replaceCidImages, wrapQuotedContent } from '@/lib/sanitize-html';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -16,6 +16,7 @@ import type {
   AIAnalysis,
   CalendarAvailabilityResponse,
   CalendarCreateEventResponse,
+  CalendarInviteResponseStatus,
 } from '@/lib/types';
 import AttachmentPreview from '@/components/AttachmentPreview';
 import {
@@ -25,6 +26,14 @@ import {
   detectMeetingIntent,
   formatAvailabilitySlot,
 } from '@/lib/meeting-intent';
+import {
+  buildCalendarInviteResponseText,
+  formatCalendarInviteWindow,
+  getCalendarInviteLabel,
+  getCalendarInviteReplyRecipients,
+  getCalendarInviteResponseStatusLabel,
+  getMessageCalendarInvite,
+} from '@/lib/calendar-invite';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
   lead: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
@@ -114,6 +123,9 @@ export default function ThreadDetailPage() {
   const [creatingCalendarSlot, setCreatingCalendarSlot] = useState<string | null>(null);
   const [releasingCalendarEvent, setReleasingCalendarEvent] = useState(false);
   const [creatingHeldSlotDraft, setCreatingHeldSlotDraft] = useState(false);
+  const [creatingInviteReplyDraft, setCreatingInviteReplyDraft] = useState<string | null>(null);
+  const [respondingToInvite, setRespondingToInvite] = useState<string | null>(null);
+  const [calendarInviteResponses, setCalendarInviteResponses] = useState<Record<string, CalendarInviteResponseStatus>>({});
   const [calendarAvailability, setCalendarAvailability] = useState<CalendarAvailabilityResponse | null>(null);
   const [calendarWriteReconnect, setCalendarWriteReconnect] = useState<Pick<CalendarCreateEventResponse, 'reason' | 'reauthUrl'> | null>(null);
   const [createdCalendarEvent, setCreatedCalendarEvent] = useState<NonNullable<CalendarCreateEventResponse['event']> | null>(null);
@@ -197,6 +209,7 @@ export default function ThreadDetailPage() {
     setCalendarWriteReconnect(null);
     setCreatedCalendarEvent(null);
     setCreatingCalendarSlot(null);
+    setCalendarInviteResponses({});
   }, [threadId]);
 
   function toggleExpand(msgId: string) {
@@ -686,7 +699,8 @@ export default function ThreadDetailPage() {
   }
 
   const analysis = thread.latestAnalysis as AIAnalysis | null;
-  const hasMeetingIntent = detectMeetingIntent(thread);
+  const hasCalendarInvite = thread?.messages?.some((message: any) => Boolean(getMessageCalendarInvite(message))) ?? false;
+  const hasMeetingIntent = detectMeetingIntent(thread) || hasCalendarInvite;
   const calendarReplyLocale = locale === 'sv'
     ? 'sv-SE'
     : locale === 'en'
@@ -703,6 +717,112 @@ export default function ThreadDetailPage() {
       (email: unknown): email is string => typeof email === 'string' && !!email && email !== accountEmail
     );
     return [...new Set<string>(participants)];
+  }
+
+  async function handleCreateInviteReplyDraft(
+    invite: NonNullable<ReturnType<typeof getMessageCalendarInvite>>,
+    response: 'accept' | 'decline'
+  ) {
+    if (!thread) return;
+
+    const toAddresses = getCalendarInviteReplyRecipients(
+      invite,
+      getThreadReplyRecipients(),
+      thread.account?.emailAddress
+    );
+
+    if (toAddresses.length === 0) {
+      toast.error('Kunde inte hitta någon mottagare för kalendersvaret');
+      return;
+    }
+
+    setCreatingInviteReplyDraft(response);
+    try {
+      const result = await api.createDraft({
+        account_id: thread.account.id,
+        thread_id: threadId,
+        to_addresses: toAddresses,
+        subject: thread.subject?.toLowerCase().startsWith('re:') ? thread.subject : `Re: ${thread.subject ?? ''}`,
+        body_text: buildCalendarInviteResponseText(invite, response, {
+          locale: calendarReplyLocale,
+          fallbackTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          bookingLink: bookingLink || undefined,
+        }),
+      });
+
+      toast.success(
+        response === 'accept'
+          ? ((t.thread as any).inviteAcceptDraftCreated ?? 'Utkast för att acceptera mötet skapat')
+          : ((t.thread as any).inviteDeclineDraftCreated ?? 'Utkast för att avböja mötet skapat')
+      );
+      router.push(`/drafts/${result.draft.id}`);
+    } catch (err: any) {
+      toast.error(
+        response === 'accept'
+          ? `Kunde inte skapa accept-utkast: ${err.message}`
+          : `Kunde inte skapa avböj-utkast: ${err.message}`
+      );
+    } finally {
+      setCreatingInviteReplyDraft(null);
+    }
+  }
+
+  async function handleRespondToInvite(
+    invite: NonNullable<ReturnType<typeof getMessageCalendarInvite>>,
+    responseStatus: CalendarInviteResponseStatus
+  ) {
+    if (!thread || !invite.uid) {
+      toast.error('Den här kalenderinbjudan saknar ett giltigt invite-ID');
+      return;
+    }
+
+    setRespondingToInvite(`${invite.uid}:${responseStatus}`);
+    setCalendarWriteReconnect(null);
+
+    try {
+      const result = await api.respondToCalendarInvite({
+        accountId: thread.account.id,
+        inviteUid: invite.uid,
+        inviteStart: invite.start ?? undefined,
+        responseStatus,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        returnTo: `/threads/${threadId}`,
+      });
+
+      if (!result.supported && result.reason) {
+        toast.error(result.reason);
+        return;
+      }
+
+      if (result.requiresReconnect) {
+        setCalendarWriteReconnect({
+          reason: result.reason,
+          reauthUrl: result.reauthUrl,
+        });
+        toast.error(result.reason ?? 'Google Calendar behöver extra åtkomst för att uppdatera svaret');
+        return;
+      }
+
+      if (result.responseStatus && invite.uid) {
+        setCalendarInviteResponses((prev) => ({
+          ...prev,
+          [invite.uid!]: result.responseStatus!,
+        }));
+        toast.success(
+          responseStatus === 'accepted'
+            ? ((t.thread as any).inviteAcceptedInCalendar ?? 'Mötet markerades som accepterat i Google Calendar')
+            : ((t.thread as any).inviteDeclinedInCalendar ?? 'Mötet markerades som avböjt i Google Calendar')
+        );
+      }
+    } catch (err: any) {
+      toast.error(
+        responseStatus === 'accepted'
+          ? `Kunde inte acceptera i Google Calendar: ${err.message}`
+          : `Kunde inte avböja i Google Calendar: ${err.message}`
+      );
+    } finally {
+      setRespondingToInvite(null);
+    }
   }
 
   async function handleCopyBookingLink() {
@@ -1487,6 +1607,15 @@ export default function ThreadDetailPage() {
                 {thread.messages.map((msg: any) => {
                   const shouldCollapse = thread.messages.length > 3;
                   const isExpanded = !shouldCollapse || expandedMessages.has(msg.id);
+                  const calendarInvite = getMessageCalendarInvite(msg);
+                  const calendarInviteLabel = getCalendarInviteLabel(calendarInvite);
+                  const calendarInviteWindow = formatCalendarInviteWindow(
+                    calendarInvite,
+                    locale === 'sv' ? 'sv-SE' : 'en-US',
+                    Intl.DateTimeFormat().resolvedOptions().timeZone
+                  );
+                  const isCancelledInvite = calendarInvite?.method === 'CANCEL' || calendarInvite?.status === 'CANCELLED';
+                  const inviteResponseStatus = calendarInvite?.uid ? calendarInviteResponses[calendarInvite.uid] : undefined;
 
                   if (!isExpanded) {
                     return (
@@ -1597,6 +1726,101 @@ export default function ThreadDetailPage() {
                       ) : (
                         <div className="px-5 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
                           {msg.bodyText || '(No text content)'}
+                        </div>
+                      )}
+                      {calendarInvite && (
+                        <div className="px-5 pb-4">
+                          <div className={`rounded-xl border px-4 py-3 ${
+                            isCancelledInvite
+                              ? 'border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20'
+                              : 'border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20'
+                          }`}>
+                            <div className="flex items-center gap-2 mb-2">
+                              <CalendarDays size={16} className={isCancelledInvite ? 'text-rose-500' : 'text-sky-500'} />
+                              <span className={`text-sm font-medium ${isCancelledInvite ? 'text-rose-700 dark:text-rose-300' : 'text-sky-700 dark:text-sky-300'}`}>
+                                {calendarInviteLabel}
+                              </span>
+                            </div>
+                            <div className="space-y-1.5">
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {calendarInvite.summary ?? msg.subject ?? 'Kalenderhändelse'}
+                              </p>
+                              {calendarInviteWindow && (
+                                <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                  <Clock size={13} className="text-gray-400" />
+                                  {calendarInviteWindow}
+                                </p>
+                              )}
+                              {(calendarInvite.organizerName || calendarInvite.organizer) && (
+                                <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                  <Users size={13} className="text-gray-400" />
+                                  {calendarInvite.organizerName
+                                    ? `${calendarInvite.organizerName}${calendarInvite.organizer ? ` (${calendarInvite.organizer})` : ''}`
+                                    : calendarInvite.organizer}
+                                </p>
+                              )}
+                              {calendarInvite.location && (
+                                <p className="text-xs text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                                  <MapPin size={13} className="text-gray-400" />
+                                  {calendarInvite.location}
+                                </p>
+                              )}
+                              {calendarInvite.description && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-wrap leading-relaxed pt-1">
+                                  {calendarInvite.description}
+                                </p>
+                              )}
+                              {inviteResponseStatus && (
+                                <p className="text-xs text-emerald-700 dark:text-emerald-300 pt-1">
+                                  {getCalendarInviteResponseStatusLabel(inviteResponseStatus)}
+                                </p>
+                              )}
+                              {!isCancelledInvite && calendarInvite.method === 'REQUEST' && thread.account.provider === 'gmail' && calendarInvite.uid && (
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                  <button
+                                    onClick={() => handleRespondToInvite(calendarInvite, 'accepted')}
+                                    disabled={respondingToInvite !== null}
+                                    className="text-xs px-3 py-1.5 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-60"
+                                  >
+                                    {respondingToInvite === `${calendarInvite.uid}:accepted`
+                                      ? '...'
+                                      : ((t.thread as any).acceptInviteInCalendar ?? 'Acceptera i kalendern')}
+                                  </button>
+                                  <button
+                                    onClick={() => handleRespondToInvite(calendarInvite, 'declined')}
+                                    disabled={respondingToInvite !== null}
+                                    className="text-xs px-3 py-1.5 bg-white dark:bg-gray-950 text-sky-700 dark:text-sky-300 rounded-lg border border-sky-300 dark:border-sky-700 hover:bg-sky-100 dark:hover:bg-sky-950 disabled:opacity-60"
+                                  >
+                                    {respondingToInvite === `${calendarInvite.uid}:declined`
+                                      ? '...'
+                                      : ((t.thread as any).declineInviteInCalendar ?? 'Avböj i kalendern')}
+                                  </button>
+                                </div>
+                              )}
+                              {!isCancelledInvite && calendarInvite.method === 'REQUEST' && (
+                                <div className="flex flex-wrap gap-2 pt-2">
+                                  <button
+                                    onClick={() => handleCreateInviteReplyDraft(calendarInvite, 'accept')}
+                                    disabled={creatingInviteReplyDraft !== null}
+                                    className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-60"
+                                  >
+                                    {creatingInviteReplyDraft === 'accept'
+                                      ? '...'
+                                      : ((t.thread as any).createInviteAcceptDraft ?? 'Skapa ja-svar')}
+                                  </button>
+                                  <button
+                                    onClick={() => handleCreateInviteReplyDraft(calendarInvite, 'decline')}
+                                    disabled={creatingInviteReplyDraft !== null}
+                                    className="text-xs px-3 py-1.5 bg-white dark:bg-gray-950 text-amber-700 dark:text-amber-300 rounded-lg border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-950 disabled:opacity-60"
+                                  >
+                                    {creatingInviteReplyDraft === 'decline'
+                                      ? '...'
+                                      : ((t.thread as any).createInviteDeclineDraft ?? 'Skapa nej-svar')}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       )}
                       {/* Attachment Preview — Sprint 6 */}

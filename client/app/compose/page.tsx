@@ -837,9 +837,9 @@ function ComposePageContent() {
                 onChange={(html) => {
                   setBodyHtml(html);
                   // Extract plain text for fallback
-                  const tmp = document.createElement('div');
-                  tmp.innerHTML = html;
-                  setBody(tmp.textContent ?? '');
+                  const parser = new DOMParser();
+                  const doc = parser.parseFromString(html, 'text/html');
+                  setBody(doc.body.textContent ?? '');
                 }}
                 placeholder="Skriv ditt meddelande här…"
                 className="rounded-none border-0"

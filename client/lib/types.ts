@@ -64,6 +64,32 @@ export interface CalendarCreateEventResponse {
   event?: CalendarCreatedEvent;
 }
 
+export interface CalendarInvite {
+  uid: string | null;
+  method: string | null;
+  status: string | null;
+  summary: string | null;
+  description: string | null;
+  location: string | null;
+  organizer: string | null;
+  organizerName: string | null;
+  start: string | null;
+  end: string | null;
+  timeZone: string | null;
+  isAllDay: boolean;
+}
+
+export type CalendarInviteResponseStatus = 'accepted' | 'declined';
+
+export interface EmailAttachment {
+  attachmentId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  downloadable?: boolean;
+  calendarInvite?: CalendarInvite | null;
+}
+
 export interface CalendarReleaseEventResponse {
   supported: boolean;
   requiresReconnect: boolean;
@@ -72,6 +98,16 @@ export interface CalendarReleaseEventResponse {
   timeZone: string;
   released?: boolean;
   eventId?: string;
+}
+
+export interface CalendarInviteResponse {
+  supported: boolean;
+  requiresReconnect: boolean;
+  reason?: string;
+  reauthUrl?: string;
+  timeZone: string;
+  responseStatus?: CalendarInviteResponseStatus;
+  event?: (CalendarCreatedEvent & { responseStatus: CalendarInviteResponseStatus }) | undefined;
 }
 
 export interface CustomLabel {
@@ -134,7 +170,7 @@ export interface EmailMessage {
   subject: string | null;
   bodyText: string | null;
   bodyHtml: string | null;
-  attachments: Array<{ filename: string; mimeType: string; size: number; attachmentId: string }>;
+  attachments: EmailAttachment[];
   receivedAt: string;
 }
 

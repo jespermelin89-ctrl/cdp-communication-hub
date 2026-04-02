@@ -15,7 +15,12 @@ import {
   extractBody,
   buildRfc2822Email,
   encodeBase64Url,
+  decodeBase64Url,
 } from '../utils/email-parser';
+import {
+  isCalendarInviteMimeType,
+  parseCalendarInvite,
+} from '../utils/calendar-invite';
 
 interface GmailTokens {
   accessToken: string;
@@ -75,7 +80,9 @@ export class GmailService {
           }).catch(() => {});
           throw new Error(`REAUTH_REQUIRED:${account.emailAddress}`);
         }
-        // Non-fatal (e.g. network error) — continue with current token
+        // Unexpected network/server error — log but don't crash
+        console.error(`[Gmail] Token refresh failed for account ${accountId}:`, (err as Error).message);
+        throw new Error(`Gmail token refresh failed: ${(err as Error).message}`);
       }
     }
 
@@ -229,20 +236,84 @@ export class GmailService {
       const unsubscribeHeader = getHeader(headers, 'List-Unsubscribe');
       const unsubscribeUrl = unsubscribeHeader?.match(/<(https?:\/\/[^>]+)>/)?.[1] ?? null;
 
-      // Extract attachment metadata (IDs only — never fetch content)
-      const allParts: any[] = [];
-      function collectParts(part: any) {
+      const attachments: Array<{
+        filename: string;
+        mimeType: string;
+        size: number;
+        attachmentId: string;
+        downloadable?: boolean;
+        calendarInvite?: ReturnType<typeof parseCalendarInvite>;
+      }> = [];
+
+      const getPartContent = async (part: any): Promise<string | null> => {
+        if (typeof part?.body?.data === 'string') {
+          return decodeBase64Url(part.body.data);
+        }
+
+        if (part?.body?.attachmentId) {
+          const response = await gmail.users.messages.attachments.get({
+            userId: 'me',
+            messageId: msg.id!,
+            id: part.body.attachmentId,
+          });
+
+          if (typeof response.data.data === 'string') {
+            return decodeBase64Url(response.data.data);
+          }
+        }
+
+        return null;
+      };
+
+      const collectParts = async (part: any) => {
         if (!part) return;
-        if (part.filename && part.body?.attachmentId) allParts.push(part);
-        if (part.parts) (part.parts as any[]).forEach(collectParts);
-      }
-      collectParts(msg.payload);
-      const attachments = allParts.map((p: any) => ({
-        filename: p.filename as string,
-        mimeType: (p.mimeType ?? '') as string,
-        size: Number(p.body?.size ?? 0),
-        attachmentId: p.body.attachmentId as string,
-      }));
+
+        const mimeType = (part.mimeType ?? '') as string;
+        const filename = (part.filename ?? '') as string;
+        const size = Number(part.body?.size ?? 0);
+        const attachmentId = (part.body?.attachmentId ?? '') as string;
+        const isCalendarPart = isCalendarInviteMimeType(mimeType, filename);
+
+        if (isCalendarPart) {
+          let calendarInvite = null;
+
+          try {
+            const content = await getPartContent(part);
+            if (content) {
+              calendarInvite = parseCalendarInvite(content);
+            }
+          } catch {
+            // Non-fatal — keep the attachment metadata even if invite parsing fails
+          }
+
+          if (calendarInvite || attachmentId) {
+            attachments.push({
+              filename: filename || 'invite.ics',
+              mimeType: mimeType || 'text/calendar',
+              size,
+              attachmentId,
+              downloadable: Boolean(attachmentId),
+              ...(calendarInvite ? { calendarInvite } : {}),
+            });
+          }
+        } else if (filename && attachmentId) {
+          attachments.push({
+            filename,
+            mimeType,
+            size,
+            attachmentId,
+            downloadable: true,
+          });
+        }
+
+        if (part.parts) {
+          for (const nestedPart of part.parts as any[]) {
+            await collectParts(nestedPart);
+          }
+        }
+      };
+
+      await collectParts(msg.payload);
 
       const receivedAt = msg.internalDate
         ? new Date(parseInt(msg.internalDate))

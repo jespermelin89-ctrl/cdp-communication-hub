@@ -236,6 +236,20 @@ export async function draftRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'File too large (max 25 MB)' });
     }
 
+    const ALLOWED_MIME_TYPES = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+      'application/pdf',
+      'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'text/plain', 'text/csv', 'text/html',
+      'application/zip', 'application/x-zip-compressed',
+      'audio/mpeg', 'audio/wav', 'video/mp4',
+    ];
+    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      return reply.code(400).send({ error: `Unsupported file type: ${file.mimetype}` });
+    }
+
     const base64 = buffer.toString('base64');
     const existing: any[] = (draft.attachments as any[]) ?? [];
 

@@ -11,8 +11,20 @@ import { sanitizeHtml, replaceCidImages, wrapQuotedContent } from '@/lib/sanitiz
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
-import type { EmailThread, AIAnalysis } from '@/lib/types';
+import type {
+  EmailThread,
+  AIAnalysis,
+  CalendarAvailabilityResponse,
+  CalendarCreateEventResponse,
+} from '@/lib/types';
 import AttachmentPreview from '@/components/AttachmentPreview';
+import {
+  buildAvailabilityReplyText,
+  buildBookingReplyText,
+  buildHeldSlotReplyText,
+  detectMeetingIntent,
+  formatAvailabilitySlot,
+} from '@/lib/meeting-intent';
 
 const CLASSIFICATION_COLORS: Record<string, string> = {
   lead: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800',
@@ -52,7 +64,7 @@ export default function ThreadDetailPage() {
   const params = useParams();
   const router = useRouter();
   const threadId = params.id as string;
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   // Prev/next navigation from inbox thread list stored in sessionStorage
   const threadList = useMemo<string[]>(() => {
@@ -73,7 +85,13 @@ export default function ThreadDetailPage() {
     () => api.getThread(threadId),
     { revalidateOnFocus: true }
   );
+  const { data: settingsData } = useSWR(
+    '/user/settings',
+    () => api.getUserSettings(),
+    { revalidateOnFocus: false }
+  );
   const thread = threadData?.thread ?? null;
+  const bookingLink = settingsData?.settings?.bookingLink ?? '';
 
   const [suggestedDismissed, setSuggestedDismissed] = useState(false);
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
@@ -90,6 +108,14 @@ export default function ThreadDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [quickReply, setQuickReply] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const [creatingBookingDraft, setCreatingBookingDraft] = useState(false);
+  const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [creatingAvailabilityDraft, setCreatingAvailabilityDraft] = useState(false);
+  const [creatingCalendarSlot, setCreatingCalendarSlot] = useState<string | null>(null);
+  const [creatingHeldSlotDraft, setCreatingHeldSlotDraft] = useState(false);
+  const [calendarAvailability, setCalendarAvailability] = useState<CalendarAvailabilityResponse | null>(null);
+  const [calendarWriteReconnect, setCalendarWriteReconnect] = useState<Pick<CalendarCreateEventResponse, 'reason' | 'reauthUrl'> | null>(null);
+  const [createdCalendarEvent, setCreatedCalendarEvent] = useState<NonNullable<CalendarCreateEventResponse['event']> | null>(null);
   const [contact, setContact] = useState<any>(null);
 
   // Writing modes for draft generation
@@ -164,6 +190,13 @@ export default function ThreadDetailPage() {
     ids.add(thread.messages[thread.messages.length - 1].id);
     setExpandedMessages(ids);
   }, [thread?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setCalendarAvailability(null);
+    setCalendarWriteReconnect(null);
+    setCreatedCalendarEvent(null);
+    setCreatingCalendarSlot(null);
+  }, [threadId]);
 
   function toggleExpand(msgId: string) {
     setExpandedMessages((prev) => {
@@ -652,6 +685,217 @@ export default function ThreadDetailPage() {
   }
 
   const analysis = thread.latestAnalysis as AIAnalysis | null;
+  const hasMeetingIntent = detectMeetingIntent(thread);
+  const calendarReplyLocale = locale === 'sv'
+    ? 'sv-SE'
+    : locale === 'en'
+      ? 'en-GB'
+      : locale === 'es'
+        ? 'es-ES'
+        : locale === 'ru'
+          ? 'ru-RU'
+          : 'sv-SE';
+
+  function getThreadReplyRecipients(): string[] {
+    const accountEmail = thread?.account?.emailAddress;
+    const participants = (thread?.participantEmails ?? []).filter(
+      (email: unknown): email is string => typeof email === 'string' && !!email && email !== accountEmail
+    );
+    return [...new Set<string>(participants)];
+  }
+
+  async function handleCopyBookingLink() {
+    if (!bookingLink) return;
+    try {
+      await navigator.clipboard.writeText(bookingLink);
+      toast.success((t.thread as any).bookingLinkCopied ?? 'Bokningslänken kopierades');
+    } catch {
+      toast.error('Kunde inte kopiera bokningslänken');
+    }
+  }
+
+  async function handleLoadAvailability() {
+    if (!thread) return;
+
+    setLoadingAvailability(true);
+    setCalendarWriteReconnect(null);
+    setCreatedCalendarEvent(null);
+    try {
+      const result = await api.getCalendarAvailability(thread.account.id, {
+        days: 14,
+        limit: 6,
+        slotMinutes: 30,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        returnTo: `/threads/${threadId}`,
+      });
+      setCalendarAvailability(result);
+
+      if (!result.supported && result.reason) {
+        toast.error(result.reason);
+        return;
+      }
+
+      if (result.requiresReconnect) {
+        toast.error(result.reason ?? 'Google Calendar behöver kopplas om för att hämta lediga tider');
+        return;
+      }
+
+      if (result.slots.length === 0) {
+        toast.error((t.thread as any).noAvailabilityFound ?? 'Inga lediga tider hittades i kalendern just nu');
+        return;
+      }
+
+      toast.success((t.thread as any).availabilityLoaded ?? 'Lediga tider hämtade från Google Calendar');
+    } catch (err: any) {
+      toast.error(`Kunde inte hämta lediga tider: ${err.message}`);
+    } finally {
+      setLoadingAvailability(false);
+    }
+  }
+
+  async function handleReserveCalendarSlot(slot: { start: string; end: string }) {
+    if (!thread) return;
+
+    setCreatingCalendarSlot(slot.start);
+    setCalendarWriteReconnect(null);
+    try {
+      const result = await api.createCalendarEvent({
+        accountId: thread.account.id,
+        threadId,
+        start: slot.start,
+        end: slot.end,
+        timeZone: calendarAvailability?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+        returnTo: `/threads/${threadId}`,
+      });
+
+      if (!result.supported && result.reason) {
+        toast.error(result.reason);
+        return;
+      }
+
+      if (result.requiresReconnect) {
+        setCalendarWriteReconnect({
+          reason: result.reason,
+          reauthUrl: result.reauthUrl,
+        });
+        toast.error(result.reason ?? 'Google Calendar behöver extra åtkomst för att reservera tiden');
+        return;
+      }
+
+      if (result.event) {
+        setCreatedCalendarEvent(result.event);
+        toast.success((t.thread as any).calendarEventCreated ?? 'Tiden reserverades i Google Calendar');
+      }
+    } catch (err: any) {
+      toast.error(`Kunde inte reservera tiden i Google Calendar: ${err.message}`);
+    } finally {
+      setCreatingCalendarSlot(null);
+    }
+  }
+
+  async function handleCreateBookingDraft() {
+    if (!thread || !bookingLink) return;
+    const toAddresses = getThreadReplyRecipients();
+    if (toAddresses.length === 0) {
+      toast.error('Kunde inte hitta någon mottagare för bokningssvaret');
+      return;
+    }
+
+    setCreatingBookingDraft(true);
+    try {
+      const result = await api.createDraft({
+        account_id: thread.account.id,
+        thread_id: threadId,
+        to_addresses: toAddresses,
+        subject: thread.subject?.toLowerCase().startsWith('re:') ? thread.subject : `Re: ${thread.subject ?? ''}`,
+        body_text: buildBookingReplyText(bookingLink),
+      });
+      toast.success((t.thread as any).bookingDraftCreated ?? 'Utkast med bokningslänk skapat');
+      router.push(`/drafts/${result.draft.id}`);
+    } catch (err: any) {
+      toast.error(`Kunde inte skapa bokningsutkast: ${err.message}`);
+    } finally {
+      setCreatingBookingDraft(false);
+    }
+  }
+
+  async function handleCreateAvailabilityDraft() {
+    if (!thread || !calendarAvailability || !calendarAvailability.supported || calendarAvailability.requiresReconnect) {
+      return;
+    }
+
+    const slots = calendarAvailability.slots.slice(0, 3);
+    if (slots.length === 0) {
+      toast.error((t.thread as any).noAvailabilityFound ?? 'Inga lediga tider hittades i kalendern just nu');
+      return;
+    }
+
+    const toAddresses = getThreadReplyRecipients();
+    if (toAddresses.length === 0) {
+      toast.error('Kunde inte hitta någon mottagare för tidförslaget');
+      return;
+    }
+
+    setCreatingAvailabilityDraft(true);
+    try {
+      const result = await api.createDraft({
+        account_id: thread.account.id,
+        thread_id: threadId,
+        to_addresses: toAddresses,
+        subject: thread.subject?.toLowerCase().startsWith('re:') ? thread.subject : `Re: ${thread.subject ?? ''}`,
+        body_text: buildAvailabilityReplyText(slots, {
+          locale: calendarReplyLocale,
+          timeZone: calendarAvailability.timeZone,
+          bookingLink: bookingLink || undefined,
+        }),
+      });
+      toast.success((t.thread as any).availabilityDraftCreated ?? 'Utkast med lediga tider skapat');
+      router.push(`/drafts/${result.draft.id}`);
+    } catch (err: any) {
+      toast.error(`Kunde inte skapa tidsförslag: ${err.message}`);
+    } finally {
+      setCreatingAvailabilityDraft(false);
+    }
+  }
+
+  async function handleCreateHeldSlotDraft() {
+    if (!thread || !createdCalendarEvent) {
+      return;
+    }
+
+    const toAddresses = getThreadReplyRecipients();
+    if (toAddresses.length === 0) {
+      toast.error('Kunde inte hitta någon mottagare för tidsbekräftelsen');
+      return;
+    }
+
+    setCreatingHeldSlotDraft(true);
+    try {
+      const result = await api.createDraft({
+        account_id: thread.account.id,
+        thread_id: threadId,
+        to_addresses: toAddresses,
+        subject: thread.subject?.toLowerCase().startsWith('re:') ? thread.subject : `Re: ${thread.subject ?? ''}`,
+        body_text: buildHeldSlotReplyText(
+          {
+            start: createdCalendarEvent.start,
+            end: createdCalendarEvent.end,
+          },
+          {
+            locale: calendarReplyLocale,
+            timeZone: calendarAvailability?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+            bookingLink: bookingLink || undefined,
+          }
+        ),
+      });
+      toast.success((t.thread as any).heldSlotDraftCreated ?? 'Utkast för reserverad tid skapat');
+      router.push(`/drafts/${result.draft.id}`);
+    } catch (err: any) {
+      toast.error(`Kunde inte skapa svar för reserverad tid: ${err.message}`);
+    } finally {
+      setCreatingHeldSlotDraft(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -744,6 +988,188 @@ export default function ThreadDetailPage() {
                 {t.thread.dismissSuggestion}
               </button>
             </div>
+          </div>
+        )}
+
+        {hasMeetingIntent && (
+          <div className={`mb-4 p-4 rounded-xl border ${
+            bookingLink
+              ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'
+              : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Bell size={16} className={bookingLink ? 'text-emerald-500' : 'text-amber-500'} />
+              <span className={`text-sm font-medium ${bookingLink ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                {(t.thread as any).meetingIntentDetected ?? 'Mötesförfrågan upptäckt'}
+              </span>
+            </div>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+              {bookingLink
+                ? ((t.thread as any).meetingIntentWithLink ?? 'Den här tråden ser ut att handla om att boka tid. Du kan snabbt skapa ett svar med din bokningslänk.')
+                : ((t.thread as any).meetingIntentMissingLink ?? 'Den här tråden ser ut att handla om att boka tid. Lägg till din bokningslänk i inställningarna för att kunna svara snabbare härifrån.')}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {bookingLink ? (
+                <>
+                  <button
+                    onClick={handleCreateBookingDraft}
+                    disabled={creatingBookingDraft}
+                    className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {creatingBookingDraft
+                      ? '...'
+                      : ((t.thread as any).createBookingDraft ?? 'Skapa bokningsutkast')}
+                  </button>
+                  <button
+                    onClick={handleCopyBookingLink}
+                    className="text-xs px-3 py-1.5 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
+                  >
+                    {(t.thread as any).copyBookingLink ?? 'Kopiera bokningslänk'}
+                  </button>
+                  <button
+                    onClick={() => window.open(bookingLink, '_blank', 'noopener,noreferrer')}
+                    className="text-xs px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                  >
+                    {(t.thread as any).openBookingLink ?? 'Öppna bokningssida'}
+                  </button>
+                  {thread.account.provider === 'gmail' && (
+                    <button
+                      onClick={handleLoadAvailability}
+                      disabled={loadingAvailability}
+                      className="text-xs px-3 py-1.5 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 disabled:opacity-60"
+                    >
+                      {loadingAvailability
+                        ? ((t.thread as any).loadingAvailability ?? 'Hämtar lediga tider...')
+                        : ((t.thread as any).loadAvailability ?? 'Hämta lediga tider')}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => router.push('/settings')}
+                    className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                  >
+                    {(t.thread as any).addBookingLink ?? 'Lägg till bokningslänk'}
+                  </button>
+                  {thread.account.provider === 'gmail' && (
+                    <button
+                      onClick={handleLoadAvailability}
+                      disabled={loadingAvailability}
+                      className="text-xs px-3 py-1.5 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-60"
+                    >
+                      {loadingAvailability
+                        ? ((t.thread as any).loadingAvailability ?? 'Hämtar lediga tider...')
+                        : ((t.thread as any).loadAvailability ?? 'Hämta lediga tider')}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+            {calendarAvailability && (
+              <div className="mt-4 rounded-lg border border-white/60 dark:border-gray-800/80 bg-white/70 dark:bg-gray-900/30 px-3 py-3">
+                {!calendarAvailability.supported ? (
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    {calendarAvailability.reason ?? 'Kalenderförslag stöds inte för det här kontot ännu.'}
+                  </p>
+                ) : calendarAvailability.requiresReconnect ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-amber-700 dark:text-amber-300 flex-1">
+                      {calendarAvailability.reason ?? 'Google Calendar behöver kopplas om innan vi kan läsa lediga tider.'}
+                    </p>
+                    {calendarAvailability.reauthUrl && (
+                      <button
+                        onClick={() => { window.location.href = calendarAvailability.reauthUrl!; }}
+                        className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                      >
+                        {(t.thread as any).connectCalendar ?? 'Aktivera Google Calendar'}
+                      </button>
+                    )}
+                  </div>
+                ) : calendarAvailability.slots.length === 0 ? (
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    {(t.thread as any).noAvailabilityFound ?? 'Inga lediga tider hittades i kalendern just nu'}.
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
+                        {(t.thread as any).availabilityPreview ?? 'Lediga tider från Google Calendar'}
+                      </p>
+                      <button
+                        onClick={handleCreateAvailabilityDraft}
+                        disabled={creatingAvailabilityDraft}
+                        className="text-xs px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:opacity-90 disabled:opacity-60"
+                      >
+                        {creatingAvailabilityDraft
+                          ? '...'
+                          : ((t.thread as any).createAvailabilityDraft ?? 'Skapa svar med tider')}
+                      </button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {calendarAvailability.slots.slice(0, 3).map((slot) => (
+                        <div
+                          key={slot.start}
+                          className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600 dark:text-gray-300 px-2 py-2 rounded-md bg-gray-50 dark:bg-gray-800/70"
+                        >
+                          <span>
+                            {formatAvailabilitySlot(slot, calendarReplyLocale, calendarAvailability.timeZone)}
+                          </span>
+                          <button
+                            onClick={() => handleReserveCalendarSlot(slot)}
+                            disabled={creatingCalendarSlot === slot.start}
+                            className="px-2.5 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 disabled:opacity-60"
+                          >
+                            {creatingCalendarSlot === slot.start
+                              ? ((t.thread as any).reservingCalendarSlot ?? 'Reserverar...')
+                              : ((t.thread as any).reserveCalendarSlot ?? 'Reservera i Google Calendar')}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {calendarWriteReconnect && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
+                        <p className="text-xs text-amber-700 dark:text-amber-300 flex-1">
+                          {calendarWriteReconnect.reason ?? 'Google Calendar skrivåtkomst behövs för att reservera tiden.'}
+                        </p>
+                        {calendarWriteReconnect.reauthUrl && (
+                          <button
+                            onClick={() => { window.location.href = calendarWriteReconnect.reauthUrl!; }}
+                            className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                          >
+                            {(t.thread as any).connectCalendarWrite ?? 'Aktivera kalender-skrivning'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {createdCalendarEvent && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2">
+                        <p className="text-xs text-emerald-700 dark:text-emerald-300 flex-1">
+                          {(t.thread as any).calendarEventCreatedInline ?? 'Tiden ligger nu som en tentativ reservation i Google Calendar.'}
+                        </p>
+                        <button
+                          onClick={handleCreateHeldSlotDraft}
+                          disabled={creatingHeldSlotDraft}
+                          className="text-xs px-3 py-1.5 bg-white dark:bg-gray-950 text-emerald-700 dark:text-emerald-300 rounded-lg border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-950 disabled:opacity-60"
+                        >
+                          {creatingHeldSlotDraft
+                            ? '...'
+                            : ((t.thread as any).createHeldSlotDraft ?? 'Skapa svar för tiden')}
+                        </button>
+                        {createdCalendarEvent.htmlLink && (
+                          <button
+                            onClick={() => window.open(createdCalendarEvent.htmlLink!, '_blank', 'noopener,noreferrer')}
+                            className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                          >
+                            {(t.thread as any).openCalendarEvent ?? 'Öppna kalenderhändelse'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 

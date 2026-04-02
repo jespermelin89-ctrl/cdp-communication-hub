@@ -43,6 +43,7 @@ import { savedViewsRoutes } from './routes/views';
 import { labelRoutes } from './routes/labels';
 import { searchRoutes } from './routes/search';
 import { eventRoutes } from './routes/events';
+import { calendarRoutes } from './routes/calendar';
 
 async function main() {
   // Validate environment before starting
@@ -219,6 +220,7 @@ async function main() {
     await api.register(labelRoutes);
     await api.register(searchRoutes);
     await api.register(eventRoutes);
+    await api.register(calendarRoutes);
   }, { prefix: '/api/v1' });
 
   // Start server FIRST (so Render sees the port binding)

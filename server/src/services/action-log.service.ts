@@ -19,7 +19,8 @@ type ActionType =
   | 'account_disconnected'
   | 'token_revoked'
   | 'token_refreshed'
-  | 'reauth_completed';
+  | 'reauth_completed'
+  | 'calendar_hold_created';
 
 export class ActionLogService {
   /**

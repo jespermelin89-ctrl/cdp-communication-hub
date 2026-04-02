@@ -18,6 +18,21 @@ export type StreamStatus = 'connecting' | 'connected' | 'disconnected';
 
 const BACKOFF_STEPS = [1000, 2000, 4000, 8000, 16000, 30000];
 
+export function revalidateThreadCaches(
+  mutateFn: typeof mutate,
+  threadId?: string | null
+) {
+  if (threadId) {
+    mutateFn(`/threads/${threadId}`);
+  }
+
+  mutateFn(isThreadCacheKey);
+}
+
+export function revalidateDraftCaches(mutateFn: typeof mutate) {
+  mutateFn(isDraftCacheKey);
+}
+
 export function useEventStream(): StreamStatus {
   const [status, setStatus] = useState<StreamStatus>('connecting');
   const esRef = useRef<EventSource | null>(null);
@@ -54,8 +69,7 @@ export function useEventStream(): StreamStatus {
 
     es.addEventListener('thread:new', (e: MessageEvent) => {
       try {
-        // Revalidate thread list
-        mutate(isThreadCacheKey);
+        revalidateThreadCaches(mutate);
       } catch {
         // ignore
       }
@@ -64,10 +78,7 @@ export function useEventStream(): StreamStatus {
     es.addEventListener('thread:updated', (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
-        if (data?.threadId) {
-          mutate(`/threads/${data.threadId}`);
-        }
-        mutate(isThreadCacheKey);
+        revalidateThreadCaches(mutate, data?.threadId);
       } catch {
         // ignore
       }
@@ -75,23 +86,20 @@ export function useEventStream(): StreamStatus {
 
     es.addEventListener('draft:status', (e: MessageEvent) => {
       try {
-        mutate(isDraftCacheKey);
+        revalidateDraftCaches(mutate);
       } catch {
         // ignore
       }
     });
 
     es.addEventListener('sync:complete', () => {
-      mutate(isThreadCacheKey);
+      revalidateThreadCaches(mutate);
     });
 
     es.addEventListener('thread:unsnoozed', (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data);
-        if (data?.threadId) {
-          mutate(`/threads/${data.threadId}`);
-        }
-        mutate(isThreadCacheKey);
+        revalidateThreadCaches(mutate, data?.threadId);
       } catch {
         // ignore
       }

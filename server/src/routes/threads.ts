@@ -11,8 +11,16 @@ import { aiService } from '../services/ai.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { ThreadQuerySchema } from '../utils/validators';
 import { sanitizeSearch, sanitizeLabel } from '../utils/sanitize';
+import {
+  getThreadMutationUnsupportedError,
+  type ThreadMutationAction,
+} from '../utils/thread-provider-capabilities';
 
 const QUESTION_PATTERN = /\?|can you|could you|please|vänligen|kan du|skulle du|hjälp/i;
+
+function getThreadMutationError(provider: string, action: ThreadMutationAction): string | null {
+  return getThreadMutationUnsupportedError(provider, action);
+}
 
 export function buildMessageLookupWhere(threadId: string, messageId: string) {
   return {
@@ -240,7 +248,7 @@ export async function threadRoutes(fastify: FastifyInstance) {
         account: { userId: request.userId },
       },
       include: {
-        account: { select: { id: true, emailAddress: true } },
+        account: { select: { id: true, emailAddress: true, provider: true } },
         messages: {
           orderBy: { receivedAt: 'asc' },
         },
@@ -326,13 +334,16 @@ export async function threadRoutes(fastify: FastifyInstance) {
     });
     if (!thread) return reply.code(404).send({ error: 'Thread not found' });
 
+    const spamError = getThreadMutationError(thread.account.provider, 'spam');
+    if (spamError) {
+      return reply.code(409).send({ error: spamError });
+    }
+
     // Move to trash (reversible)
-    if (thread.account.provider === 'gmail') {
-      try {
-        await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
-      } catch {
-        // Non-fatal — still update DB
-      }
+    try {
+      await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
+    } catch (err: any) {
+      return reply.code(502).send({ error: `Gmail trash failed: ${err.message}` });
     }
     await prisma.emailThread.update({
       where: { id },
@@ -468,15 +479,24 @@ export async function threadRoutes(fastify: FastifyInstance) {
     });
     if (!thread) return reply.code(404).send({ error: 'Thread not found' });
 
-    if (thread.account.provider === 'gmail' && thread.gmailThreadId) {
-      try {
-        await gmailService.markAsRead(thread.account.id, thread.gmailThreadId);
-      } catch {
-        // Non-fatal — DB update still proceeds if Gmail call fails
-      }
+    const readError = getThreadMutationError(thread.account.provider, 'read');
+    if (readError) {
+      return reply.code(409).send({ error: readError });
     }
 
-    await prisma.emailThread.update({ where: { id }, data: { isRead: true } });
+    try {
+      await gmailService.markAsRead(thread.account.id, thread.gmailThreadId);
+    } catch (err: any) {
+      return reply.code(502).send({ error: `Gmail read-state update failed: ${err.message}` });
+    }
+
+    await prisma.emailThread.update({
+      where: { id },
+      data: {
+        isRead: true,
+        labels: thread.labels.filter((l) => l !== 'UNREAD'),
+      },
+    });
     return { message: 'Thread marked as read.' };
   });
 
@@ -490,8 +510,16 @@ export async function threadRoutes(fastify: FastifyInstance) {
       include: { account: { select: { id: true, provider: true } } },
     });
     if (!thread) return reply.code(404).send({ error: 'Thread not found' });
-    if (thread.account.provider === 'gmail' && thread.gmailThreadId) {
-      try { await gmailService.starThread(thread.account.id, thread.gmailThreadId); } catch { /* non-fatal */ }
+
+    const starError = getThreadMutationError(thread.account.provider, 'star');
+    if (starError) {
+      return reply.code(409).send({ error: starError });
+    }
+
+    try {
+      await gmailService.starThread(thread.account.id, thread.gmailThreadId);
+    } catch (err: any) {
+      return reply.code(502).send({ error: `Gmail star failed: ${err.message}` });
     }
     const labels = [...new Set([...thread.labels, 'STARRED'])];
     await prisma.emailThread.update({ where: { id }, data: { labels } });
@@ -508,8 +536,16 @@ export async function threadRoutes(fastify: FastifyInstance) {
       include: { account: { select: { id: true, provider: true } } },
     });
     if (!thread) return reply.code(404).send({ error: 'Thread not found' });
-    if (thread.account.provider === 'gmail' && thread.gmailThreadId) {
-      try { await gmailService.unstarThread(thread.account.id, thread.gmailThreadId); } catch { /* non-fatal */ }
+
+    const unstarError = getThreadMutationError(thread.account.provider, 'unstar');
+    if (unstarError) {
+      return reply.code(409).send({ error: unstarError });
+    }
+
+    try {
+      await gmailService.unstarThread(thread.account.id, thread.gmailThreadId);
+    } catch (err: any) {
+      return reply.code(502).send({ error: `Gmail unstar failed: ${err.message}` });
     }
     const labels = thread.labels.filter((l) => l !== 'STARRED');
     await prisma.emailThread.update({ where: { id }, data: { labels } });
@@ -528,15 +564,24 @@ export async function threadRoutes(fastify: FastifyInstance) {
     });
     if (!thread) return reply.code(404).send({ error: 'Thread not found' });
 
-    if (thread.account.provider === 'gmail' && thread.gmailThreadId) {
-      try {
-        await gmailService.markAsUnread(thread.account.id, thread.gmailThreadId);
-      } catch {
-        // Non-fatal — DB update still proceeds
-      }
+    const unreadError = getThreadMutationError(thread.account.provider, 'unread');
+    if (unreadError) {
+      return reply.code(409).send({ error: unreadError });
     }
 
-    await prisma.emailThread.update({ where: { id }, data: { isRead: false } });
+    try {
+      await gmailService.markAsUnread(thread.account.id, thread.gmailThreadId);
+    } catch (err: any) {
+      return reply.code(502).send({ error: `Gmail unread-state update failed: ${err.message}` });
+    }
+
+    await prisma.emailThread.update({
+      where: { id },
+      data: {
+        isRead: false,
+        labels: [...new Set([...thread.labels, 'UNREAD'])],
+      },
+    });
     return { message: 'Thread marked as unread.' };
   });
 
@@ -553,12 +598,15 @@ export async function threadRoutes(fastify: FastifyInstance) {
     });
     if (!thread) return reply.code(404).send({ error: 'Thread not found' });
 
-    if (thread.account.provider === 'gmail') {
-      try {
-        await gmailService.archiveThread(thread.account.id, thread.gmailThreadId);
-      } catch (err: any) {
-        return reply.code(502).send({ error: `Gmail archive failed: ${err.message}` });
-      }
+    const archiveError = getThreadMutationError(thread.account.provider, 'archive');
+    if (archiveError) {
+      return reply.code(409).send({ error: archiveError });
+    }
+
+    try {
+      await gmailService.archiveThread(thread.account.id, thread.gmailThreadId);
+    } catch (err: any) {
+      return reply.code(502).send({ error: `Gmail archive failed: ${err.message}` });
     }
 
     // Update cached labels
@@ -583,12 +631,15 @@ export async function threadRoutes(fastify: FastifyInstance) {
     });
     if (!thread) return reply.code(404).send({ error: 'Thread not found' });
 
-    if (thread.account.provider === 'gmail') {
-      try {
-        await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
-      } catch (err: any) {
-        return reply.code(502).send({ error: `Gmail trash failed: ${err.message}` });
-      }
+    const trashError = getThreadMutationError(thread.account.provider, 'trash');
+    if (trashError) {
+      return reply.code(409).send({ error: trashError });
+    }
+
+    try {
+      await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
+    } catch (err: any) {
+      return reply.code(502).send({ error: `Gmail trash failed: ${err.message}` });
     }
 
     // Update cached labels
@@ -612,12 +663,15 @@ export async function threadRoutes(fastify: FastifyInstance) {
     });
     if (!thread) return reply.code(404).send({ error: 'Thread not found' });
 
-    if (thread.account.provider === 'gmail') {
-      try {
-        await gmailService.restoreThread(thread.account.id, thread.gmailThreadId);
-      } catch (err: any) {
-        return reply.code(502).send({ error: `Gmail restore failed: ${err.message}` });
-      }
+    const restoreError = getThreadMutationError(thread.account.provider, 'restore');
+    if (restoreError) {
+      return reply.code(409).send({ error: restoreError });
+    }
+
+    try {
+      await gmailService.restoreThread(thread.account.id, thread.gmailThreadId);
+    } catch (err: any) {
+      return reply.code(502).send({ error: `Gmail restore failed: ${err.message}` });
     }
 
     // Update cached labels: remove TRASH, add INBOX
@@ -709,39 +763,60 @@ export async function threadRoutes(fastify: FastifyInstance) {
 
     const results = await Promise.allSettled(
       threads.map(async (thread) => {
-        const isGmail = thread.account.provider === 'gmail';
+        const actionKey: ThreadMutationAction = action === 'read' ? 'read'
+          : action === 'unread' ? 'unread'
+          : action === 'star' ? 'star'
+          : action === 'unstar' ? 'unstar'
+          : action;
+        const providerError = getThreadMutationError(thread.account.provider, actionKey);
+        if (providerError) {
+          throw new Error(providerError);
+        }
+
         switch (action) {
           case 'archive':
-            if (isGmail) await gmailService.archiveThread(thread.account.id, thread.gmailThreadId);
+            await gmailService.archiveThread(thread.account.id, thread.gmailThreadId);
             await prisma.emailThread.update({
               where: { id: thread.id },
               data: { labels: thread.labels.filter((l) => l !== 'INBOX') },
             });
             break;
           case 'trash':
-            if (isGmail) await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
+            await gmailService.trashThread(thread.account.id, thread.gmailThreadId);
             await prisma.emailThread.update({
               where: { id: thread.id },
               data: { labels: [...thread.labels.filter((l) => l !== 'INBOX'), 'TRASH'] },
             });
             break;
           case 'read':
-            if (isGmail) await gmailService.markAsRead(thread.account.id, thread.gmailThreadId);
-            await prisma.emailThread.update({ where: { id: thread.id }, data: { isRead: true } });
+            await gmailService.markAsRead(thread.account.id, thread.gmailThreadId);
+            await prisma.emailThread.update({
+              where: { id: thread.id },
+              data: {
+                isRead: true,
+                labels: thread.labels.filter((l) => l !== 'UNREAD'),
+              },
+            });
             break;
           case 'unread':
-            if (isGmail) await gmailService.markAsUnread(thread.account.id, thread.gmailThreadId);
-            await prisma.emailThread.update({ where: { id: thread.id }, data: { isRead: false } });
+            await gmailService.markAsUnread(thread.account.id, thread.gmailThreadId);
+            await prisma.emailThread.update({
+              where: { id: thread.id },
+              data: {
+                isRead: false,
+                labels: [...new Set([...thread.labels, 'UNREAD'])],
+              },
+            });
             break;
           case 'star':
-            if (isGmail) await gmailService.starThread(thread.account.id, thread.gmailThreadId);
+            await gmailService.starThread(thread.account.id, thread.gmailThreadId);
             await prisma.emailThread.update({
               where: { id: thread.id },
               data: { labels: [...new Set([...thread.labels, 'STARRED'])] },
             });
             break;
           case 'unstar':
-            if (isGmail) await gmailService.unstarThread(thread.account.id, thread.gmailThreadId);
+            await gmailService.unstarThread(thread.account.id, thread.gmailThreadId);
             await prisma.emailThread.update({
               where: { id: thread.id },
               data: { labels: thread.labels.filter((l) => l !== 'STARRED') },
@@ -1006,12 +1081,16 @@ export async function threadRoutes(fastify: FastifyInstance) {
       include: { account: { select: { id: true, provider: true } } },
     });
 
-    await Promise.allSettled(threads.map(async (t) => {
-      if (t.account.provider === 'gmail') await gmailService.archiveThread(t.account.id, t.gmailThreadId).catch(() => {});
+    const results = await Promise.allSettled(threads.map(async (t) => {
+      const providerError = getThreadMutationError(t.account.provider, 'archive');
+      if (providerError) throw new Error(providerError);
+      await gmailService.archiveThread(t.account.id, t.gmailThreadId);
       await prisma.emailThread.update({ where: { id: t.id }, data: { labels: t.labels.filter((l) => l !== 'INBOX') } });
     }));
 
-    return { updated: threads.length };
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - succeeded;
+    return { updated: succeeded, failed };
   });
 
   /**
@@ -1027,15 +1106,19 @@ export async function threadRoutes(fastify: FastifyInstance) {
       include: { account: { select: { id: true, provider: true } } },
     });
 
-    await Promise.allSettled(threads.map(async (t) => {
-      if (t.account.provider === 'gmail') await gmailService.trashThread(t.account.id, t.gmailThreadId).catch(() => {});
+    const results = await Promise.allSettled(threads.map(async (t) => {
+      const providerError = getThreadMutationError(t.account.provider, 'trash');
+      if (providerError) throw new Error(providerError);
+      await gmailService.trashThread(t.account.id, t.gmailThreadId);
       await prisma.emailThread.update({
         where: { id: t.id },
         data: { labels: [...t.labels.filter((l) => l !== 'INBOX'), 'TRASH'] },
       });
     }));
 
-    return { updated: threads.length };
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - succeeded;
+    return { updated: succeeded, failed };
   });
 
   /**
@@ -1051,15 +1134,28 @@ export async function threadRoutes(fastify: FastifyInstance) {
       include: { account: { select: { id: true, provider: true } } },
     });
 
-    await Promise.allSettled(threads.map(async (t) => {
-      if (t.account.provider === 'gmail') {
-        if (isRead) await gmailService.markAsRead(t.account.id, t.gmailThreadId).catch(() => {});
-        else await gmailService.markAsUnread(t.account.id, t.gmailThreadId).catch(() => {});
+    const results = await Promise.allSettled(threads.map(async (t) => {
+      const providerError = getThreadMutationError(t.account.provider, isRead ? 'read' : 'unread');
+      if (providerError) throw new Error(providerError);
+      if (isRead) {
+        await gmailService.markAsRead(t.account.id, t.gmailThreadId);
+      } else {
+        await gmailService.markAsUnread(t.account.id, t.gmailThreadId);
       }
-      await prisma.emailThread.update({ where: { id: t.id }, data: { isRead } });
+      await prisma.emailThread.update({
+        where: { id: t.id },
+        data: {
+          isRead,
+          labels: isRead
+            ? t.labels.filter((l) => l !== 'UNREAD')
+            : [...new Set([...t.labels, 'UNREAD'])],
+        },
+      });
     }));
 
-    return { updated: threads.length };
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - succeeded;
+    return { updated: succeeded, failed };
   });
 
   /**

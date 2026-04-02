@@ -1,6 +1,7 @@
 # CDP Communication Hub
 
-AI-powered communication overlay on Gmail. Reads, analyzes, classifies, and drafts responses — but **never sends or deletes autonomously**. Every outbound email follows: Read → Analyze → Draft → Review → Approve → Gmail Sends.
+AI-powered communication layer above Gmail and connected mail accounts. The AI never auto-sends or auto-deletes on its own. Gmail accounts have real write-back for core mailbox actions; IMAP/SMTP accounts currently support real sync + send, while thread state changes remain Gmail-only.
+Gmail accounts can also expose real Google Calendar availability for meeting replies once the user explicitly reconnects with calendar read access.
 
 ## Tech Stack
 
@@ -10,7 +11,7 @@ Backend   Fastify + TypeScript + Prisma              (Render)
 Database  PostgreSQL (Supabase / Render)
 AI        Groq (default) → Anthropic → OpenAI (fallback chain)
 Auth      Google OAuth 2.0 + JWT + AES-256-GCM token encryption
-Tests     Vitest (unit + integration, 325 tests)
+Tests     Vitest (unit + integration, 572 tests)
 ```
 
 ## Features
@@ -34,6 +35,16 @@ Tests     Vitest (unit + integration, 325 tests)
 - **Scheduled send** — Schedule approved drafts (1h, 3h, tomorrow, Monday, custom datetime)
 - **BCC support** — Add BCC recipients before approval
 - **Draft discard** — Reject drafts with one click; marked as discarded in queue
+- **Meeting assist** — Detect booking intent, insert booking link replies, and create replies with real Google Calendar availability
+- **Calendar reservation** — Reserve a suggested slot as a tentative event in your real Google Calendar directly from the thread view
+
+## Provider Reality
+
+- **Gmail** — sync, send, archive, trash, restore, read/unread, star/unstar are mirrored back to Gmail
+- **Google Calendar (optional on Gmail accounts)** — availability is read live from Google Calendar after a dedicated calendar re-auth flow
+- **Google Calendar write-back (optional on Gmail accounts)** — a user can explicitly reserve a suggested slot as a tentative Google Calendar event after granting calendar write access
+- **IMAP/SMTP** — sync and send happen on the real mailbox/provider, but archive/trash/restore/read/unread/star actions are not yet mirrored back and are blocked server-side
+- **Agent API** — can send or schedule only drafts that have already been approved by a human; it does not auto-approve pending drafts
 
 ### Spam & Unsubscribe
 - **Report spam** — Trash thread + auto-create sender rule in one action
@@ -220,16 +231,17 @@ npm run dev
 | `npm run install:all` | Install all dependencies |
 | `npm run db:migrate` | Run Prisma migrations |
 | `npm run db:generate` | Regenerate Prisma client |
-| `cd server && npm test` | Run all server tests (vitest, 231 tests) |
-| `cd client && npm test` | Run all client tests (vitest, 94 tests) |
+| `cd server && npm test` | Run all server tests (vitest, 443 tests) |
+| `cd client && npm test` | Run all client tests (vitest, 129 tests) |
 | `cd server && npm run seed:brain-core` | Seed Brain Core with defaults |
 | `cd server && npm run generate-vapid` | Generate VAPID keys for push |
 | `npx tsx scripts/deploy-check.ts` | Pre-deployment checklist |
 
 ## Safety Rules
 
-- **Never auto-send** — every draft requires explicit human approval via UI before Gmail sends it
+- **Never auto-send** — AI and agent flows cannot auto-approve pending drafts; a human must approve first
 - **Never auto-delete** — system only suggests actions, never executes deletion
-- **Gmail is source of truth** — system caches thread metadata only; original emails stay in Gmail
-- **Chat ≠ Approval** — the chat widget cannot approve or send drafts
+- **Gmail is source of truth for Gmail accounts** — system caches metadata locally, but Gmail remains authoritative
+- **IMAP/SMTP is not full source-of-truth yet** — real sync/send works, but mailbox state write-back is still limited
+- **Chat ≠ Approval** — the chat widget cannot approve pending drafts or send them on its own
 - **No silent data loss** — raw input, past actions, and routing decisions are logged and visible

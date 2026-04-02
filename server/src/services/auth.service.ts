@@ -6,7 +6,12 @@ import jwt from 'jsonwebtoken';
 import { google } from 'googleapis';
 import { prisma } from '../config/database';
 import { env } from '../config/env';
-import { oauth2Client, getAuthUrl, exchangeCode } from '../config/oauth';
+import {
+  oauth2Client,
+  getAuthUrl,
+  exchangeCode,
+  type GoogleAuthFeature,
+} from '../config/oauth';
 import { encrypt } from '../utils/encryption';
 import { actionLogService } from './action-log.service';
 import { detectProvider } from '../config/email-providers';
@@ -15,6 +20,11 @@ interface JwtPayload {
   userId: string;
   email: string;
 }
+
+type ReauthOptions = {
+  feature?: GoogleAuthFeature;
+  returnTo?: string;
+};
 
 export class AuthService {
   /**
@@ -28,9 +38,14 @@ export class AuthService {
    * Generate an OAuth re-authentication URL for an existing account.
    * The state embeds the accountId so the callback can restore the account.
    */
-  getReauthUrl(accountId: string): string {
-    const state = JSON.stringify({ mode: 'reauth', accountId });
-    return getAuthUrl(state);
+  getReauthUrl(accountId: string, options: ReauthOptions = {}): string {
+    const state = JSON.stringify({
+      mode: 'reauth',
+      accountId,
+      feature: options.feature,
+      returnTo: options.returnTo,
+    });
+    return getAuthUrl(state, undefined, { feature: options.feature });
   }
 
   /**
@@ -89,6 +104,8 @@ export class AuthService {
     let isAddAccountMode = false;
     let isReauthMode = false;
     let reauthAccountId: string | null = null;
+    let reauthFeature: GoogleAuthFeature | undefined;
+    let reauthReturnTo: string | undefined;
 
     if (state) {
       try {
@@ -100,6 +117,8 @@ export class AuthService {
         } else if (parsed.mode === 'reauth' && parsed.accountId) {
           isReauthMode = true;
           reauthAccountId = parsed.accountId;
+          reauthFeature = parsed.feature;
+          reauthReturnTo = parsed.returnTo;
         }
       } catch {
         // Invalid state — fall through to normal login flow
@@ -138,6 +157,8 @@ export class AuthService {
         account: { id: account.id, email: account.emailAddress },
         addedAccount: false,
         reauthed: true,
+        feature: reauthFeature,
+        returnTo: reauthReturnTo,
       };
     }
 

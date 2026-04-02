@@ -332,18 +332,21 @@ class ApiClient {
     return this.request('POST', `/threads/${threadId}/unstar`);
   }
 
-  async batchThreadAction(threadIds: string[], action: 'archive' | 'trash' | 'read' | 'unread' | 'star' | 'unstar') {
+  async batchThreadAction(
+    threadIds: string[],
+    action: 'archive' | 'trash' | 'read' | 'unread' | 'star' | 'unstar'
+  ): Promise<{ message: string; succeeded: number; failed: number }> {
     return this.request('POST', '/threads/batch', { threadIds, action });
   }
 
   // Sprint 1 — dedicated bulk endpoints
-  async bulkArchive(threadIds: string[]): Promise<{ updated: number }> {
+  async bulkArchive(threadIds: string[]): Promise<{ updated: number; failed?: number }> {
     return this.request('POST', '/threads/bulk/archive', { threadIds });
   }
-  async bulkTrash(threadIds: string[]): Promise<{ updated: number }> {
+  async bulkTrash(threadIds: string[]): Promise<{ updated: number; failed?: number }> {
     return this.request('POST', '/threads/bulk/trash', { threadIds });
   }
-  async bulkRead(threadIds: string[], isRead: boolean): Promise<{ updated: number }> {
+  async bulkRead(threadIds: string[], isRead: boolean): Promise<{ updated: number; failed?: number }> {
     return this.request('POST', '/threads/bulk/read', { threadIds, isRead });
   }
   async bulkClassifyThreads(threadIds: string[], classification: string): Promise<{ updated: number }> {
@@ -705,6 +708,7 @@ class ApiClient {
     digestEnabled?: boolean;
     digestTime?: number;
     uiTheme?: string;
+    bookingLink?: string | null;
     undoSendDelay?: number;
     hasCompletedOnboarding?: boolean;
     notificationSound?: boolean;
@@ -712,6 +716,66 @@ class ApiClient {
     compactMode?: boolean;
   }) {
     return this.request<{ settings: any }>('PATCH', '/user/settings', data);
+  }
+
+  async getCalendarAvailability(accountId: string, params?: {
+    days?: number;
+    limit?: number;
+    slotMinutes?: number;
+    timeZone?: string;
+    returnTo?: string;
+  }) {
+    const query: Record<string, string> = { account_id: accountId };
+    if (params?.days !== undefined) query.days = String(params.days);
+    if (params?.limit !== undefined) query.limit = String(params.limit);
+    if (params?.slotMinutes !== undefined) query.slot_minutes = String(params.slotMinutes);
+    if (params?.timeZone) query.time_zone = params.timeZone;
+    if (params?.returnTo) query.return_to = params.returnTo;
+    return this.request<{
+      supported: boolean;
+      requiresReconnect: boolean;
+      slots: Array<{ start: string; end: string }>;
+      reason?: string;
+      reauthUrl?: string;
+      timeZone: string;
+      days?: number;
+      limit?: number;
+      slotMinutes?: number;
+      windowStart?: string;
+      windowEnd?: string;
+    }>('GET', '/calendar/availability', undefined, query);
+  }
+
+  async createCalendarEvent(data: {
+    accountId: string;
+    threadId?: string;
+    start: string;
+    end: string;
+    timeZone?: string;
+    returnTo?: string;
+  }) {
+    return this.request<{
+      supported: boolean;
+      requiresReconnect: boolean;
+      reason?: string;
+      reauthUrl?: string;
+      timeZone: string;
+      event?: {
+        id: string;
+        htmlLink: string | null;
+        summary: string | null;
+        start: string;
+        end: string;
+        status: string | null;
+      };
+    }>('POST', '/calendar/events', {
+      account_id: data.accountId,
+      thread_id: data.threadId,
+      start: data.start,
+      end: data.end,
+      time_zone: data.timeZone,
+      return_to: data.returnTo,
+    });
   }
 
   async reportSpam(threadId: string) {

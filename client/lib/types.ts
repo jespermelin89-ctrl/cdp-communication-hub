@@ -16,6 +16,52 @@ export interface UserSettings {
   defaultAccountId: string | null;
   uiTheme: string;
   aiTonePreference: string | null;
+  bookingLink?: string | null;
+  quietHoursStart?: number | null;
+  quietHoursEnd?: number | null;
+  digestEnabled?: boolean;
+  digestTime?: number | null;
+  undoSendDelay?: number;
+  compactMode?: boolean;
+  notificationSound?: boolean;
+  externalImages?: 'ask' | 'allow' | 'block';
+}
+
+export interface CalendarAvailabilitySlot {
+  start: string;
+  end: string;
+}
+
+export interface CalendarAvailabilityResponse {
+  supported: boolean;
+  requiresReconnect: boolean;
+  slots: CalendarAvailabilitySlot[];
+  reason?: string;
+  reauthUrl?: string;
+  timeZone: string;
+  days?: number;
+  limit?: number;
+  slotMinutes?: number;
+  windowStart?: string;
+  windowEnd?: string;
+}
+
+export interface CalendarCreatedEvent {
+  id: string;
+  htmlLink: string | null;
+  summary: string | null;
+  start: string;
+  end: string;
+  status: string | null;
+}
+
+export interface CalendarCreateEventResponse {
+  supported: boolean;
+  requiresReconnect: boolean;
+  reason?: string;
+  reauthUrl?: string;
+  timeZone: string;
+  event?: CalendarCreatedEvent;
 }
 
 export interface CustomLabel {
@@ -38,7 +84,7 @@ export interface EmailThread {
   isRead: boolean;
   snoozedUntil: string | null;
   isSentByUser?: boolean;
-  account: { id: string; emailAddress: string };
+  account: { id: string; emailAddress: string; provider?: string };
   latestAnalysis: AIAnalysis | null;
   messages?: EmailMessage[];
   drafts?: Draft[];

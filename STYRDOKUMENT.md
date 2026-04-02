@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-01 14:06:03 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-02 09:53:54 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -102,6 +102,8 @@ Prefix: `/api/v1`
 | `GET     /brain-core/learning-insights` | `brain-core` |
 | `POST    /brain-core/voice-test` | `brain-core` |
 | `GET     /brain-summary` | `brain-summary` |
+| `GET     /calendar/availability` | `calendar` |
+| `POST    /calendar/events` | `calendar` |
 | `GET     /command-center` | `command-center` |
 | `GET     /docs` | `docs` |
 | `POST    /drafts` | `drafts` |
@@ -183,6 +185,7 @@ Prefix: `/api/v1`
 - `ai.service.ts`
 - `auth.service.ts`
 - `brain-core.service.ts`
+- `calendar.service.ts`
 - `category.service.ts`
 - `chat-command.service.ts`
 - `draft.service.ts`

@@ -752,7 +752,8 @@ export async function threadRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: 'threadIds must be a non-empty array' });
     }
     const validActions = ['archive', 'trash', 'read', 'unread', 'star', 'unstar'] as const;
-    if (!validActions.includes(action as any)) {
+    type ValidAction = typeof validActions[number];
+    if (!validActions.includes(action as ValidAction)) {
       return reply.code(400).send({ error: `action must be one of: ${validActions.join(', ')}` });
     }
 

@@ -74,6 +74,31 @@ function formatRelativeTime(dateStr: string | null | undefined): string {
 
 type MailboxView = 'inbox' | 'sent' | 'trash' | 'archive' | 'snoozed' | 'all';
 
+type BulkMutationResult = {
+  updated: number;
+  failed?: number;
+};
+
+function notifyBulkMutationResult(
+  result: BulkMutationResult,
+  successMessage: string,
+  partialMessage: string,
+  failureMessage: string
+) {
+  const failed = result.failed ?? 0;
+  if (failed === 0) {
+    toast.success(successMessage);
+    return;
+  }
+
+  if (result.updated > 0) {
+    toast.error(partialMessage);
+    return;
+  }
+
+  toast.error(failureMessage);
+}
+
 export default function InboxPage() {
   const router = useRouter();
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -291,9 +316,14 @@ export default function InboxPage() {
       setBatchTrashOpen(true);
       return;
     }
-    await api.batchThreadAction(ids, action);
+    const result = await api.batchThreadAction(ids, action);
     setSelectedIds(new Set());
-    toast.success(`${ids.length} trådar ${action === 'archive' ? 'arkiverade' : 'raderade'}`);
+    notifyBulkMutationResult(
+      { updated: result.succeeded, failed: result.failed },
+      `${result.succeeded} trådar ${action === 'archive' ? 'arkiverade' : 'flyttade till papperskorgen'}`,
+      `${result.succeeded} trådar uppdaterades, men ${result.failed} kunde inte skrivas tillbaka till originalkällan`,
+      `Kunde inte ${action === 'archive' ? 'arkivera' : 'flytta'} de valda trådarna`
+    );
     await mutateThreads();
   }
 
@@ -313,10 +343,15 @@ export default function InboxPage() {
 
   async function handleBatchArchive(ids: string[]) {
     try {
-      await api.batchThreadAction(ids, 'archive');
+      const result = await api.batchThreadAction(ids, 'archive');
       setSelectedIds(new Set());
       await mutateThreads();
-      toast.success(`${ids.length} trådar arkiverade`);
+      notifyBulkMutationResult(
+        { updated: result.succeeded, failed: result.failed },
+        `${result.succeeded} trådar arkiverade`,
+        `${result.succeeded} trådar arkiverades, men ${result.failed} kunde inte skrivas tillbaka till originalkällan`,
+        'Batch-arkivering misslyckades'
+      );
     } catch {
       toast.error('Batch-arkivering misslyckades');
     }
@@ -405,7 +440,17 @@ export default function InboxPage() {
     }),
     e: () => {
       if (selectedIds.size > 0) {
-        api.bulkArchive(Array.from(selectedIds)).then(() => { setSelectedIds(new Set()); setIsSelectMode(false); return mutateThreads(); }).catch(() => {});
+        api.bulkArchive(Array.from(selectedIds)).then((result) => {
+          setSelectedIds(new Set());
+          setIsSelectMode(false);
+          notifyBulkMutationResult(
+            result,
+            `${result.updated} trådar arkiverade`,
+            `${result.updated} trådar arkiverades, men ${result.failed ?? 0} kunde inte skrivas tillbaka till originalkällan`,
+            'Batch-arkivering misslyckades'
+          );
+          return mutateThreads();
+        }).catch(() => {});
       } else if (focusedIndex >= 0 && focusedIndex < visibleThreads.length) {
         handleArchive(visibleThreads[focusedIndex].id);
       }
@@ -481,10 +526,15 @@ export default function InboxPage() {
 
   async function executeBatchTrash() {
     setBatchTrashOpen(false);
-    await api.bulkTrash(batchTrashPending);
+    const result = await api.bulkTrash(batchTrashPending);
     setSelectedIds(new Set());
     setIsSelectMode(false);
-    toast.success(`${batchTrashPending.length} trådar flyttade till papperskorgen`);
+    notifyBulkMutationResult(
+      result,
+      `${result.updated} trådar flyttade till papperskorgen`,
+      `${result.updated} trådar flyttades, men ${result.failed ?? 0} kunde inte skrivas tillbaka till originalkällan`,
+      'Kunde inte flytta de valda trådarna till papperskorgen'
+    );
     setBatchTrashPending([]);
     await mutateThreads();
   }
@@ -859,11 +909,16 @@ export default function InboxPage() {
             <button
               onClick={async () => {
                 const ids = Array.from(selectedIds);
-                await api.bulkArchive(ids);
+                const result = await api.bulkArchive(ids);
                 setSelectedIds(new Set());
                 setIsSelectMode(false);
                 await mutateThreads();
-                toast.success(`${ids.length} trådar arkiverade`);
+                notifyBulkMutationResult(
+                  result,
+                  `${result.updated} trådar arkiverade`,
+                  `${result.updated} trådar arkiverades, men ${result.failed ?? 0} kunde inte skrivas tillbaka till originalkällan`,
+                  'Batch-arkivering misslyckades'
+                );
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
             >
@@ -873,11 +928,16 @@ export default function InboxPage() {
             <button
               onClick={async () => {
                 const ids = Array.from(selectedIds);
-                await api.bulkRead(ids, true);
+                const result = await api.bulkRead(ids, true);
                 setSelectedIds(new Set());
                 setIsSelectMode(false);
                 await mutateThreads();
-                toast.success(`${ids.length} markerade som lästa`);
+                notifyBulkMutationResult(
+                  result,
+                  `${result.updated} markerade som lästa`,
+                  `${result.updated} markerades som lästa, men ${result.failed ?? 0} kunde inte skrivas tillbaka till originalkällan`,
+                  'Kunde inte markera de valda trådarna som lästa'
+                );
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
             >
@@ -887,11 +947,16 @@ export default function InboxPage() {
             <button
               onClick={async () => {
                 const ids = Array.from(selectedIds);
-                await api.bulkRead(ids, false);
+                const result = await api.bulkRead(ids, false);
                 setSelectedIds(new Set());
                 setIsSelectMode(false);
                 await mutateThreads();
-                toast.success(`${ids.length} markerade som olästa`);
+                notifyBulkMutationResult(
+                  result,
+                  `${result.updated} markerade som olästa`,
+                  `${result.updated} markerades som olästa, men ${result.failed ?? 0} kunde inte skrivas tillbaka till originalkällan`,
+                  'Kunde inte markera de valda trådarna som olästa'
+                );
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors"
             >

@@ -271,13 +271,13 @@ När man klickar "Skicka" skickas mailet direkt. Inget säkerhetsnät.
 
 Ändra send-flödet:
 
-1. `POST /drafts/:id/send` → istället för att skicka direkt, sätt `status: 'sending'` + `scheduledAt: now + 10s`
-2. Ny sync-scheduler task: varannan sekund, hitta drafts med `status: 'sending'` och `scheduledAt < now` → skicka
-3. `POST /drafts/:id/cancel-send` → om `status === 'sending'` och `scheduledAt > now` → sätt tillbaka till `approved`. Returnera `{ cancelled: true }`.
+1. `POST /drafts/:id/send-delayed` → behåll draft som `approved`, sätt `scheduledAt: now + 10s`
+2. Sync-scheduler letar efter drafts med `status: 'approved'` och `scheduledAt <= now` → skickar dem
+3. `POST /drafts/:id/cancel-send` → om `status === 'approved'` och `scheduledAt > now` → sätt `scheduledAt: null`. Returnera `{ cancelled: true }`.
 
 ### 5B. Schema-ändring
 
-Lägg till `'sending'` som giltig draft status (redan är string, behöver bara dokumenteras).
+Ingen ny draft-status behövs. `scheduledAt` räcker, och legacy-`sending` hanteras bara som bakåtkompatibilitet i schedulern.
 
 ### 5C. Frontend — undo toast
 

@@ -9,6 +9,8 @@ import { prisma } from '../config/database';
 import { authService } from '../services/auth.service';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { detectProvider } from '../config/email-providers';
+import { normalizeBookingLinkInput } from '../utils/booking-link';
+import { sanitizeReturnTo } from '../utils/return-to';
 
 export async function authRoutes(fastify: FastifyInstance) {
   /**
@@ -44,7 +46,17 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       if ((result as any).reauthed) {
         // Reauth mode: account restored — redirect with fresh token
-        const frontendCallback = `${env.FRONTEND_URL}/auth/callback?token=${encodeURIComponent(result.token)}&reauthed=${encodeURIComponent(result.account.email)}`;
+        const params = new URLSearchParams({
+          token: result.token,
+          reauthed: result.account.email,
+        });
+        if ((result as any).feature) {
+          params.set('feature', (result as any).feature);
+        }
+        if ((result as any).returnTo) {
+          params.set('return_to', (result as any).returnTo);
+        }
+        const frontendCallback = `${env.FRONTEND_URL}/auth/callback?${params.toString()}`;
         return reply.redirect(frontendCallback);
       }
 
@@ -63,11 +75,20 @@ export async function authRoutes(fastify: FastifyInstance) {
    * Redirects to Google OAuth with reauth state so the callback can restore the account.
    */
   fastify.get('/auth/google/reauth', async (request, reply) => {
-    const { account_id } = request.query as { account_id?: string };
-    if (!account_id) {
+    const querySchema = z.object({
+      account_id: z.string().min(1),
+      feature: z.enum(['calendar', 'calendar_write']).optional(),
+      return_to: z.string().min(1).optional(),
+    });
+    const parsed = querySchema.safeParse(request.query);
+    if (!parsed.success) {
       return reply.code(400).send({ error: 'Missing account_id parameter' });
     }
-    const url = authService.getReauthUrl(account_id);
+    const { account_id, feature, return_to } = parsed.data;
+    const url = authService.getReauthUrl(account_id, {
+      feature,
+      returnTo: sanitizeReturnTo(return_to),
+    });
     return reply.redirect(url);
   });
 
@@ -163,7 +184,7 @@ export async function authRoutes(fastify: FastifyInstance) {
    */
   fastify.patch('/user/settings', {
     preHandler: authMiddleware,
-  }, async (request) => {
+  }, async (request, reply) => {
     const { prisma } = await import('../config/database');
     const body = request.body as {
       quietHoursStart?: number;
@@ -171,6 +192,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       digestEnabled?: boolean;
       digestTime?: number;
       uiTheme?: string;
+      bookingLink?: string | null;
       undoSendDelay?: number;
       hasCompletedOnboarding?: boolean;
       notificationSound?: boolean;
@@ -184,6 +206,12 @@ export async function authRoutes(fastify: FastifyInstance) {
     if (body.digestEnabled !== undefined) allowed.digestEnabled = Boolean(body.digestEnabled);
     if (body.digestTime !== undefined) allowed.digestTime = Number(body.digestTime);
     if (body.uiTheme !== undefined) allowed.uiTheme = body.uiTheme;
+    try {
+      const bookingLink = normalizeBookingLinkInput(body.bookingLink);
+      if (bookingLink !== undefined) allowed.bookingLink = bookingLink;
+    } catch (error: any) {
+      return reply.code(400).send({ error: error.message });
+    }
     if (body.undoSendDelay !== undefined) allowed.undoSendDelay = Math.max(0, Math.min(30, Number(body.undoSendDelay)));
     if (body.hasCompletedOnboarding !== undefined) allowed.hasCompletedOnboarding = Boolean(body.hasCompletedOnboarding);
     if (body.notificationSound !== undefined) allowed.notificationSound = Boolean(body.notificationSound);

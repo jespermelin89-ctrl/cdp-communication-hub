@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const [digestEnabled, setDigestEnabled] = useState(false);
   const [digestTime, setDigestTime] = useState(8);
   const [undoSendDelay, setUndoSendDelay] = useState(10);
+  const [bookingLink, setBookingLink] = useState('');
   const [compactMode, setCompactMode] = useState(false);
   const [notificationSound, setNotificationSound] = useState(false);
   const [externalImages, setExternalImages] = useState<'ask' | 'allow' | 'block'>('ask');
@@ -49,6 +50,7 @@ export default function SettingsPage() {
         setQuietEnd(r.settings.quietHoursEnd ?? 7);
         setDigestEnabled(r.settings.digestEnabled ?? false);
         setDigestTime(r.settings.digestTime ?? 8);
+        setBookingLink(r.settings.bookingLink ?? '');
         setUndoSendDelay(r.settings.undoSendDelay ?? 10);
         setCompactMode(r.settings.compactMode ?? false);
         setNotificationSound(r.settings.notificationSound ?? false);
@@ -114,7 +116,17 @@ export default function SettingsPage() {
   async function saveNotifSettings() {
     setSavingNotif(true);
     try {
-      await api.updateUserSettings({ quietHoursStart: quietStart, quietHoursEnd: quietEnd, digestEnabled, digestTime, undoSendDelay, compactMode, notificationSound, externalImages });
+      await api.updateUserSettings({
+        quietHoursStart: quietStart,
+        quietHoursEnd: quietEnd,
+        digestEnabled,
+        digestTime,
+        bookingLink: bookingLink.trim() || null,
+        undoSendDelay,
+        compactMode,
+        notificationSound,
+        externalImages,
+      });
       setNotifSaved(true);
       setTimeout(() => setNotifSaved(false), 2500);
     } catch (err: any) {
@@ -485,6 +497,23 @@ export default function SettingsPage() {
                     </select>
                   </div>
                 )}
+              </div>
+
+              {/* Booking link */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  {(t.settings as any).bookingLink ?? 'Bokningslänk'}
+                </label>
+                <input
+                  type="url"
+                  value={bookingLink}
+                  onChange={(e) => setBookingLink(e.target.value)}
+                  placeholder={(t.settings as any).bookingLinkPlaceholder ?? 'https://www.meet-r.com/en/jesper'}
+                  className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
+                  {(t.settings as any).bookingLinkHint ?? 'Används när en tråd ser ut som en mötes- eller bokningsförfrågan.'}
+                </p>
               </div>
 
               {/* Undo send delay */}

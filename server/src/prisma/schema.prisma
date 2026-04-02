@@ -462,6 +462,7 @@ model UserSettings {
   userId                  String   @unique @map("user_id")
   defaultAccountId        String?  @map("default_account_id")
   uiTheme                 String   @default("light") @map("ui_theme")
+  bookingLink             String?  @map("booking_link")
   notificationPreferences Json     @default("{}") @map("notification_preferences")
   aiTonePreference        String?  @map("ai_tone_preference")
   quietHoursStart         Int?     @default(22) @map("quiet_hours_start")

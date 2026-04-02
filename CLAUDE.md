@@ -1,21 +1,21 @@
 # CDP Communication Hub - Project Context
 
 ## What This Is
-An AI-powered communication overlay on Gmail. NOT an email client replacement — Gmail stays source of truth. The system reads, analyzes, classifies, and drafts responses, but NEVER sends or deletes autonomously. Every outbound email follows: Read → Analyze → Draft → Review → Approve → Gmail Sends.
+An AI-powered communication layer above Gmail and connected mail accounts. NOT an email client replacement. Gmail remains source of truth for Gmail accounts. The AI layer reads, analyzes, classifies, and drafts responses, but never auto-sends or auto-deletes on its own.
 
 ## Non-Negotiable Safety Rules (NEVER violate these)
-1. **Never auto-send** — AI creates drafts only. Sending requires explicit human approval.
+1. **Never auto-send** — AI and agent flows cannot auto-approve pending drafts. Sending requires human approval first.
 2. **Never auto-delete** — System suggests cleanup, never executes deletion.
-3. **Gmail is source of truth** — System caches metadata, Gmail is authoritative.
+3. **Gmail is source of truth for Gmail accounts** — System caches metadata, Gmail is authoritative there.
 4. **AI suggests, human decides** — Claude drafts and analyzes, never executes.
-5. **Chat ≠ Approval** — Saying "send that" in chat does NOT trigger sending. Only explicit UI/API approval.
-6. **Draft → Approve → Send** — Enforced at database level. `POST /drafts/:id/send` checks `status === 'approved'` in a transaction. No override parameter exists.
+5. **Chat ≠ Approval** — Saying "send that" in chat does NOT trigger sending or auto-approval.
+6. **Draft → Approve → Send** — `POST /drafts/:id/send` checks `status === 'approved'` in a transaction, and the agent can only send/schedule already-approved drafts.
 
 ## Architecture (3 Layers)
 ```
 Gmail API ← Backend (Fastify :3001) ← AI Layer (Claude API) ← Frontend (Next.js :3000)
                      ↑
-               Claude / Dispatch (reads + drafts via API, cannot approve or send)
+               Claude / Dispatch (reads + drafts via API, cannot auto-approve pending drafts)
 ```
 
 - **Backend** is the SOLE gateway to Gmail API and AI provider. No other component talks to Gmail directly.
@@ -215,14 +215,14 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 - Snooze UI + quick actions: snooze-picker, hover-actions, svep-gester (mobil), auto-unsnooze
 - Performance: cursor pagination, infinite scroll (SWR infinite), virtual list, optimistiska uppdateringar
 - Settings + onboarding: unified sidebar-layout, 5-stegs wizard, compact mode, externa bilder
-- 436 server + 129 client tester — alla gröna
+- 443 server + 129 client tester — alla gröna
 
 ## Nuläge (2026-04-01)
 
-- **Git**: `main` = `origin/main` = v1.3.0, 0 uncommitted ändringar
+- **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
 - **Version**: 1.3.0 i client/package.json och server/package.json
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 436 server (36 filer) + 129 client (9 filer) = 565 totalt
+- **Tester**: 443 server (38 filer) + 129 client (9 filer) = 572 totalt
 
 ## Kända Buggar / TODO (2026-04-01)
 

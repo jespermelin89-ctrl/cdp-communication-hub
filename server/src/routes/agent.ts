@@ -15,7 +15,7 @@
  * Response: { success: boolean, action: string, data: any, provider_used?: string }
  *
  * SAFETY GUARANTEE: draft.body_text is NEVER included in briefing/search responses.
- * Sending always requires explicit human approval through the CDP UI.
+ * The agent can only send or schedule drafts that have already been approved by a human.
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -24,6 +24,7 @@ import { aiService } from '../services/ai.service';
 import { draftService } from '../services/draft.service';
 import { brainCoreService } from '../services/brain-core.service';
 import { env } from '../config/env';
+import { getAgentDraftStatusError } from '../utils/agent-safety';
 
 const ALLOWED_ACTIONS = [
   'briefing', 'classify', 'draft', 'search', 'brain-status', 'learn',
@@ -550,11 +551,11 @@ export default async function agentRoutes(app: FastifyInstance) {
           if (!params.draft_id) {
             return reply.code(400).send({ success: false, error: 'params.draft_id krävs.' });
           }
-          // Approve if still pending, then send
           const draftToSend = await prisma.draft.findFirst({ where: { id: params.draft_id, account: { userId } } });
           if (!draftToSend) return reply.code(404).send({ success: false, error: 'Utkast hittades inte.' });
-          if (draftToSend.status === 'pending') {
-            await draftService.approve(params.draft_id, userId);
+          const sendError = getAgentDraftStatusError(draftToSend.status, 'send');
+          if (sendError) {
+            return reply.code(409).send({ success: false, error: sendError });
           }
           const sentDraft = await draftService.send(params.draft_id, userId);
           return { success: true, action, data: { draft_id: sentDraft.id, status: sentDraft.status, message: 'E-post skickad.' } };
@@ -569,8 +570,9 @@ export default async function agentRoutes(app: FastifyInstance) {
           if (isNaN(sendAt.getTime())) return reply.code(400).send({ success: false, error: 'send_at måste vara ett giltigt ISO-datum.' });
           const draftForSchedule = await prisma.draft.findFirst({ where: { id: params.draft_id, account: { userId } } });
           if (!draftForSchedule) return reply.code(404).send({ success: false, error: 'Utkast hittades inte.' });
-          if (draftForSchedule.status === 'pending') {
-            await draftService.approve(params.draft_id, userId);
+          const scheduleError = getAgentDraftStatusError(draftForSchedule.status, 'schedule');
+          if (scheduleError) {
+            return reply.code(409).send({ success: false, error: scheduleError });
           }
           const scheduled = await prisma.draft.update({ where: { id: params.draft_id }, data: { scheduledAt: sendAt } });
           return { success: true, action, data: { draft_id: scheduled.id, scheduled_at: sendAt.toISOString(), message: `Schemalagt för ${sendAt.toLocaleString('sv-SE')}` } };

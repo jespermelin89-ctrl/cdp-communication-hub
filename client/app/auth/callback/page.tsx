@@ -16,6 +16,12 @@ function AuthCallbackContent() {
     const token = searchParams.get('token');
     const error = searchParams.get('error');
     const addedEmail = searchParams.get('added');
+    const reauthedEmail = searchParams.get('reauthed');
+    const feature = searchParams.get('feature');
+    const returnTo = searchParams.get('return_to');
+    const safeReturnTo = returnTo && returnTo.startsWith('/') && !returnTo.startsWith('//')
+      ? returnTo
+      : '/settings/accounts';
 
     if (error) {
       setStatus(t.auth.failed.replace('{error}', error));
@@ -28,6 +34,14 @@ function AuthCallbackContent() {
       if (addedEmail) {
         setStatus(t.auth.accountLinked.replace('{email}', addedEmail));
         setTimeout(() => router.push('/settings/accounts'), 1000);
+      } else if (reauthedEmail) {
+        const message = feature === 'calendar'
+          ? `Google Calendar aktiverades för ${reauthedEmail}`
+          : feature === 'calendar_write'
+            ? `Google Calendar skrivåtkomst aktiverades för ${reauthedEmail}`
+            : `Kontot ${reauthedEmail} kopplades om`;
+        setStatus(message);
+        setTimeout(() => router.push(safeReturnTo), 1000);
       } else {
         setStatus(t.auth.authenticated);
         setTimeout(() => router.push('/'), 1000);

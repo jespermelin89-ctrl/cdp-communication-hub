@@ -147,4 +147,64 @@ export async function calendarRoutes(fastify: FastifyInstance) {
 
     return result;
   });
+
+  fastify.post('/calendar/events/release', async (request, reply) => {
+    const schema = z.object({
+      account_id: z.string().min(1),
+      event_id: z.string().min(1),
+      time_zone: z.string().optional(),
+      return_to: z.string().optional(),
+    });
+
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'Invalid input',
+        details: parsed.error.issues,
+      });
+    }
+
+    const { account_id, event_id, time_zone, return_to } = parsed.data;
+
+    const account = await prisma.emailAccount.findFirst({
+      where: {
+        id: account_id,
+        userId: request.userId,
+      },
+      select: { id: true },
+    });
+
+    if (!account) {
+      return reply.code(404).send({ error: 'Account not found' });
+    }
+
+    try {
+      const result = await calendarService.releaseTentativeEvent(account.id, event_id, {
+        timeZone: time_zone,
+      });
+
+      if (result.supported && result.requiresReconnect) {
+        return {
+          ...result,
+          reauthUrl: authService.getReauthUrl(account.id, {
+            feature: 'calendar_write',
+            returnTo: sanitizeReturnTo(return_to),
+          }),
+        };
+      }
+
+      return result;
+    } catch (error: any) {
+      const message = error?.message ?? 'Could not release calendar event';
+      if (message === 'Calendar event not found') {
+        return reply.code(404).send({ error: message });
+      }
+
+      if (message === 'Only tentative Mail OS reservations can be released here') {
+        return reply.code(400).send({ error: message });
+      }
+
+      throw error;
+    }
+  });
 }

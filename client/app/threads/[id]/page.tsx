@@ -112,6 +112,7 @@ export default function ThreadDetailPage() {
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [creatingAvailabilityDraft, setCreatingAvailabilityDraft] = useState(false);
   const [creatingCalendarSlot, setCreatingCalendarSlot] = useState<string | null>(null);
+  const [releasingCalendarEvent, setReleasingCalendarEvent] = useState(false);
   const [creatingHeldSlotDraft, setCreatingHeldSlotDraft] = useState(false);
   const [calendarAvailability, setCalendarAvailability] = useState<CalendarAvailabilityResponse | null>(null);
   const [calendarWriteReconnect, setCalendarWriteReconnect] = useState<Pick<CalendarCreateEventResponse, 'reason' | 'reauthUrl'> | null>(null);
@@ -897,6 +898,47 @@ export default function ThreadDetailPage() {
     }
   }
 
+  async function handleReleaseCalendarEvent() {
+    if (!thread || !createdCalendarEvent) {
+      return;
+    }
+
+    setReleasingCalendarEvent(true);
+    setCalendarWriteReconnect(null);
+
+    try {
+      const result = await api.releaseCalendarEvent({
+        accountId: thread.account.id,
+        eventId: createdCalendarEvent.id,
+        timeZone: calendarAvailability?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+        returnTo: `/threads/${threadId}`,
+      });
+
+      if (!result.supported && result.reason) {
+        toast.error(result.reason);
+        return;
+      }
+
+      if (result.requiresReconnect) {
+        setCalendarWriteReconnect({
+          reason: result.reason,
+          reauthUrl: result.reauthUrl,
+        });
+        toast.error(result.reason ?? 'Google Calendar behöver extra åtkomst för att släppa reservationen');
+        return;
+      }
+
+      if (result.released) {
+        setCreatedCalendarEvent(null);
+        toast.success((t.thread as any).calendarEventReleased ?? 'Reservationen togs bort från Google Calendar');
+      }
+    } catch (err: any) {
+      toast.error(`Kunde inte släppa reservationen i Google Calendar: ${err.message}`);
+    } finally {
+      setReleasingCalendarEvent(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <TopBar />
@@ -1155,6 +1197,15 @@ export default function ThreadDetailPage() {
                           {creatingHeldSlotDraft
                             ? '...'
                             : ((t.thread as any).createHeldSlotDraft ?? 'Skapa svar för tiden')}
+                        </button>
+                        <button
+                          onClick={handleReleaseCalendarEvent}
+                          disabled={releasingCalendarEvent}
+                          className="text-xs px-3 py-1.5 bg-white dark:bg-gray-950 text-amber-700 dark:text-amber-300 rounded-lg border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-950 disabled:opacity-60"
+                        >
+                          {releasingCalendarEvent
+                            ? '...'
+                            : ((t.thread as any).releaseCalendarEvent ?? 'Släpp reservation')}
                         </button>
                         {createdCalendarEvent.htmlLink && (
                           <button

@@ -19,6 +19,7 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { z } from 'zod';
 import { prisma } from '../config/database';
 import { aiService } from '../services/ai.service';
 import { draftService } from '../services/draft.service';
@@ -33,6 +34,11 @@ const ALLOWED_ACTIONS = [
   'send', 'schedule', 'snooze', 'export', 'contacts', 'stats', 'compose', 'chat',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
+
+const AgentExecuteSchema = z.object({
+  action: z.string(),
+  params: z.record(z.unknown()).optional(),
+});
 
 /** Reject request if X-API-Key header does not match COMMAND_API_KEY */
 async function agentKeyAuth(request: FastifyRequest, reply: FastifyReply) {
@@ -52,9 +58,10 @@ export default async function agentRoutes(app: FastifyInstance) {
    * POST /agent/execute
    */
   app.post('/execute', async (req, reply) => {
-    const body = req.body as { action?: string; params?: Record<string, any> };
-    const action = body?.action as AgentAction | undefined;
-    const params = body?.params ?? {};
+    const body = AgentExecuteSchema.parse(req.body);
+    const action = body.action as AgentAction | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const params: Record<string, any> = body.params ?? {};
 
     if (!action || !ALLOWED_ACTIONS.includes(action)) {
       return reply.code(400).send({
@@ -71,7 +78,7 @@ export default async function agentRoutes(app: FastifyInstance) {
     const userId = account.userId;
 
     // Async callback: if caller provides callback_url, accept immediately and POST result when done
-    const callbackUrl = (params as any).callback_url as string | undefined;
+    const callbackUrl = (params as Record<string, unknown>).callback_url as string | undefined;
     if (callbackUrl) {
       // Validate URL format before accepting
       try { new URL(callbackUrl); } catch {

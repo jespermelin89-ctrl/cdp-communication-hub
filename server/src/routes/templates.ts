@@ -10,9 +10,21 @@
  */
 
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { prisma } from '../config/database';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { aiService } from '../services/ai.service';
+
+const CreateTemplateSchema = z.object({
+  name: z.string().min(1).max(200),
+  subject: z.string().max(500).optional(),
+  body_text: z.string().optional(),
+  body_html: z.string().optional(),
+  category: z.string().max(100).optional(),
+  variables: z.record(z.unknown()).optional(),
+});
+
+const UpdateTemplateSchema = CreateTemplateSchema.partial();
 
 export async function templatesRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authMiddleware);
@@ -28,18 +40,7 @@ export async function templatesRoutes(fastify: FastifyInstance) {
 
   // POST /templates — create
   fastify.post('/templates', async (request, reply) => {
-    const body = request.body as {
-      name: string;
-      subject?: string;
-      body_text?: string;
-      body_html?: string;
-      category?: string;
-      variables?: Record<string, unknown>;
-    };
-
-    if (!body.name) {
-      return reply.code(400).send({ error: 'name is required' });
-    }
+    const body = CreateTemplateSchema.parse(request.body);
 
     const template = await prisma.emailTemplate.create({
       data: {
@@ -59,14 +60,7 @@ export async function templatesRoutes(fastify: FastifyInstance) {
   // PATCH /templates/:id — update
   fastify.patch('/templates/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as {
-      name?: string;
-      subject?: string;
-      body_text?: string;
-      body_html?: string;
-      category?: string;
-      variables?: Record<string, unknown>;
-    };
+    const body = UpdateTemplateSchema.parse(request.body);
 
     const existing = await prisma.emailTemplate.findFirst({
       where: { id, userId: request.userId },

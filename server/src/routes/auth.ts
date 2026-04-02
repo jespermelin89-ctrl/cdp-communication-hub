@@ -179,6 +179,20 @@ export async function authRoutes(fastify: FastifyInstance) {
     return { settings };
   });
 
+  const UpdateUserSettingsSchema = z.object({
+    quietHoursStart: z.number().optional(),
+    quietHoursEnd: z.number().optional(),
+    digestEnabled: z.boolean().optional(),
+    digestTime: z.number().optional(),
+    uiTheme: z.string().optional(),
+    bookingLink: z.string().nullable().optional(),
+    undoSendDelay: z.number().int().min(0).max(30).optional(),
+    hasCompletedOnboarding: z.boolean().optional(),
+    notificationSound: z.boolean().optional(),
+    externalImages: z.enum(['ask', 'allow', 'block']).optional(),
+    compactMode: z.boolean().optional(),
+  });
+
   /**
    * PATCH /user/settings - Update user settings
    */
@@ -186,19 +200,7 @@ export async function authRoutes(fastify: FastifyInstance) {
     preHandler: authMiddleware,
   }, async (request, reply) => {
     const { prisma } = await import('../config/database');
-    const body = request.body as {
-      quietHoursStart?: number;
-      quietHoursEnd?: number;
-      digestEnabled?: boolean;
-      digestTime?: number;
-      uiTheme?: string;
-      bookingLink?: string | null;
-      undoSendDelay?: number;
-      hasCompletedOnboarding?: boolean;
-      notificationSound?: boolean;
-      externalImages?: string;
-      compactMode?: boolean;
-    };
+    const body = UpdateUserSettingsSchema.parse(request.body);
 
     const allowed: Record<string, unknown> = {};
     if (body.quietHoursStart !== undefined) allowed.quietHoursStart = Number(body.quietHoursStart);

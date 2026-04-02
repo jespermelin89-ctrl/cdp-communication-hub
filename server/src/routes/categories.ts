@@ -11,9 +11,25 @@
  */
 
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { categoryService } from '../services/category.service';
 import { prisma } from '../config/database';
+
+const CreateCategorySchema = z.object({
+  name: z.string().min(1).max(100),
+  color: z.string().optional(),
+  icon: z.string().optional(),
+  description: z.string().max(500).optional(),
+});
+
+const CreateCategoryRuleSchema = z.object({
+  sender_pattern: z.string().optional(),
+  subject_pattern: z.string().optional(),
+  action: z.string(),
+  category_slug: z.string(),
+  priority: z.number().int().min(0).max(100).optional(),
+});
 
 export default async function categoryRoutes(app: FastifyInstance) {
   app.addHook('onRequest', authMiddleware);
@@ -26,15 +42,14 @@ export default async function categoryRoutes(app: FastifyInstance) {
 
   // Create custom category
   app.post('/categories', async (req) => {
-    const { name, color, icon, description } = req.body as any;
-    if (!name) throw new Error('name is required');
+    const { name, color, icon, description } = CreateCategorySchema.parse(req.body);
     const category = await categoryService.create(req.userId!, { name, color, icon, description });
     return { category, message: `Category "${name}" created` };
   });
 
   // Delete category
   app.delete('/categories/:id', async (req) => {
-    const { id } = req.params as any;
+    const { id } = req.params as { id: string };
     await categoryService.deleteCategory(id);
     return { message: 'Category deleted' };
   });
@@ -47,15 +62,15 @@ export default async function categoryRoutes(app: FastifyInstance) {
 
   // Create sender rule
   app.post('/categories/rules', async (req) => {
-    const { sender_pattern, subject_pattern, action, category_slug, priority } = req.body as any;
-    if (!sender_pattern || !action) throw new Error('sender_pattern and action are required');
+    const { sender_pattern, subject_pattern, action, category_slug, priority } = CreateCategoryRuleSchema.parse(req.body);
+    if (!sender_pattern) throw new Error('sender_pattern is required');
 
     const rule = await categoryService.createRule(req.userId!, {
       senderPattern: sender_pattern,
       subjectPattern: subject_pattern,
       action,
       categorySlug: category_slug,
-      priority,
+      priority: priority !== undefined ? String(priority) : undefined,
     });
 
     return { rule, message: `Rule created: ${sender_pattern} → ${action}` };
@@ -63,7 +78,7 @@ export default async function categoryRoutes(app: FastifyInstance) {
 
   // Delete sender rule
   app.delete('/categories/rules/:id', async (req) => {
-    const { id } = req.params as any;
+    const { id } = req.params as { id: string };
     await categoryService.deleteRule(id);
     return { message: 'Rule deleted' };
   });

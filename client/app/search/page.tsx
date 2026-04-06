@@ -9,25 +9,12 @@ import { Search, X, Clock, ArrowLeft, SearchX, Filter, ChevronDown, ChevronUp, P
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import EmptyState from '@/components/EmptyState';
+import { useI18n } from '@/lib/i18n';
 import type { Account } from '@/lib/types';
-
-const CLASSIFICATION_LABELS: Record<string, string> = {
-  lead: 'Lead', partner: 'Partner', personal: 'Personal', spam: 'Spam',
-  operational: 'Operational', founder: 'Founder', outreach: 'Outreach',
-};
-
-function formatRelativeTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  const diffDays = Math.floor((Date.now() - date.getTime()) / 86400000);
-  if (diffDays === 0) return 'Idag';
-  if (diffDays === 1) return 'Igår';
-  if (diffDays < 7) return date.toLocaleDateString('sv-SE', { weekday: 'short' });
-  return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
-}
 
 export default function SearchPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Search state
@@ -60,6 +47,26 @@ export default function SearchPage() {
   const [newViewName, setNewViewName] = useState('');
   const [savingView, setSavingView] = useState(false);
 
+  const CLASSIFICATION_LABELS: Record<string, string> = {
+    lead: t.triage.classLead,
+    partner: t.triage.classPartner,
+    personal: t.triage.classPersonal,
+    spam: t.triage.classSpam,
+    operational: t.triage.classOperational,
+    founder: t.triage.classFounder,
+    outreach: t.triage.classOutreach,
+  };
+
+  function formatRelativeTime(dateStr: string | null | undefined): string {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const diffDays = Math.floor((Date.now() - date.getTime()) / 86400000);
+    if (diffDays === 0) return t.notifications.today;
+    if (diffDays === 1) return t.notifications.yesterday;
+    if (diffDays < 7) return date.toLocaleDateString('sv-SE', { weekday: 'short' });
+    return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+  }
+
   useEffect(() => {
     inputRef.current?.focus();
     loadHistory();
@@ -80,14 +87,14 @@ export default function SearchPage() {
 
   function activeFilterChips(): string[] {
     const chips: string[] = [];
-    if (filterFrom) chips.push(`Från: ${filterFrom}`);
-    if (filterTo) chips.push(`Till: ${filterTo}`);
-    if (filterDateFrom) chips.push(`Fr.o.m: ${filterDateFrom}`);
-    if (filterDateTo) chips.push(`T.o.m: ${filterDateTo}`);
-    if (filterHasAttachment) chips.push('Har bilaga');
-    if (filterClassification) chips.push(`Typ: ${CLASSIFICATION_LABELS[filterClassification] ?? filterClassification}`);
-    if (filterPriority) chips.push(`Prio: ${filterPriority}`);
-    if (filterAccountId) chips.push(`Konto: ${accounts.find(a => a.id === filterAccountId)?.emailAddress ?? filterAccountId}`);
+    if (filterFrom) chips.push(t.search.chipFrom.replace('{value}', filterFrom));
+    if (filterTo) chips.push(t.search.chipTo.replace('{value}', filterTo));
+    if (filterDateFrom) chips.push(t.search.chipDateFrom.replace('{value}', filterDateFrom));
+    if (filterDateTo) chips.push(t.search.chipDateTo.replace('{value}', filterDateTo));
+    if (filterHasAttachment) chips.push(t.search.filterHasAttachment);
+    if (filterClassification) chips.push(t.search.chipType.replace('{value}', CLASSIFICATION_LABELS[filterClassification] ?? filterClassification));
+    if (filterPriority) chips.push(t.search.chipPriority.replace('{value}', filterPriority));
+    if (filterAccountId) chips.push(t.search.chipAccount.replace('{value}', accounts.find(a => a.id === filterAccountId)?.emailAddress ?? filterAccountId));
     return chips;
   }
 
@@ -134,7 +141,7 @@ export default function SearchPage() {
       await api.deleteSearchHistoryEntry(id);
       setHistory((prev) => prev.filter((h) => h.id !== id));
     } catch {
-      toast.error('Kunde inte ta bort sökning');
+      toast.error(t.search.errorDelete);
     }
   }
 
@@ -142,9 +149,9 @@ export default function SearchPage() {
     try {
       await api.clearSearchHistory();
       setHistory([]);
-      toast.success('Sökhistorik rensad');
+      toast.success(t.search.historyCleaned);
     } catch {
-      toast.error('Kunde inte rensa historik');
+      toast.error(t.search.errorClearHistory);
     }
   }
 
@@ -165,9 +172,9 @@ export default function SearchPage() {
       await api.createSavedView({ name: newViewName.trim(), filters });
       setSaveViewOpen(false);
       setNewViewName('');
-      toast.success('Vy sparad');
+      toast.success(t.search.viewSaved);
     } catch {
-      toast.error('Kunde inte spara vy');
+      toast.error(t.search.errorSaveView);
     } finally {
       setSavingView(false);
     }
@@ -192,7 +199,7 @@ export default function SearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') doSearch(); }}
-              placeholder="Sök mail, avsändare, ämne..."
+              placeholder={t.search.placeholder}
               className="w-full pl-10 pr-10 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
             />
             {query && (
@@ -213,7 +220,7 @@ export default function SearchPage() {
             }`}
           >
             <Filter size={14} />
-            Filter
+            {t.search.filter}
             {chips.length > 0 && (
               <span className="w-5 h-5 rounded-full bg-brand-500 text-white text-xs flex items-center justify-center">{chips.length}</span>
             )}
@@ -224,7 +231,7 @@ export default function SearchPage() {
             disabled={loading}
             className="btn-primary text-sm px-4 py-2.5"
           >
-            Sök
+            {t.search.button}
           </button>
         </div>
 
@@ -233,27 +240,27 @@ export default function SearchPage() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-4 shadow-sm">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Från</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t.search.filterFrom}</label>
                 <input
                   type="text"
                   value={filterFrom}
                   onChange={(e) => setFilterFrom(e.target.value)}
-                  placeholder="avsändare@example.com"
+                  placeholder={t.search.filterPlaceholderFrom}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-brand-400"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Till</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t.search.filterTo}</label>
                 <input
                   type="text"
                   value={filterTo}
                   onChange={(e) => setFilterTo(e.target.value)}
-                  placeholder="mottagare@example.com"
+                  placeholder={t.search.filterPlaceholderTo}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-brand-400"
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Från datum</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t.search.filterDateFrom}</label>
                 <input
                   type="date"
                   value={filterDateFrom}
@@ -262,7 +269,7 @@ export default function SearchPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Till datum</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t.search.filterDateTo}</label>
                 <input
                   type="date"
                   value={filterDateTo}
@@ -271,40 +278,40 @@ export default function SearchPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Kategori</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t.search.filterCategory}</label>
                 <select
                   value={filterClassification}
                   onChange={(e) => setFilterClassification(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-brand-400"
                 >
-                  <option value="">Alla kategorier</option>
+                  <option value="">{t.search.filterAllCategories}</option>
                   {Object.entries(CLASSIFICATION_LABELS).map(([v, l]) => (
                     <option key={v} value={v}>{l}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Prioritet</label>
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t.search.filterPriority}</label>
                 <select
                   value={filterPriority}
                   onChange={(e) => setFilterPriority(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-brand-400"
                 >
-                  <option value="">Alla prioriteter</option>
-                  <option value="high">Hög</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Låg</option>
+                  <option value="">{t.search.filterAllPriorities}</option>
+                  <option value="high">{t.dashboard.high}</option>
+                  <option value="medium">{t.dashboard.medium}</option>
+                  <option value="low">{t.dashboard.low}</option>
                 </select>
               </div>
               {accounts.length > 0 && (
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Konto</label>
+                  <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">{t.search.filterAccount}</label>
                   <select
                     value={filterAccountId}
                     onChange={(e) => setFilterAccountId(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-brand-400"
                   >
-                    <option value="">Alla konton</option>
+                    <option value="">{t.search.filterAllAccounts}</option>
                     {accounts.map((acc) => (
                       <option key={acc.id} value={acc.id}>{acc.emailAddress}</option>
                     ))}
@@ -320,7 +327,7 @@ export default function SearchPage() {
                     className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-400"
                   />
                   <span className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                    <Paperclip size={13} /> Har bilaga
+                    <Paperclip size={13} /> {t.search.filterHasAttachment}
                   </span>
                 </label>
               </div>
@@ -330,7 +337,7 @@ export default function SearchPage() {
                 onClick={clearFilters}
                 className="mt-3 text-xs text-red-500 dark:text-red-400 hover:underline"
               >
-                Rensa filter
+                {t.search.clearFilters}
               </button>
             )}
           </div>
@@ -356,7 +363,7 @@ export default function SearchPage() {
                   type="text"
                   value={newViewName}
                   onChange={(e) => setNewViewName(e.target.value)}
-                  placeholder="Namn på vy..."
+                  placeholder={t.search.viewNamePlaceholder}
                   className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-violet-300 dark:border-violet-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 outline-none focus:ring-2 focus:ring-violet-400"
                   autoFocus
                 />
@@ -365,7 +372,7 @@ export default function SearchPage() {
                   disabled={savingView || !newViewName.trim()}
                   className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm rounded-lg disabled:opacity-50"
                 >
-                  Spara
+                  {t.search.save}
                 </button>
                 <button onClick={() => setSaveViewOpen(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-sm px-2">
                   ✕
@@ -377,7 +384,7 @@ export default function SearchPage() {
                 className="flex items-center gap-1.5 text-xs text-violet-600 dark:text-violet-400 hover:underline"
               >
                 <Bookmark size={12} />
-                Spara sökning som vy
+                {t.search.saveAsView}
               </button>
             )}
           </div>
@@ -390,13 +397,13 @@ export default function SearchPage() {
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-                    Senaste sökningar
+                    {t.search.recentSearches}
                   </span>
                   <button
                     onClick={handleClearHistory}
                     className="text-xs text-gray-400 hover:text-red-500 dark:hover:text-red-400"
                   >
-                    Rensa alla
+                    {t.search.clearAll}
                   </button>
                 </div>
                 <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 overflow-hidden shadow-sm">
@@ -407,9 +414,9 @@ export default function SearchPage() {
                         onClick={() => { setQuery(entry.query); doSearch(entry.query, entry); }}
                         className="flex-1 text-left text-sm text-gray-700 dark:text-gray-300 truncate"
                       >
-                        {entry.query || '(tom sökning med filter)'}
+                        {entry.query || t.search.emptyQuery}
                         {entry.resultCount !== null && (
-                          <span className="ml-2 text-xs text-gray-400">{entry.resultCount} resultat</span>
+                          <span className="ml-2 text-xs text-gray-400">{t.search.results.replace('{n}', String(entry.resultCount))}</span>
                         )}
                       </button>
                       <button
@@ -438,13 +445,13 @@ export default function SearchPage() {
             ) : results.length === 0 ? (
               <EmptyState
                 icon={SearchX}
-                title="Inga resultat"
-                description="Inga mail matchar din sökning. Prova andra sökord eller filter."
+                title={t.search.noResults}
+                description={t.search.noResultsDescription}
               />
             ) : (
               <>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
-                  {total} resultat
+                  {t.search.results.replace('{n}', String(total))}
                 </p>
                 <div className="space-y-2">
                   {results.map((thread) => (
@@ -463,7 +470,7 @@ export default function SearchPage() {
                               <PriorityBadge priority={thread.latestAnalysis.priority} />
                             )}
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{thread.subject || '(Inget ämne)'}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{thread.subject || t.inbox.noSubject}</p>
                           {thread.snippet && (
                             <p className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">{thread.snippet}</p>
                           )}

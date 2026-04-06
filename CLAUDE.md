@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.2.0 (Sprint 8–9 klara)
+- **Version**: 2.3.0 (Sprint 10 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 692 server (53 filer) + 129 client (9 filer) = 821 totalt
+- **Tester**: 716 server (54 filer) + 129 client (9 filer) = 845 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -308,6 +308,27 @@ All 7 issues from the security review have been fixed and merged to main:
   - POST /review/decide: Zod-schema validering (keep/trash/create_rule)
   - Rule suggestions: generateSuggestions, acceptSuggestion, dismissSuggestion
   - Triage report: period window (today/week/month), aggregering, radgruppering, schema-validering
+
+## Completed Sprint 10 — i18n Search + Agent Tests (2026-04-06) — v2.3.0
+
+### ✅ i18n för search-sidan
+- `search` sektion (38 nycklar) tillagd i sv/en/es/ru
+- `client/app/search/page.tsx`: all hårdkodad svenska/engelska ersatt med `t.search.*`
+  - `CLASSIFICATION_LABELS` flyttad inuti komponenten, använder `t.triage.class*`
+  - `formatRelativeTime()` använder `t.notifications.today/yesterday`
+  - `activeFilterChips()` använder `t.search.chip*` med `.replace('{value}', ...)` 
+  - Alla toast-anrop använder `t.search.errorDelete/historyCleaned/errorClearHistory/viewSaved/errorSaveView`
+  - Alla JSX-strängar (placeholder, labels, filter options, empty state) via `t.search.*`
+  - Prioritet-options använder `t.dashboard.high/medium/low`
+  - `t.inbox.noSubject` för ämnesfallback
+
+### ✅ Enhetstester för agent-actions (Sprint 6.1)
+- `sprint10-agent-actions.test.ts`: 24 tester
+  - `approve-rule`: anropar acceptSuggestion korrekt, saknad param, DB-fel propageras
+  - `dismiss-rule`: anropar dismissSuggestion korrekt, saknad param, fel propageras
+  - `review-keep`: anropar modifyLabels med INBOX, 404 vid saknad tråd
+  - `review-trash`: anropar trashThread, triggar checkAndCreateSuggestion för avsändarmail, skippar om inga deltagare
+  - `inbox-status`: rätta counts från DB, triage-stats aggregering, klassificeringsaggregering, tom data
 
 ## TODO (prio-ordning)
 

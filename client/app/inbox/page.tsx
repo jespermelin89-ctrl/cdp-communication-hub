@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import useSWRInfinite from 'swr/infinite';
 import Link from 'next/link';
 import TopBar from '@/components/TopBar';
@@ -144,6 +145,14 @@ export default function InboxPage() {
     const timer = setTimeout(() => setDebouncedSearch(searchInput), 400);
     return () => clearTimeout(timer);
   }, [searchInput]);
+
+  // Review queue count for Granskning banner
+  const { data: reviewData } = useSWR(
+    'inbox-review-count',
+    () => api.getReviewQueue().catch(() => null),
+    { refreshInterval: 60000, revalidateOnFocus: false }
+  );
+  const reviewCount = reviewData?.total ?? 0;
 
   // useSWRInfinite — server-side pagination
   const getKey = useCallback(
@@ -896,6 +905,23 @@ export default function InboxPage() {
             </button>
           ))}
         </div>
+
+        {/* Granskning banner — okända avsändare väntar på beslut */}
+        {reviewCount > 0 && (
+          <Link
+            href="/review"
+            className="flex items-center justify-between px-4 py-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-sm text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors group"
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-base">🔍</span>
+              <span>
+                <span className="font-semibold">{reviewCount}</span>
+                {' '}tråd{reviewCount !== 1 ? 'ar' : ''} från okända avsändare väntar på beslut i Granskning
+              </span>
+            </span>
+            <span className="text-amber-500 group-hover:translate-x-0.5 transition-transform">→</span>
+          </Link>
+        )}
 
         {/* Bulk Actions Toolbar — fixed above thread list when threads selected */}
         {selectedIds.size > 0 && (

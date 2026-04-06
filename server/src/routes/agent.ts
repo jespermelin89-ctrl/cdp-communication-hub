@@ -25,6 +25,7 @@ import { aiService } from '../services/ai.service';
 import { draftService } from '../services/draft.service';
 import { brainCoreService } from '../services/brain-core.service';
 import { seedBrainCore } from '../services/seed-brain-core.service';
+import { gmailService } from '../services/gmail.service';
 import { env } from '../config/env';
 import { getAgentDraftStatusError } from '../utils/agent-safety';
 
@@ -35,6 +36,8 @@ const ALLOWED_ACTIONS = [
   'send', 'schedule', 'snooze', 'export', 'contacts', 'stats', 'compose', 'chat',
   // Sprint 6 — Brain Core integration:
   'triage-status', 'triage-override', 'review-queue', 'rule-suggest',
+  // Sprint 6.1 — rule + review agent actions:
+  'approve-rule', 'dismiss-rule', 'review-keep', 'review-trash', 'inbox-status',
   // Sprint 7 — Triage report + voice:
   'triage-report',
 ] as const;
@@ -956,6 +959,120 @@ export default async function agentRoutes(app: FastifyInstance) {
               kept,
               top_trashed_domains: topTrashed,
               voice_summary: voice,
+            },
+          };
+        }
+
+        // ── APPROVE-RULE ──────────────────────────────────────────────────
+        // Approve a rule suggestion → creates ClassificationRule.
+        // Params: { suggestionId: string }
+        case 'approve-rule': {
+          const suggestionId = params?.suggestionId as string | undefined;
+          if (!suggestionId) return reply.code(400).send({ success: false, action, error: 'suggestionId krävs.' });
+          const { acceptSuggestion } = await import('../services/rule-suggestion.service');
+          await acceptSuggestion(suggestionId, userId);
+          return { success: true, action, data: { message: 'Regel skapad och aktiv.' } };
+        }
+
+        // ── DISMISS-RULE ──────────────────────────────────────────────────
+        // Dismiss a rule suggestion.
+        // Params: { suggestionId: string }
+        case 'dismiss-rule': {
+          const suggestionId = params?.suggestionId as string | undefined;
+          if (!suggestionId) return reply.code(400).send({ success: false, action, error: 'suggestionId krävs.' });
+          const { dismissSuggestion } = await import('../services/rule-suggestion.service');
+          await dismissSuggestion(suggestionId, userId);
+          return { success: true, action, data: { message: 'Förslag avvisat.' } };
+        }
+
+        // ── REVIEW-KEEP ───────────────────────────────────────────────────
+        // Move a Granskning thread back to INBOX.
+        // Params: { threadId: string }
+        case 'review-keep': {
+          const threadId = params?.threadId as string | undefined;
+          if (!threadId) return reply.code(400).send({ success: false, action, error: 'threadId krävs.' });
+          const thread = await prisma.emailThread.findFirst({
+            where: { id: threadId, account: { userId } },
+            select: { id: true, gmailThreadId: true, accountId: true },
+          });
+          if (!thread) return reply.code(404).send({ success: false, action, error: 'Tråd hittades inte.' });
+          await gmailService.modifyLabels(thread.accountId, thread.gmailThreadId, ['INBOX'], []);
+          return { success: true, action, data: { message: 'Tråd flyttad till inkorg.' } };
+        }
+
+        // ── REVIEW-TRASH ──────────────────────────────────────────────────
+        // Trash a Granskning thread.
+        // Params: { threadId: string }
+        case 'review-trash': {
+          const threadId = params?.threadId as string | undefined;
+          if (!threadId) return reply.code(400).send({ success: false, action, error: 'threadId krävs.' });
+          const thread = await prisma.emailThread.findFirst({
+            where: { id: threadId, account: { userId } },
+            select: { id: true, gmailThreadId: true, accountId: true, participantEmails: true },
+          });
+          if (!thread) return reply.code(404).send({ success: false, action, error: 'Tråd hittades inte.' });
+          await gmailService.trashThread(thread.accountId, thread.gmailThreadId);
+          // Trigger rule suggestion check
+          const senderEmail = thread.participantEmails[0];
+          if (senderEmail) {
+            const { checkAndCreateSuggestion } = await import('../services/rule-suggestion.service');
+            checkAndCreateSuggestion(senderEmail, userId).catch(() => {});
+          }
+          return { success: true, action, data: { message: 'Tråd skickad till papperskorgen.' } };
+        }
+
+        // ── INBOX-STATUS ──────────────────────────────────────────────────
+        // Full inbox status snapshot for Brain Core dashboard.
+        case 'inbox-status': {
+          const since24h = new Date(Date.now() - 24 * 3600 * 1000);
+          const [
+            unreadCount,
+            pendingReview,
+            pendingDrafts,
+            ruleCount,
+            triageLogs24h,
+            analyses,
+          ] = await Promise.all([
+            prisma.emailThread.count({ where: { account: { userId }, isRead: false } }),
+            prisma.triageLog.count({ where: { userId, action: 'label_review' } }),
+            prisma.draft.count({ where: { thread: { account: { userId } }, status: 'pending' } }),
+            prisma.classificationRule.count({ where: { userId, isActive: true } }),
+            prisma.triageLog.findMany({
+              where: { userId, createdAt: { gte: since24h } },
+              select: { action: true, classification: true },
+            }),
+            prisma.aIAnalysis.findMany({
+              where: { thread: { account: { userId } } },
+              select: { classification: true },
+              orderBy: { createdAt: 'desc' },
+              take: 500,
+            }),
+          ]);
+
+          const triageStats24h: Record<string, number> = {};
+          for (const l of triageLogs24h) {
+            triageStats24h[l.action] = (triageStats24h[l.action] ?? 0) + 1;
+          }
+
+          const byClassification: Record<string, number> = {};
+          for (const a of analyses) {
+            if (a.classification) {
+              byClassification[a.classification] = (byClassification[a.classification] ?? 0) + 1;
+            }
+          }
+
+          return {
+            success: true,
+            action,
+            data: {
+              unread: unreadCount,
+              pending_review: pendingReview,
+              pending_drafts: pendingDrafts,
+              rule_count: ruleCount,
+              triage_stats_24h: triageStats24h,
+              triage_total_24h: triageLogs24h.length,
+              by_classification: byClassification,
+              snapshot_at: new Date().toISOString(),
             },
           };
         }

@@ -7,7 +7,7 @@ import Link from 'next/link';
 import {
   Mail, AlertTriangle, FileText, CheckCircle, RefreshCw, Brain, Inbox, Settings,
   AlertCircle, Info, Lightbulb, Sparkles, Send, Trash2, Bot, Link2, Tag,
-  MailOpen, Zap, Users, ChevronRight, Bell, Clock,
+  MailOpen, Zap, Users, ChevronRight, Bell, Clock, BarChart3, Eye, ShieldCheck,
 } from 'lucide-react';
 import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
@@ -58,6 +58,18 @@ export default function DashboardPage() {
     { refreshInterval: 300000 }
   );
   const categories: any[] = catSWR?.categories ?? [];
+
+  const { data: triageToday } = useSWR(
+    'triage-today',
+    () => api.getTriageReport('today').catch(() => null),
+    { refreshInterval: 120000, revalidateOnFocus: false }
+  );
+
+  const { data: reviewQueue } = useSWR(
+    'review-queue-count',
+    () => api.getReviewQueue().catch(() => null),
+    { refreshInterval: 120000, revalidateOnFocus: false }
+  );
 
   // Track whether we've run the one-time initial side effects
   const didInitRef = useRef(false);
@@ -694,6 +706,63 @@ export default function DashboardPage() {
                 </button>
               </div>
             </div>
+
+            {/* AI Triage Today */}
+            {(triageToday || reviewQueue) && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    <BarChart3 size={16} className="text-brand-500" />
+                    AI-triage idag
+                  </h2>
+                  <Link href="/triage" className="text-xs text-brand-500 hover:text-brand-600 font-medium flex items-center gap-0.5">
+                    Rapport <ChevronRight size={12} />
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-gray-50 dark:bg-gray-700/40 border border-gray-100 dark:border-gray-600">
+                    <span className="text-2xl font-bold text-gray-700 dark:text-gray-200">{triageToday?.total ?? 0}</span>
+                    <span className="text-xs text-gray-400 font-medium text-center">Totalt sorterade</span>
+                  </div>
+                  <div className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800">
+                    <span className="text-2xl font-bold text-red-600">
+                      {(triageToday?.by_action?.['trash'] ?? 0) +
+                       (triageToday?.by_action?.['trash_after_log'] ?? 0) +
+                       (triageToday?.by_action?.['notify_then_trash'] ?? 0)}
+                    </span>
+                    <span className="text-xs text-red-400 font-medium flex items-center gap-1"><Trash2 size={10} /> Raderade</span>
+                  </div>
+                  <Link
+                    href="/review"
+                    className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 hover:border-amber-300 transition-colors"
+                  >
+                    <span className="text-2xl font-bold text-amber-600">{reviewQueue?.total ?? 0}</span>
+                    <span className="text-xs text-amber-500 font-medium flex items-center gap-1"><Eye size={10} /> Granskning</span>
+                  </Link>
+                  <div className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800">
+                    <span className="text-2xl font-bold text-emerald-600">
+                      {(triageToday?.by_action?.['keep_inbox'] ?? 0) +
+                       (triageToday?.by_action?.['auto_draft'] ?? 0)}
+                    </span>
+                    <span className="text-xs text-emerald-500 font-medium flex items-center gap-1"><ShieldCheck size={10} /> Behållna</span>
+                  </div>
+                </div>
+
+                {(reviewQueue?.total ?? 0) > 0 && (
+                  <Link
+                    href="/review"
+                    className="mt-3 flex items-center justify-between px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Eye size={13} />
+                      {reviewQueue!.total} tråd{reviewQueue!.total !== 1 ? 'ar' : ''} från okända avsändare väntar på beslut
+                    </span>
+                    <ChevronRight size={13} />
+                  </Link>
+                )}
+              </div>
+            )}
 
             {/* Top Contacts */}
             {contacts.length > 0 && (

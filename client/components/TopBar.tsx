@@ -37,6 +37,7 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
   const streamStatus = useEventStream();
   const [fetchedCount, setFetchedCount] = useState(0);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
   const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [permBannerVisible, setPermBannerVisible] = useState(false);
@@ -72,6 +73,12 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
         }
       } catch {
         // unauthenticated or backend down — ignore silently
+      }
+      try {
+        const review = await api.getReviewQueue();
+        if (!cancelled) setReviewCount(review.total ?? 0);
+      } catch {
+        // ignore
       }
     }
 
@@ -169,6 +176,11 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
                 {item.href === '/inbox' && unreadCount > 0 && (
                   <span className="bg-brand-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                     {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+                {item.href === '/review' && reviewCount > 0 && (
+                  <span className="bg-amber-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {reviewCount > 9 ? '9+' : reviewCount}
                   </span>
                 )}
               </Link>

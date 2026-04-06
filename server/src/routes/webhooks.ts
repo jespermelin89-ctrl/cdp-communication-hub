@@ -20,6 +20,17 @@ import { gmailPushService } from '../services/gmail-push.service';
 import { autoTriageNewThreads } from '../services/sync-scheduler.service';
 import { env } from '../config/env';
 
+/** Shape of a Google Cloud Pub/Sub push message body */
+interface PubSubPushBody {
+  message?: {
+    data?: string;
+    messageId?: string;
+    publishTime?: string;
+    attributes?: Record<string, string>;
+  };
+  subscription?: string;
+}
+
 export async function webhookRoutes(fastify: FastifyInstance) {
   /**
    * POST /webhooks/gmail
@@ -51,7 +62,7 @@ export async function webhookRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const body = request.body as any;
+      const body = request.body as PubSubPushBody;
       const message = body?.message;
 
       if (!message?.data) {

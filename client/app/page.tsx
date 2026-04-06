@@ -103,7 +103,7 @@ export default function DashboardPage() {
       setAiSummary(summary);
       sessionStorage.setItem(`ai_summary_${accountId}`, summary);
     } catch {
-      setAiSummary('Kunde inte ladda sammanfattning. Tryck Uppdatera för att försöka igen.');
+      setAiSummary(t.dashboard.aiSummaryError);
     } finally {
       setSummaryLoading(false);
     }
@@ -181,7 +181,7 @@ export default function DashboardPage() {
       setSortingGroups((prev) => prev.filter((_, i) => i !== index));
       toast.success(`${group.label} hanterat`);
     } catch {
-      toast.error('Kunde inte utföra åtgärden');
+      toast.error(t.dashboard.actionError);
     } finally {
       setApplyingGroup(null);
     }
@@ -216,7 +216,7 @@ export default function DashboardPage() {
       }
       await mutateDashboard();
     } catch (err: any) {
-      toast.error(`Sync misslyckades: ${err.message}`);
+      toast.error(t.dashboard.syncFailed.replace('{message}', err.message));
     } finally {
       setSyncing(false);
     }
@@ -394,13 +394,13 @@ export default function DashboardPage() {
             {sortingGroups.filter((g) => !g.dismissed).length > 0 && (
               <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 mb-5">
                 <div className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                  <Lightbulb size={13} /> AI-sorteringsförslag
+                  <Lightbulb size={13} /> {t.dashboard.sortingTitle}
                 </div>
                 <div className="space-y-2">
                   {sortingGroups.map((group, i) => group.dismissed ? null : (
                     <div key={i} className="flex items-center justify-between gap-3 text-sm">
                       <span className="text-gray-700 dark:text-gray-300 flex-1">
-                        {group.label} — föreslår <span className="font-medium">{group.action === 'archive' ? 'Arkivera' : 'Radera'}</span>
+                        {group.label} — föreslår <span className="font-medium">{group.action === 'archive' ? t.dashboard.sortingArchive : t.dashboard.sortingDelete}</span>
                       </span>
                       <div className="flex gap-2 shrink-0">
                         <button
@@ -408,13 +408,13 @@ export default function DashboardPage() {
                           disabled={applyingGroup === String(i)}
                           className="px-3 py-1 text-xs font-medium bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors disabled:opacity-60"
                         >
-                          {applyingGroup === String(i) ? '...' : 'Tillämpa'}
+                          {applyingGroup === String(i) ? t.dashboard.sortingApplying : t.dashboard.sortingApply}
                         </button>
                         <button
                           onClick={() => dismissSortingGroup(i)}
                           className="px-3 py-1 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 rounded-lg transition-colors"
                         >
-                          Ignorera
+                          {t.dashboard.sortingIgnore}
                         </button>
                       </div>
                     </div>
@@ -441,7 +441,7 @@ export default function DashboardPage() {
                         </Link>
                         {reminder.thread?.lastMessageAt && (
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {t.followUps?.timeSince ?? 'Sedan'} {formatTime(reminder.thread.lastMessageAt)}
+                            {t.followUps.timeSince} {formatTime(reminder.thread.lastMessageAt)}
                           </span>
                         )}
                       </div>
@@ -450,14 +450,14 @@ export default function DashboardPage() {
                           try {
                             await api.completeFollowUp(reminder.id);
                             setFollowUps((prev) => prev.filter((r) => r.id !== reminder.id));
-                            toast.success(t.followUps?.completed ?? 'Markerad som klar');
+                            toast.success(t.followUps.completed);
                           } catch {
-                            toast.error('Kunde inte markera som klar');
+                            toast.error(t.followUps.markCompleteError);
                           }
                         }}
                         className="px-3 py-1 text-xs font-medium bg-white dark:bg-gray-800 border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors shrink-0"
                       >
-                        {t.followUps?.markDone ?? 'Klar'}
+                        {t.followUps.markDone}
                       </button>
                     </div>
                   ))}
@@ -561,12 +561,12 @@ export default function DashboardPage() {
 
               {!dailySummaryLoading && dailySummary?._error && (
                 <div className="flex items-center gap-3 text-sm">
-                  <span className="text-gray-400 flex-1">Kunde inte ladda daglig sammanfattning.</span>
+                  <span className="text-gray-400 flex-1">{t.settings.dailySummaryError}</span>
                   <button
                     onClick={regenerateDailySummary}
                     className="text-brand-500 hover:text-brand-600 font-medium whitespace-nowrap"
                   >
-                    Generera ny
+                    {t.settings.generateNew}
                   </button>
                 </div>
               )}
@@ -664,7 +664,7 @@ export default function DashboardPage() {
                   disabled={bulkClassifying}
                   className="text-xs font-medium px-3 py-1.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors disabled:opacity-50"
                 >
-                  {bulkClassifying ? 'Klassificerar…' : 'Klassificera nu'}
+                  {bulkClassifying ? t.dashboard.classifying : t.dashboard.classifyNow}
                 </button>
               </div>
 

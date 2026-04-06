@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.3.0 (Sprint 10 klar)
+- **Version**: 2.4.0 (Sprint 11 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 716 server (54 filer) + 129 client (9 filer) = 845 totalt
+- **Tester**: 745 server (55 filer) + 129 client (9 filer) = 874 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -329,6 +329,26 @@ All 7 issues from the security review have been fixed and merged to main:
   - `review-keep`: anropar modifyLabels med INBOX, 404 vid saknad tråd
   - `review-trash`: anropar trashThread, triggar checkAndCreateSuggestion för avsändarmail, skippar om inga deltagare
   - `inbox-status`: rätta counts från DB, triage-stats aggregering, klassificeringsaggregering, tom data
+
+## Completed Sprint 11 — i18n Completion + Route Tests (2026-04-06) — v2.4.0
+
+### ✅ i18n för settings, drafts och dashboard
+- **44 nya nycklar** tillagda i sv/en/es/ru:
+  - `settings`: navAccounts, navBrainCore, navAnalytics, navTemplates, navActivity, navSearch, bookingLink/Placeholder/Hint, undoSendDelay, disconnectTitle/Description/Button, dailySummaryError, generateNew
+  - `drafts`: toastApproved, discardFailed, bulkSelected/Approve/Deselect, autoDraftsBanner, autoApprove/Discard, toastDiscarded, confirmSend/DiscardTitle/Description/Button
+  - `dashboard`: aiSummaryError, actionError, sortingTitle/Archive/Delete/Apply/Applying/Ignore, classifying, classifyNow, syncFailed, bulkClassifyResult
+  - `followUps`: markCompleteError
+- `client/app/settings/page.tsx`: nav-länkar, `(t as any)` casts → `t.settingsSections.*`, bookingLink/hint, undo-delay, disconnect ConfirmDialog
+- `client/app/drafts/page.tsx`: toast-meddelanden, bulk-knappar, auto-drafts banner, ConfirmDialog för skicka/kasta
+- `client/app/page.tsx` (dashboard): AI-summary error, action error, sorting proposal strings, followUps cleanup av `?.` optional chaining, classifying, daily summary error
+
+### ✅ Route-tester för drafts + threads (Sprint 11)
+- `sprint11-drafts-threads.test.ts`: 29 tester
+  - `buildThreadPage`: cursor pagination (limit, nextCursor base64-format, null för tom lista, null lastMessageAt)
+  - `buildMessageLookupWhere`: OR-query för id/gmailMessageId
+  - `POST /drafts/:id/send`: 200 på success, 403 på SECURITY-fel (pending draft), 404/500 för övriga fel
+  - `POST /drafts/:id/schedule`: validering av send_at (saknas, ogiltigt datum, förflutet), 404/400 fel, 200 på success
+  - `POST /threads/batch`: input-validering (tom array, okänd action), dispatch för alla 6 actions (archive/trash/read/unread/star/unstar), partial failure med allSettled, 0 results
 
 ## TODO (prio-ordning)
 

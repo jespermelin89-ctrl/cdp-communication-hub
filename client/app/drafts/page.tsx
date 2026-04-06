@@ -88,7 +88,7 @@ export default function DraftCenterPage() {
     try {
       await api.approveDraft(draftId);
       api.recordLearning('draft_approved', { draft_id: draftId }, 'draft', draftId).catch(() => {});
-      toast.success('Utkast godkänt — redo att skickas');
+      toast.success(t.drafts.toastApproved);
       await mutateDrafts();
     } catch (err: any) {
       setError(draftId, `${t.drafts.approve} failed: ${err.message}`);
@@ -136,7 +136,7 @@ export default function DraftCenterPage() {
     setActionLoading(draftId);
     try {
       await api.sendDraft(draftId);
-      toast.success('Mail skickat!');
+      toast.success(t.undoSend.sent);
       await mutateDrafts();
     } catch (err: any) {
       setError(draftId, `${t.drafts.sendFailed}: ${err.message}`);
@@ -157,7 +157,7 @@ export default function DraftCenterPage() {
       await api.discardDraft(draftId);
       await mutateDrafts();
     } catch (err: any) {
-      setError(draftId, `${t.drafts.discard} misslyckades: ${err.message}`);
+      setError(draftId, `${t.drafts.discardFailed}: ${err.message}`);
     } finally {
       setActionLoading(null);
     }
@@ -189,7 +189,7 @@ export default function DraftCenterPage() {
           {/* Bulk approve bar */}
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500 dark:text-gray-400">{selectedIds.size} valda</span>
+              <span className="text-sm text-gray-500 dark:text-gray-400">{t.drafts.bulkSelected.replace('{n}', String(selectedIds.size))}</span>
               <button
                 onClick={handleBulkApprove}
                 disabled={bulkLoading}
@@ -198,13 +198,13 @@ export default function DraftCenterPage() {
                 {bulkLoading
                   ? <span className="w-3.5 h-3.5 border border-white/40 border-t-white rounded-full animate-spin" />
                   : <CheckCircle size={14} />}
-                Godkänn valda
+                {t.drafts.bulkApprove}
               </button>
               <button
                 onClick={() => setSelectedIds(new Set())}
                 className="text-sm text-gray-400 hover:text-gray-600"
               >
-                Avmarkera
+                {t.drafts.bulkDeselect}
               </button>
             </div>
           )}
@@ -215,13 +215,13 @@ export default function DraftCenterPage() {
           <div className="mb-6 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-2xl p-4 space-y-3">
             <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 font-medium">
               <Bot size={16} />
-              {autoDrafts.length} AI-genererade utkast väntar på godkännande
+              {t.drafts.autoDraftsBanner.replace('{n}', String(autoDrafts.length))}
             </div>
             {autoDrafts.map((d) => (
               <div key={d.id} className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-purple-800 px-4 py-3 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {d.subject ?? d.thread?.subject ?? '(Inget ämne)'}
+                    {d.subject ?? d.thread?.subject ?? t.inbox.noSubject}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {d.account?.emailAddress ?? ''} · {d.bodyText?.slice(0, 80)}…
@@ -231,24 +231,24 @@ export default function DraftCenterPage() {
                   <button
                     onClick={async () => {
                       await api.approveDraft(d.id);
-                      toast.success('Utkast godkänt');
+                      toast.success(t.drafts.toastApproved);
                       mutateAuto();
                       mutateDrafts();
                     }}
                     className="px-3 py-1 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
                   >
-                    Godkänn
+                    {t.drafts.autoApprove}
                   </button>
                   <button
                     onClick={async () => {
                       await api.discardDraft(d.id);
-                      toast('Utkast kastat.');
+                      toast(t.drafts.toastDiscarded);
                       mutateAuto();
                       mutateDrafts();
                     }}
                     className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
-                    Kasta
+                    {t.drafts.autoDiscard}
                   </button>
                 </div>
               </div>
@@ -438,10 +438,10 @@ export default function DraftCenterPage() {
       {/* Send confirmation */}
       <ConfirmDialog
         open={sendConfirmId !== null}
-        title="Skicka mail?"
-        description="Mailet skickas direkt via Gmail. Det går inte att ångra."
-        confirmLabel="Skicka"
-        cancelLabel="Avbryt"
+        title={t.drafts.confirmSendTitle}
+        description={t.drafts.confirmSendDescription}
+        confirmLabel={t.drafts.confirmSendButton}
+        cancelLabel={t.settings.cancel}
         variant="warning"
         onConfirm={() => sendConfirmId && executeSend(sendConfirmId)}
         onCancel={() => setSendConfirmId(null)}
@@ -450,10 +450,10 @@ export default function DraftCenterPage() {
       {/* Discard confirmation */}
       <ConfirmDialog
         open={discardConfirmId !== null}
-        title="Kasta utkast?"
-        description="Utkastet markeras som kastat och kan inte återställas."
-        confirmLabel="Kasta"
-        cancelLabel="Avbryt"
+        title={t.drafts.confirmDiscardTitle}
+        description={t.drafts.confirmDiscardDescription}
+        confirmLabel={t.drafts.confirmDiscardButton}
+        cancelLabel={t.settings.cancel}
         variant="danger"
         onConfirm={() => discardConfirmId && executeDiscard(discardConfirmId)}
         onCancel={() => setDiscardConfirmId(null)}

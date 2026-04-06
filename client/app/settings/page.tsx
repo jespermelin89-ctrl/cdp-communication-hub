@@ -376,7 +376,7 @@ export default function SettingsPage() {
 
             {/* Quick links */}
             <div className="card">
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">{t.settings.advanced || 'Avancerat'}</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">{t.settings.advanced}</h2>
               <div className="space-y-1">
                 <Link
                   href="/settings/accounts"
@@ -384,7 +384,7 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center gap-2.5">
                     <Settings2 size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">E-postkonton</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{t.settings.navAccounts}</span>
                   </div>
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>
@@ -394,7 +394,7 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center gap-2.5">
                     <Brain size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Brain Core — Skrivprofil & AI</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{t.settings.navBrainCore}</span>
                   </div>
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>
@@ -404,7 +404,7 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center gap-2.5">
                     <BarChart3 size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Statistik & Analys</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{t.settings.navAnalytics}</span>
                   </div>
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>
@@ -414,7 +414,7 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center gap-2.5">
                     <FileText size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Mailmallar</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{t.settings.navTemplates}</span>
                   </div>
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>
@@ -424,7 +424,7 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center gap-2.5">
                     <Activity size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Aktivitetslogg</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{t.settings.navActivity}</span>
                   </div>
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>
@@ -434,7 +434,7 @@ export default function SettingsPage() {
                 >
                   <div className="flex items-center gap-2.5">
                     <Search size={15} className="text-gray-400 group-hover:text-brand-500 transition-colors" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Sök mail</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{t.settings.navSearch}</span>
                   </div>
                   <ChevronRight size={14} className="text-gray-300 group-hover:text-gray-500" />
                 </Link>
@@ -502,25 +502,24 @@ export default function SettingsPage() {
               {/* Booking link */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  {(t.settings as any).bookingLink ?? 'Bokningslänk'}
+                  {t.settings.bookingLink}
                 </label>
                 <input
                   type="url"
                   value={bookingLink}
                   onChange={(e) => setBookingLink(e.target.value)}
-                  placeholder={(t.settings as any).bookingLinkPlaceholder ?? 'https://www.meet-r.com/en/jesper'}
+                  placeholder={t.settings.bookingLinkPlaceholder}
                   className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 outline-none focus:ring-2 focus:ring-brand-500"
                 />
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
-                  {(t.settings as any).bookingLinkHint ?? 'Används när en tråd ser ut som en mötes- eller bokningsförfrågan.'}
+                  {t.settings.bookingLinkHint}
                 </p>
               </div>
 
               {/* Undo send delay */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Ångra-fönster vid utskick: {undoSendDelay}s
-                  <span className="text-xs text-gray-400 ml-2">(0 = skicka direkt)</span>
+                  {t.settings.undoSendDelay.replace('{n}', String(undoSendDelay))}
                 </label>
                 <input
                   type="range"
@@ -545,11 +544,11 @@ export default function SettingsPage() {
                     className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-500"
                   />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {(t as any).settingsSections?.compactMode ?? 'Kompakt vy'}
+                    {t.settingsSections.compactMode}
                   </span>
                 </label>
                 <p className="text-xs text-gray-400 dark:text-gray-500 ml-6 mt-0.5">
-                  {(t as any).settingsSections?.compactModeHint ?? 'Minskar radstorlek och padding i inkorgen.'}
+                  {t.settingsSections.compactModeHint}
                 </p>
               </div>
 
@@ -563,7 +562,7 @@ export default function SettingsPage() {
                     className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-500"
                   />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {(t as any).settingsSections?.notificationSound ?? 'Notisljud'}
+                    {t.settingsSections.notificationSound}
                   </span>
                 </label>
               </div>
@@ -571,7 +570,7 @@ export default function SettingsPage() {
               {/* External images */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  {(t as any).settingsSections?.externalImages ?? 'Externa bilder'}
+                  {t.settingsSections.externalImages}
                 </label>
                 <div className="flex gap-2">
                   {(['ask', 'allow', 'block'] as const).map((opt) => (
@@ -585,10 +584,10 @@ export default function SettingsPage() {
                       }`}
                     >
                       {opt === 'ask'
-                        ? ((t as any).settingsSections?.externalImagesAsk ?? 'Fråga alltid')
+                        ? t.settingsSections.externalImagesAsk
                         : opt === 'allow'
-                        ? ((t as any).settingsSections?.externalImagesAllow ?? 'Tillåt alltid')
-                        : ((t as any).settingsSections?.externalImagesBlock ?? 'Blockera alltid')}
+                        ? t.settingsSections.externalImagesAllow
+                        : t.settingsSections.externalImagesBlock}
                     </button>
                   ))}
                 </div>
@@ -650,10 +649,10 @@ export default function SettingsPage() {
 
       <ConfirmDialog
         open={disconnectAccount !== null}
-        title={`Koppla bort ${disconnectAccount?.emailAddress ?? ''}?`}
-        description="Kontot kopplas bort från CDP Hub. Mailet påverkas inte i Gmail."
-        confirmLabel="Koppla bort"
-        cancelLabel="Avbryt"
+        title={t.settings.disconnectTitle.replace('{email}', disconnectAccount?.emailAddress ?? '')}
+        description={t.settings.disconnectDescription}
+        confirmLabel={t.settings.disconnectButton}
+        cancelLabel={t.settings.cancel}
         variant="danger"
         onConfirm={executeDisconnect}
         onCancel={() => setDisconnectAccount(null)}

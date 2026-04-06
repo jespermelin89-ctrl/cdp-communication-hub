@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.13.0 (Sprint 20 klar)
+- **Version**: 2.14.0 (Sprint 21 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 1315 server (73 filer) + 153 client (13 filer) = 1468 totalt
+- **Tester**: 1396 server (75 filer) + 153 client (13 filer) = 1549 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -458,6 +458,34 @@ All 7 issues from the security review have been fixed and merged to main:
   - POST /drafts/:id/discard: 404, success
   - POST /drafts/:id/send-delayed: 404, fel status → 400, delay=0 → skickar direkt, pending → godkänns först, använder user settings undoSendDelay
   - POST /drafts/:id/cancel-send: 404, fel status → 400, ingen scheduledAt → 400, förflutet datum → 400, success (cancelled: true)
+
+## Completed Sprint 21 — Category Service + SMTP + Brain-Core Webhook + Utils Tests (2026-04-06) — v2.14.0
+
+### ✅ category.service.ts (Sprint 21)
+- `sprint21-category-service.test.ts`: 30 tester
+  - ensureDefaults: returnerar befintliga utan seeding, skapar 7 system-kategorier, isSystem=true, innehåller spam/important/business
+  - create: slug från name (lowercase, bindestreck), strippar specialtecken, strippar ledande/avslutande bindestreck
+  - matchRules: returns null utan regler, exakt match (case-insensitive), partiell adress → ingen match, domän-wildcard *@domain.com, domän-wildcard fel domän, *@sub.domain.com, glob *keyword*, glob utan match, glob case-insensitive, exact-sender match overrider subject-pattern (rule 1 fires before rule 4), invalid regex → skippar utan kast, returnerar första matchande regel, frågar bara aktiva regler
+  - classifyThreads: tom map vid ingen match, mappar category/action/rule, inkrementerar timesApplied, processar flera trådar oberoende
+  - deleteCategory: kastar 'Cannot delete system categories', raderar icke-system
+  - createRule: categoryId=null utan slug, löser categoryId från slug, subjectPattern=null default
+
+### ✅ smtp.service.ts (Sprint 21)
+- `sprint21-smtp-webhook-utils.test.ts` (delvis): 14 tester
+  - getCredentials (via sendEmail): icke-imap→kastar, saknar smtpHost→kastar, saknar password→kastar
+  - sendEmail: from="Namn" <email> med displayName, bare email utan displayName, multiple to→kommaseparerat, cc+bcc→kommaseparerat, tom cc/bcc→utelämnas, inReplyTo+references, bilagor base64→Buffer, bodyHtml inkluderas, returnerar messageId
+  - testConnection: success=true, success=false+error vid verify-fel
+
+### ✅ brain-core-webhook.service.ts (Sprint 21)
+- `sprint21-smtp-webhook-utils.test.ts` (delvis): 7 tester
+  - Ingen URL→no-op (fetch ej kallat), posts med event/data/timestamp/source, X-Webhook-Secret-header när konfigurerat, INTE header utan secret, HTTP-fel→kastar ej (warn only), nätverksfel→kastar ej (warn only), Content-Type: application/json
+
+### ✅ utils/sanitize.ts + utils/return-to.ts (Sprint 21)
+- `sprint21-smtp-webhook-utils.test.ts` (delvis): 30 tester
+  - sanitizeLabel: versaler, siffror, -/_, svenska tecken, raderar mellanslag+special, raderar @, trunkerar till 50
+  - isValidEmail: standard, subdomain, plus-alias, saknar @, saknar domän, saknar TLD, tom, trimmar whitespace
+  - sanitizeSearch: strippar kontrollkod, strippar DEL, trimmar, trunkerar till 200, bevarar normal text, bevarar unicode
+  - sanitizeReturnTo: undefined→undefined, tom→undefined, /path→godkänd, /nested/path→godkänd, //→blockeras, http://→blockeras, https://→blockeras, relativ sökväg→blockeras
 
 ## Completed Sprint 20 — Brain-Summary + Docs + Events + Labels Route Tests (2026-04-06) — v2.13.0
 

@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.12.0 (Sprint 19 klar)
+- **Version**: 2.13.0 (Sprint 20 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 1255 server (71 filer) + 153 client (13 filer) = 1408 totalt
+- **Tester**: 1315 server (73 filer) + 153 client (13 filer) = 1468 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -458,6 +458,46 @@ All 7 issues from the security review have been fixed and merged to main:
   - POST /drafts/:id/discard: 404, success
   - POST /drafts/:id/send-delayed: 404, fel status → 400, delay=0 → skickar direkt, pending → godkänns först, använder user settings undoSendDelay
   - POST /drafts/:id/cancel-send: 404, fel status → 400, ingen scheduledAt → 400, förflutet datum → 400, success (cancelled: true)
+
+## Completed Sprint 20 — Brain-Summary + Docs + Events + Labels Route Tests (2026-04-06) — v2.13.0
+
+### ✅ Route-tester för brain-summary.ts (Sprint 20)
+- `sprint20-brain-summary-docs-events.test.ts` (delvis): 12 tester
+  - generated_at är ISO-sträng
+  - Accounts mappas korrekt (email, is_default, provider, label)
+  - Filtrerar accounts på isActive:true
+  - summary-counts: unread/important/pending/approved korrekt
+  - important_threads: participant_count från participantEmails.length, analysis=null vid tom analyses
+  - **SÄKERHET**: pending_drafts innehåller ALDRIG body_text
+  - **SÄKERHET**: Prisma-select för drafts saknar body_text/bodyText
+  - pending_drafts mappas till extern form (account, account_label, created_at)
+  - daily_summary mappas korrekt, null vid ej genererad
+  - Tomt konto → tomma arrayer
+  - Thread-query begränsad till 7 dagar bakåt
+
+### ✅ Route-tester för docs.ts (Sprint 20)
+- `sprint20-brain-summary-docs-events.test.ts` (delvis): 6 tester
+  - version='1.0', base='/api/v1'
+  - total === endpoints.length
+  - Säkerhetsflaggor: never_auto_send, never_auto_delete, draft_gate
+  - Varje endpoint har method/path/auth/stable/description
+  - /docs listar sig själv med auth:false
+  - note nämner BRAIN-OS + /api/v1/ prefix
+
+### ✅ Route-tester för events.ts (Sprint 20)
+- `sprint20-brain-summary-docs-events.test.ts` (delvis): 10 tester
+  - GET /events/stream: saknar token→401, ogiltig JWT→401, ingen userId i payload→401, giltigt token→skriver SSE-headers+200, sub-claim accepteras
+  - emitToUser: ingen anslutning→inget fel, anropar send per connection, fortsätter vid kastande send, anropar ej fel användares connections
+
+### ✅ Route-tester för labels.ts (Sprint 20)
+- `sprint20-labels.test.ts`: 32 tester
+  - GET /labels: seedar 5 defaults vid count=0 (skipDuplicates), seedar INTE när labels finns, returnerar sorterade på position asc
+  - POST /labels: saknar name→400, tomt/whitespace→400, duplicate→409, 201 success, defaultfärg #6B7280, icon=null default, trimmar name, position=0 vid null max
+  - PATCH /labels/:id: 404, uppdaterar bara angivna fält, trimmar name, uppdaterar position separat
+  - DELETE /labels/:id: 404, raderar och returnerar deleted:true
+  - POST /threads/:id/labels: 404 tråd, tar bort alla befintliga + skapar nya, validerar att labelIds tillhör user, anropar ej createMany vid 0 giltiga, returnerar updated-count
+  - DELETE /threads/:id/labels/:labelId: 404 tråd, raderar specifik koppling
+  - POST /threads/bulk/label: ej array→400, tom array→400, 404 label, tilldelar och returnerar count, filtrerar bort trådar ej tillhörande user, verifierar label-ägande
 
 ## Completed Sprint 19 — Follow-Ups + Push + Views + Templates Route Tests (2026-04-06) — v2.12.0
 

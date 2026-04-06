@@ -96,13 +96,34 @@ function cleanJsonResponse(raw: string): string {
   return cleaned;
 }
 
+/** Circuit breaker state per provider */
+interface CircuitState {
+  /** Timestamp until which provider is blocked (0 = not blocked) */
+  blockedUntil: number;
+  /** Consecutive transient failures since last success */
+  consecutiveFailures: number;
+  /** Timestamp of last failure (used for failure-window calculation) */
+  lastFailureAt: number;
+}
+
+/** Open circuit after this many consecutive transient failures within the failure window */
+const CIRCUIT_FAILURE_THRESHOLD = 3;
+/** Failure window: reset counter if last failure was more than this ago */
+const CIRCUIT_FAILURE_WINDOW_MS = 60_000; // 1 min
+/** How long to block after a rate-limit (429) error */
+const RATE_LIMIT_BLOCK_MS = 2 * 60_000; // 2 min
+/** How long to block after CIRCUIT_FAILURE_THRESHOLD transient failures */
+const TRANSIENT_BLOCK_MS = 30_000; // 30 sec
+/** How long to block after permanent errors (no credits, billing) */
+const PERMANENT_BLOCK_MS = 60 * 60_000; // 1 hour
+
 export class AIService {
   private anthropic: Anthropic | null = null;
   private openai: OpenAI | null = null;
   private groq: OpenAI | null = null;
 
-  /** provider name → timestamp until which it is blacklisted */
-  private providerBlacklist: Map<string, number> = new Map();
+  /** Circuit breaker state per provider */
+  private circuits: Map<string, CircuitState> = new Map();
 
   constructor() {
     if (env.ANTHROPIC_API_KEY) {
@@ -119,6 +140,13 @@ export class AIService {
     }
   }
 
+  private getCircuit(name: string): CircuitState {
+    if (!this.circuits.has(name)) {
+      this.circuits.set(name, { blockedUntil: 0, consecutiveFailures: 0, lastFailureAt: 0 });
+    }
+    return this.circuits.get(name)!;
+  }
+
   /**
    * Truncate text to maxChars to stay within provider token limits.
    * Groq TPM limit is 12 000 tokens — keep each message body under 2 000 chars.
@@ -130,32 +158,69 @@ export class AIService {
   }
 
   /**
-   * Returns true if the provider is not currently blacklisted.
-   * Clears expired blacklist entries automatically.
+   * Returns true if the provider circuit is closed (available).
+   * Auto-resets expired blocks.
    */
   private isProviderAvailable(name: string): boolean {
-    const until = this.providerBlacklist.get(name);
-    if (!until) return true;
-    if (Date.now() > until) {
-      this.providerBlacklist.delete(name);
+    const circuit = this.getCircuit(name);
+    if (circuit.blockedUntil === 0) return true;
+    if (Date.now() > circuit.blockedUntil) {
+      circuit.blockedUntil = 0;
+      circuit.consecutiveFailures = 0;
       return true;
     }
     return false;
   }
 
-  /**
-   * Blacklist a provider for durationMs (default 1 hour).
-   * Used when a provider returns a permanent error like "no credits".
-   */
-  private blacklistProvider(name: string, durationMs = 3_600_000): void {
-    this.providerBlacklist.set(name, Date.now() + durationMs);
-    console.warn(`[AI] Provider ${name} blacklisted for ${durationMs / 60000} min`);
+  /** Called on success — resets the circuit for this provider. */
+  private recordSuccess(name: string): void {
+    const circuit = this.getCircuit(name);
+    circuit.consecutiveFailures = 0;
+    circuit.blockedUntil = 0;
+    circuit.lastFailureAt = 0;
   }
 
   /**
-   * Returns true if the error indicates a permanent/billing failure that
-   * won't resolve by retrying (no credits, invalid key, account suspended).
+   * Called on failure — opens circuit after threshold or permanent error.
+   * - Permanent (402, billing): block 1 hour
+   * - Rate limit (429): block 2 minutes
+   * - Transient (5xx, timeout): block 30s after 3 consecutive failures
    */
+  private recordFailure(name: string, err: any): void {
+    const circuit = this.getCircuit(name);
+    const now = Date.now();
+
+    if (this.isPermanentError(err)) {
+      circuit.blockedUntil = now + PERMANENT_BLOCK_MS;
+      circuit.consecutiveFailures = CIRCUIT_FAILURE_THRESHOLD;
+      console.warn(`[AI] Circuit OPEN (permanent) for ${name} — blocked for ${PERMANENT_BLOCK_MS / 60000} min`);
+      return;
+    }
+
+    if (this.isRateLimitError(err)) {
+      circuit.blockedUntil = now + RATE_LIMIT_BLOCK_MS;
+      console.warn(`[AI] Circuit OPEN (rate-limit) for ${name} — blocked for ${RATE_LIMIT_BLOCK_MS / 1000}s`);
+      return;
+    }
+
+    // Transient failure — count only if within failure window
+    if (now - circuit.lastFailureAt > CIRCUIT_FAILURE_WINDOW_MS) {
+      circuit.consecutiveFailures = 0;
+    }
+    circuit.consecutiveFailures += 1;
+    circuit.lastFailureAt = now;
+
+    if (circuit.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
+      circuit.blockedUntil = now + TRANSIENT_BLOCK_MS;
+      console.warn(
+        `[AI] Circuit OPEN (${circuit.consecutiveFailures} transient failures) for ${name} — blocked for ${TRANSIENT_BLOCK_MS / 1000}s`
+      );
+    } else {
+      console.warn(`[AI] Provider ${name} transient failure ${circuit.consecutiveFailures}/${CIRCUIT_FAILURE_THRESHOLD}`);
+    }
+  }
+
+  /** Returns true for billing/quota failures that won't self-heal. */
   private isPermanentError(err: any): boolean {
     const msg: string = err?.message ?? '';
     const status: number = err?.status ?? err?.statusCode ?? 0;
@@ -164,6 +229,19 @@ export class AIService {
       (status === 400 && /credit|quota|billing|insufficient/i.test(msg)) ||
       /insufficient_quota|credit balance|no credits|account.*suspend/i.test(msg)
     );
+  }
+
+  /** Returns true for rate-limit responses (429). */
+  private isRateLimitError(err: any): boolean {
+    const status: number = err?.status ?? err?.statusCode ?? 0;
+    return status === 429;
+  }
+
+  // Keep backward-compat alias (used in tests and external callers)
+  private blacklistProvider(name: string, durationMs = PERMANENT_BLOCK_MS): void {
+    const circuit = this.getCircuit(name);
+    circuit.blockedUntil = Date.now() + durationMs;
+    console.warn(`[AI] Provider ${name} blacklisted for ${durationMs / 60000} min`);
   }
 
   /**
@@ -368,6 +446,7 @@ Ge en kort sammanfattning.`;
     for (const provider of providers) {
       try {
         const result = await provider.fn();
+        this.recordSuccess(provider.name);
         if (lastError) {
           console.log(`[AI] Fallback succeeded via ${provider.name} (previous provider failed)`);
         } else {
@@ -376,9 +455,7 @@ Ge en kort sammanfattning.`;
         return result;
       } catch (err: any) {
         console.warn(`[AI] Provider ${provider.name} failed: ${err?.message}`);
-        if (this.isPermanentError(err)) {
-          this.blacklistProvider(provider.name);
-        }
+        this.recordFailure(provider.name, err);
         lastError = err;
       }
     }

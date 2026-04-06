@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { toast } from 'sonner';
 import {
   Inbox,
@@ -29,11 +30,6 @@ const CLASSIFICATION_COLORS: Record<string, string> = {
   outreach: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
 };
 
-const CONFIDENCE_LABEL = (c: number) =>
-  c >= 0.8 ? 'Hög' : c >= 0.6 ? 'Medel' : 'Låg';
-const CONFIDENCE_COLOR = (c: number) =>
-  c >= 0.8 ? 'text-emerald-600 dark:text-emerald-400' : c >= 0.6 ? 'text-amber-600 dark:text-amber-400' : 'text-red-500';
-
 function formatDate(iso: string) {
   const d = new Date(iso);
   const now = new Date();
@@ -44,6 +40,7 @@ function formatDate(iso: string) {
 }
 
 export default function ReviewPage() {
+  const { t } = useI18n();
   const { data, isLoading, error } = useSWR('review-queue', () => api.getReviewQueue(), {
     revalidateOnFocus: false,
   });
@@ -55,18 +52,23 @@ export default function ReviewPage() {
   }>>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
+  const confidenceLabel = (c: number) =>
+    c >= 0.8 ? t.review.confidenceHigh : c >= 0.6 ? t.review.confidenceMedium : t.review.confidenceLow;
+  const confidenceColor = (c: number) =>
+    c >= 0.8 ? 'text-emerald-600 dark:text-emerald-400' : c >= 0.6 ? 'text-amber-600 dark:text-amber-400' : 'text-red-500';
+
   async function decide(threadId: string, action: ReviewAction) {
     setDeciding((p) => ({ ...p, [threadId]: action }));
     try {
       await api.decideReviewThread(threadId, action);
       const label =
-        action === 'keep' ? 'Flyttad till inkorg' :
-        action === 'trash' ? 'Skickad till papperskorgen' :
-        'Regel skapad och tråd raderad';
+        action === 'keep' ? t.review.toastKeep :
+        action === 'trash' ? t.review.toastTrash :
+        t.review.toastCreateRule;
       toast.success(label);
       mutate('review-queue');
     } catch {
-      toast.error('Något gick fel — försök igen.');
+      toast.error(t.review.toastError);
     } finally {
       setDeciding((p) => ({ ...p, [threadId]: null }));
     }
@@ -77,9 +79,9 @@ export default function ReviewPage() {
     try {
       const res = await api.getPendingSuggestions();
       setSuggestions(res.suggestions ?? []);
-      if ((res.suggestions ?? []).length === 0) toast('Inga regelförslag just nu.');
+      if ((res.suggestions ?? []).length === 0) toast(t.review.noSuggestions);
     } catch {
-      toast.error('Kunde inte hämta förslag.');
+      toast.error(t.review.errorSuggestions);
     } finally {
       setLoadingSuggestions(false);
     }
@@ -88,10 +90,10 @@ export default function ReviewPage() {
   async function acceptSuggestion(id: string) {
     try {
       await api.acceptRuleSuggestion(id);
-      toast.success('Regel skapad!');
+      toast.success(t.review.ruleCreated);
       setSuggestions((s) => s.filter((x) => x.id !== id));
     } catch {
-      toast.error('Kunde inte skapa regel.');
+      toast.error(t.review.errorCreateRule);
     }
   }
 
@@ -99,9 +101,9 @@ export default function ReviewPage() {
     try {
       await api.dismissRuleSuggestion(id);
       setSuggestions((s) => s.filter((x) => x.id !== id));
-      toast('Förslag avvisad.');
+      toast(t.review.suggestionDismissed);
     } catch {
-      toast.error('Kunde inte avvisa förslag.');
+      toast.error(t.review.errorDismiss);
     }
   }
 
@@ -123,9 +125,9 @@ export default function ReviewPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Granskning</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.review.title}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Mail från okända avsändare som behöver din beslut
+              {t.review.subtitle}
             </p>
           </div>
           <div className="flex gap-2">
@@ -135,14 +137,14 @@ export default function ReviewPage() {
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 disabled:opacity-50"
             >
               <ShieldCheck size={14} />
-              {loadingSuggestions ? 'Laddar...' : 'Regelförslag'}
+              {loadingSuggestions ? t.common.loading : t.review.ruleSuggestions}
             </button>
             <button
               onClick={() => mutate('review-queue')}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
             >
               <RefreshCw size={14} />
-              Uppdatera
+              {t.review.refresh}
             </button>
           </div>
         </div>
@@ -152,14 +154,14 @@ export default function ReviewPage() {
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-medium">
               <ShieldCheck size={16} />
-              {suggestions.length} regelförslag baserade på triagmönster
+              {t.review.ruleSuggestionsHint.replace('{n}', String(suggestions.length))}
             </div>
             {suggestions.map((s) => (
               <div key={s.id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg px-4 py-3 border border-blue-100 dark:border-blue-800">
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{s.senderPattern}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {s.suggestedAction} · {s.triggerCount} träffar
+                    {s.suggestedAction} · {s.triggerCount} {t.review.hits}
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -167,13 +169,13 @@ export default function ReviewPage() {
                     onClick={() => acceptSuggestion(s.id)}
                     className="px-3 py-1 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
                   >
-                    Acceptera
+                    {t.review.accept}
                   </button>
                   <button
                     onClick={() => dismissSuggestion(s.id)}
                     className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                   >
-                    Avvisa
+                    {t.review.dismiss}
                   </button>
                 </div>
               </div>
@@ -196,15 +198,15 @@ export default function ReviewPage() {
         {error && (
           <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300">
             <AlertCircle size={18} />
-            Kunde inte ladda granskningskön.
+            {t.review.loadError}
           </div>
         )}
 
         {!isLoading && !error && threads.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-600">
             <CheckCircle2 size={48} className="mb-4 opacity-40" />
-            <p className="text-lg font-medium">Ingen granskning behövs</p>
-            <p className="text-sm mt-1">Alla okända avsändare är hanterade.</p>
+            <p className="text-lg font-medium">{t.review.emptyTitle}</p>
+            <p className="text-sm mt-1">{t.review.emptyBody}</p>
           </div>
         )}
 
@@ -225,7 +227,7 @@ export default function ReviewPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                            {thread.subject ?? '(Inget ämne)'}
+                            {thread.subject ?? t.inbox.noSubject}
                           </span>
                           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${CLASSIFICATION_COLORS[thread.classification] ?? 'bg-gray-100 text-gray-600'}`}>
                             {thread.classification}
@@ -234,8 +236,8 @@ export default function ReviewPage() {
                         <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
                           <span>{thread.senderEmail}</span>
                           <span>·</span>
-                          <span className={CONFIDENCE_COLOR(thread.confidence)}>
-                            Konfidens: {CONFIDENCE_LABEL(thread.confidence)} ({Math.round(thread.confidence * 100)}%)
+                          <span className={confidenceColor(thread.confidence)}>
+                            {t.review.confidence}: {confidenceLabel(thread.confidence)} ({Math.round(thread.confidence * 100)}%)
                           </span>
                           <span>·</span>
                           <span className="flex items-center gap-1"><Clock size={11} />{formatDate(thread.labeledAt)}</span>
@@ -246,7 +248,7 @@ export default function ReviewPage() {
                             className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 mt-2 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                           >
                             {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                            {isExpanded ? 'Dölj' : 'Visa förhandsgranskning'}
+                            {isExpanded ? t.review.hidePreview : t.review.showPreview}
                           </button>
                         )}
                       </div>
@@ -256,29 +258,29 @@ export default function ReviewPage() {
                         <button
                           onClick={() => decide(thread.threadId, 'keep')}
                           disabled={isDeciding}
-                          title="Flytta till inkorg"
+                          title={t.review.keepTitle}
                           className="flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors disabled:opacity-50"
                         >
                           <Inbox size={13} />
-                          Behåll
+                          {t.review.keep}
                         </button>
                         <button
                           onClick={() => decide(thread.threadId, 'create_rule')}
                           disabled={isDeciding}
-                          title="Skapa regel för denna domän"
+                          title={t.review.createRuleTitle}
                           className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
                         >
                           <ShieldCheck size={13} />
-                          Skapa regel
+                          {t.review.createRule}
                         </button>
                         <button
                           onClick={() => decide(thread.threadId, 'trash')}
                           disabled={isDeciding}
-                          title="Skicka till papperskorgen"
+                          title={t.review.trashTitle}
                           className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors disabled:opacity-50"
                         >
                           <Trash2 size={13} />
-                          Radera
+                          {t.review.trash}
                         </button>
                       </div>
                     </div>
@@ -298,7 +300,7 @@ export default function ReviewPage() {
 
         {threads.length > 0 && (
           <p className="text-center text-xs text-gray-400 dark:text-gray-600">
-            {threads.length} tråd{threads.length !== 1 ? 'ar' : ''} väntar på beslut
+            {t.review.pendingCount.replace('{n}', String(threads.length))}
           </p>
         )}
       </main>

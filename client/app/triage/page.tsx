@@ -4,6 +4,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import {
   BarChart3,
   Trash2,
@@ -17,12 +18,6 @@ import {
 
 type Period = 'today' | 'week' | 'month';
 
-const PERIOD_LABELS: Record<Period, string> = {
-  today: 'Idag',
-  week: 'Senaste 7 dagarna',
-  month: 'Senaste 30 dagarna',
-};
-
 const ACTION_COLORS: Record<string, string> = {
   trash: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
   trash_after_log: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
@@ -30,25 +25,6 @@ const ACTION_COLORS: Record<string, string> = {
   label_review: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   keep_inbox: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
   auto_draft: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
-};
-
-const ACTION_LABELS: Record<string, string> = {
-  trash: 'Raderades',
-  trash_after_log: 'Loggad & raderad',
-  notify_then_trash: 'Notifiering + radering',
-  label_review: 'Till granskning',
-  keep_inbox: 'Behålls i inkorg',
-  auto_draft: 'Auto-utkast',
-};
-
-const CLASSIFICATION_LABELS: Record<string, string> = {
-  lead: 'Lead',
-  partner: 'Partner',
-  personal: 'Personligt',
-  spam: 'Spam',
-  operational: 'Operationellt',
-  founder: 'Grundare',
-  outreach: 'Outreach',
 };
 
 function StatCard({ label, value, icon, color }: { label: string; value: number; icon: React.ReactNode; color: string }) {
@@ -80,8 +56,34 @@ function BarRow({ label, count, max }: { label: string; count: number; max: numb
 }
 
 export default function TriagePage() {
+  const { t } = useI18n();
   const [period, setPeriod] = useState<Period>('today');
   const [actionFilter, setActionFilter] = useState<string>('');
+
+  const PERIOD_LABELS: Record<Period, string> = {
+    today: t.triage.periodToday,
+    week: t.triage.periodWeek,
+    month: t.triage.periodMonth,
+  };
+
+  const ACTION_LABELS: Record<string, string> = {
+    trash: t.triage.actionTrash,
+    trash_after_log: t.triage.actionTrashAfterLog,
+    notify_then_trash: t.triage.actionNotifyThenTrash,
+    label_review: t.triage.actionLabelReview,
+    keep_inbox: t.triage.actionKeepInbox,
+    auto_draft: t.triage.actionAutoDraft,
+  };
+
+  const CLASSIFICATION_LABELS: Record<string, string> = {
+    lead: t.triage.classLead,
+    partner: t.triage.classPartner,
+    personal: t.triage.classPersonal,
+    spam: t.triage.classSpam,
+    operational: t.triage.classOperational,
+    founder: t.triage.classFounder,
+    outreach: t.triage.classOutreach,
+  };
 
   const swrKey = `triage-report-${period}-${actionFilter}`;
   const { data, isLoading, error, mutate } = useSWR(
@@ -113,10 +115,10 @@ export default function TriagePage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
               <BarChart3 size={22} className="text-brand-500" />
-              Triage-rapport
+              {t.triage.title}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Vad AI-triagen sorterade bort och varför
+              {t.triage.subtitle}
             </p>
           </div>
           <button
@@ -124,7 +126,7 @@ export default function TriagePage() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300"
           >
             <RefreshCw size={14} />
-            Uppdatera
+            {t.triage.refresh}
           </button>
         </div>
 
@@ -152,7 +154,7 @@ export default function TriagePage() {
               onChange={(e) => setActionFilter(e.target.value)}
               className="text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-400"
             >
-              <option value="">Alla actions</option>
+              <option value="">{t.triage.allActions}</option>
               {Object.entries(ACTION_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>{v}</option>
               ))}
@@ -163,7 +165,7 @@ export default function TriagePage() {
         {error && (
           <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300">
             <AlertCircle size={18} />
-            Kunde inte ladda triage-rapport.
+            {t.triage.loadError}
           </div>
         )}
 
@@ -180,25 +182,25 @@ export default function TriagePage() {
             {/* Stat cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <StatCard
-                label="Totalt sorterade"
+                label={t.triage.statTotal}
                 value={total}
                 icon={<BarChart3 size={24} />}
                 color="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100"
               />
               <StatCard
-                label="Raderade"
+                label={t.triage.statTrashed}
                 value={trashed}
                 icon={<Trash2 size={24} />}
                 color="bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
               />
               <StatCard
-                label="Till granskning"
+                label={t.triage.statReview}
                 value={inReview}
                 icon={<Eye size={24} />}
                 color="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300"
               />
               <StatCard
-                label="Behållna"
+                label={t.triage.statKept}
                 value={kept}
                 icon={<Inbox size={24} />}
                 color="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300"
@@ -208,7 +210,7 @@ export default function TriagePage() {
             {total === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-600">
                 <TrendingDown size={48} className="mb-4 opacity-40" />
-                <p className="text-lg font-medium">Ingen aktivitet {PERIOD_LABELS[period].toLowerCase()}</p>
+                <p className="text-lg font-medium">{t.triage.noActivity} {PERIOD_LABELS[period].toLowerCase()}</p>
               </div>
             )}
 
@@ -216,7 +218,7 @@ export default function TriagePage() {
               <div className="grid sm:grid-cols-2 gap-6">
                 {/* By action */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Per action</h2>
+                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{t.triage.byAction}</h2>
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(byAction).sort(([, a], [, b]) => b - a).map(([action, count]) => (
                       <div
@@ -232,7 +234,7 @@ export default function TriagePage() {
 
                 {/* By classification */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Per klassificering</h2>
+                  <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{t.triage.byClassification}</h2>
                   <div className="space-y-2.5">
                     {Object.entries(byClass).sort(([, a], [, b]) => b - a).map(([cls, count]) => (
                       <BarRow
@@ -248,7 +250,7 @@ export default function TriagePage() {
                 {/* Top senders */}
                 {bySender.length > 0 && (
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
-                    <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Vanligaste avsändare</h2>
+                    <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{t.triage.topSenders}</h2>
                     <div className="space-y-2.5">
                       {bySender.slice(0, 10).map(({ sender, count }) => (
                         <BarRow key={sender} label={sender} count={count} max={maxSender} />
@@ -260,15 +262,15 @@ export default function TriagePage() {
                 {/* Detail rows */}
                 {rows.length > 0 && (
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 sm:col-span-2">
-                    <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Detaljerat per avsändare + klassificering</h2>
+                    <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">{t.triage.detailTable}</h2>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
                           <tr className="text-gray-400 dark:text-gray-500 border-b border-gray-100 dark:border-gray-700">
-                            <th className="text-left pb-2 font-medium">Avsändare</th>
-                            <th className="text-left pb-2 font-medium">Klassificering</th>
-                            <th className="text-right pb-2 font-medium">Antal</th>
-                            <th className="text-left pb-2 pl-4 font-medium">Actions</th>
+                            <th className="text-left pb-2 font-medium">{t.triage.colSender}</th>
+                            <th className="text-left pb-2 font-medium">{t.triage.colClassification}</th>
+                            <th className="text-right pb-2 font-medium">{t.triage.colCount}</th>
+                            <th className="text-left pb-2 pl-4 font-medium">{t.triage.colActions}</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-gray-700">

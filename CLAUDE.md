@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.0.0 (Sprint 3–7 klara)
+- **Version**: 2.1.0 (Sprint 8 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 653 server (51 filer) + 129 client (9 filer) = 782 totalt
+- **Tester**: 671 server (52 filer) + 129 client (9 filer) = 800 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -277,20 +277,33 @@ All 7 issues from the security review have been fixed and merged to main:
 - `auth.ts`: 4× `as any` replaced with `'reauthed' in result` type narrowing
 - Remaining `as any` are Prisma JSON fields — acceptable per spec
 
+## Completed Sprint 8 — Polish & Resilience (2026-04-06) — v2.1.0
+
+### ✅ i18n för review + triage sidor
+- `review` och `triage` nyckelsektioner tillagda i sv/en/es/ru
+- `client/app/review/page.tsx`: all hårdkodad svenska ersatt med `t.review.*`
+- `client/app/triage/page.tsx`: perioder, actions, klassificeringar, headers via `t.triage.*`
+
+### ✅ Förstärkt AI circuit breaker (W6)
+- Ny `CircuitState` per provider: `blockedUntil`, `consecutiveFailures`, `lastFailureAt`
+- Permanent fel (402, billing): blockeras 1 timme
+- Rate-limit (429): blockeras 2 minuter  
+- Transient (5xx): blockeras 30s efter 3 konsekutiva fel inom 1 minut
+- `recordSuccess()` återställer circuit direkt
+- `recordFailure()` öppnar circuit med rätt duration baserat på feltyp
+- 18 nya tester i `sprint8-circuit-breaker.test.ts`
+
 ## TODO (prio-ordning)
 
 ### Post-deploy (manuellt)
 1. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell
 2. **Sätt GOOGLE_PUBSUB_VERIFICATION_TOKEN** i Render dashboard
 3. **Städa remote branches** — `origin/codex-meeting-calendar-flow`, `origin/codex/calendar-hold-release`
-4. **Bump version** i `client/package.json` och `server/package.json` till `2.0.0`
 
 ### ⏳ Framtida (bygg inte nu)
 - n8n workflow automation (ersätt setInterval-cronjobs)
 - Microsoft OAuth
 - Push notifications browser-permission prompt i onboarding
-- Circuit breaker för AI provider fallback (W6)
-- i18n för `/review` och `/triage` sidor
 
 ## Key API Patterns
 - All API calls go through `client/lib/api.ts` which handles auth headers + base URL

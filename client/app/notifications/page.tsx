@@ -7,6 +7,7 @@ import { AlertCircle, Bot, FileText, CheckCircle, Archive, Bell, Trash2, Refresh
 import TopBar from '@/components/TopBar';
 import EmptyState from '@/components/EmptyState';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import type { Account } from '@/lib/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -34,20 +35,6 @@ function iconForType(type: string) {
   return { Icon: CheckCircle, color: 'text-emerald-500' };
 }
 
-function labelForLog(log: ActionLog): string {
-  const d = log.details ?? {};
-  switch (log.actionType) {
-    case 'thread_archived': return `Tråd arkiverad: "${d.subject ?? d.thread_id ?? '–'}"`;
-    case 'thread_trashed':  return `Tråd raderad: "${d.subject ?? d.thread_id ?? '–'}"`;
-    case 'draft:approved':  return `Utkast godkänt: "${d.subject ?? '–'}"`;
-    case 'draft:sent':      return `Mail skickat: "${d.subject ?? '–'}"`;
-    case 'classification:override':
-      return `Klassificering ändrad: "${d.subject ?? '–'}" → ${d.new_classification ?? ''} / ${d.new_priority ?? ''}`;
-    default:
-      return log.actionType.replace(/_/g, ' ').replace(/:/g, ' — ');
-  }
-}
-
 function hrefForLog(log: ActionLog): string | null {
   const d = log.details ?? {};
   if (d.thread_id) return `/threads/${d.thread_id}`;
@@ -55,46 +42,11 @@ function hrefForLog(log: ActionLog): string | null {
   return null;
 }
 
-function formatRelativeTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return 'nu';
-  if (diffMins < 60) return `${diffMins} min sedan`;
-  if (diffHours < 24) return `${diffHours}h sedan`;
-  if (diffDays === 1) return 'igår';
-  if (diffDays < 7) return date.toLocaleDateString('sv-SE', { weekday: 'long' });
-  return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
-}
-
-function groupByDay(logs: ActionLog[]): { label: string; logs: ActionLog[] }[] {
-  const groups: Record<string, ActionLog[]> = {};
-  const now = new Date();
-
-  for (const log of logs) {
-    const date = new Date(log.createdAt);
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
-    let label: string;
-    if (diffDays === 0) label = 'Idag';
-    else if (diffDays === 1) label = 'Igår';
-    else if (diffDays < 7) label = date.toLocaleDateString('sv-SE', { weekday: 'long' });
-    else label = date.toLocaleDateString('sv-SE', { month: 'long', day: 'numeric' });
-
-    if (!groups[label]) groups[label] = [];
-    groups[label].push(log);
-  }
-
-  return Object.entries(groups).map(([label, logs]) => ({ label, logs }));
-}
-
 const LAST_SEEN_KEY = 'notifications_last_seen';
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function NotificationsPage() {
+  const { t } = useI18n();
   const [accountFilter, setAccountFilter] = useState<string>('');
 
   const { data, isLoading, mutate } = useSWR(
@@ -121,6 +73,54 @@ export default function NotificationsPage() {
       })
     : allLogs;
 
+  function labelForLog(log: ActionLog): string {
+    const d = log.details ?? {};
+    const subject = d.subject ?? d.thread_id ?? '–';
+    switch (log.actionType) {
+      case 'thread_archived': return `${t.notifications.threadArchived}: "${subject}"`;
+      case 'thread_trashed':  return `${t.notifications.threadTrashed}: "${subject}"`;
+      case 'draft:approved':  return `${t.notifications.draftApproved}: "${d.subject ?? '–'}"`;
+      case 'draft:sent':      return `${t.notifications.draftSent}: "${d.subject ?? '–'}"`;
+      case 'classification:override':
+        return `${t.notifications.classificationChanged}: "${d.subject ?? '–'}" → ${d.new_classification ?? ''} / ${d.new_priority ?? ''}`;
+      default:
+        return log.actionType.replace(/_/g, ' ').replace(/:/g, ' — ');
+    }
+  }
+
+  function formatRelativeTime(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (mins < 1) return t.time.justNow;
+    if (mins < 60) return t.time.minutesAgo.replace('{n}', String(mins));
+    if (hours < 24) return t.time.hoursAgo.replace('{n}', String(hours));
+    if (days === 1) return t.time.yesterday;
+    if (days < 7) return new Date(dateStr).toLocaleDateString('sv-SE', { weekday: 'long' });
+    return new Date(dateStr).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+  }
+
+  function groupByDay(items: ActionLog[]): { label: string; logs: ActionLog[] }[] {
+    const groups: Record<string, ActionLog[]> = {};
+    const now = new Date();
+
+    for (const log of items) {
+      const date = new Date(log.createdAt);
+      const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
+      let label: string;
+      if (diffDays === 0) label = t.notifications.today;
+      else if (diffDays === 1) label = t.notifications.yesterday;
+      else if (diffDays < 7) label = date.toLocaleDateString('sv-SE', { weekday: 'long' });
+      else label = date.toLocaleDateString('sv-SE', { month: 'long', day: 'numeric' });
+
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(log);
+    }
+
+    return Object.entries(groups).map(([label, groupLogs]) => ({ label, logs: groupLogs }));
+  }
+
   const groups = groupByDay(logs);
 
   // Mark as seen when page is opened
@@ -136,15 +136,15 @@ export default function NotificationsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Notiser</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Aktivitetslogg — senaste 50 händelser</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.notifications.title}</h1>
+            <p className="text-sm text-gray-400 mt-0.5">{t.notifications.subtitle}</p>
           </div>
           <button
             onClick={() => mutate()}
             className="btn-secondary text-sm flex items-center gap-1.5"
           >
             <RefreshCw size={13} />
-            Uppdatera
+            {t.notifications.refresh}
           </button>
         </div>
 
@@ -159,7 +159,7 @@ export default function NotificationsPage() {
                   : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
-              Alla konton
+              {t.notifications.allAccounts}
             </button>
             {accounts.map((acc) => (
               <button
@@ -189,8 +189,8 @@ export default function NotificationsPage() {
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
             <EmptyState
               icon={Bell}
-              title="Inga notiser ännu"
-              description="Händelser som arkivering, klassificering och utkast visas här"
+              title={t.notifications.empty}
+              description={t.notifications.emptyDescription}
             />
           </div>
         ) : (

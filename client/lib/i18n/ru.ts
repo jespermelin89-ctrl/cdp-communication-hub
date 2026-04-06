@@ -153,9 +153,11 @@ const ru: Translations = {
 
   activity: {
     title: 'Журнал активности',
-    subtitle: 'Неизменяемый журнал аудита всех системных событий',
+    subtitle: 'Все действия ваши и ИИ',
     loading: 'Загрузка активности...',
-    noLogs: 'Событий пока нет.',
+    noLogs: 'Активности пока нет',
+    noLogsDescription: 'Активности записываются при анализе писем, одобрении черновиков и других действиях',
+    loadMore: 'Загрузить ещё',
     all: 'Все',
     page: 'Страница',
     of: 'из',
@@ -171,6 +173,11 @@ const ru: Translations = {
       analysis_run: 'AI-анализ выполнен',
       account_connected: 'Аккаунт подключён',
       account_disconnected: 'Аккаунт отключён',
+      thread_archived: 'Цепочка архивирована',
+      thread_trashed: 'Цепочка удалена',
+      classification_override: 'Классификация обновлена',
+      alert_high_priority: 'Высокоприоритетное уведомление',
+      sync: 'Письмо синхронизировано',
     },
   },
 
@@ -327,6 +334,8 @@ const ru: Translations = {
     justNow: 'только что',
     minutesAgo: '{n}м назад',
     hoursAgo: '{n}ч назад',
+    yesterday: 'вчера',
+    daysAgo: '{n}д назад',
   },
 
   auth: {
@@ -384,14 +393,23 @@ const ru: Translations = {
 
   notifications: {
     title: 'Уведомления',
+    subtitle: 'Журнал активности — последние 50 событий',
     empty: 'Уведомлений пока нет',
+    emptyDescription: 'Здесь будут отображаться события: архивирование, классификация, черновики',
     today: 'Сегодня',
     yesterday: 'Вчера',
     earlier: 'Ранее',
+    refresh: 'Обновить',
+    allAccounts: 'Все аккаунты',
     enable: 'Включить уведомления',
     enabled: 'Уведомления включены',
     blocked: 'Уведомления заблокированы в браузере',
     syncStale: 'Синхронизация задерживается',
+    threadArchived: 'Цепочка архивирована',
+    threadTrashed: 'Цепочка удалена',
+    draftApproved: 'Черновик одобрен',
+    draftSent: 'Письмо отправлено',
+    classificationChanged: 'Классификация изменена',
   },
 
   contacts: {

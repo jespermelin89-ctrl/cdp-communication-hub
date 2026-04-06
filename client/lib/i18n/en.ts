@@ -153,9 +153,11 @@ const en: Translations = {
 
   activity: {
     title: 'Activity Log',
-    subtitle: 'Immutable audit trail of all system events',
+    subtitle: 'All actions by you and AI',
     loading: 'Loading activity...',
-    noLogs: 'No events logged yet.',
+    noLogs: 'No activity logged yet',
+    noLogsDescription: 'Activities are logged when you analyse emails, approve drafts, and more',
+    loadMore: 'Load more',
     all: 'All',
     page: 'Page',
     of: 'of',
@@ -171,6 +173,11 @@ const en: Translations = {
       analysis_run: 'AI Analysis Run',
       account_connected: 'Account Connected',
       account_disconnected: 'Account Disconnected',
+      thread_archived: 'Thread Archived',
+      thread_trashed: 'Thread Trashed',
+      classification_override: 'Classification Updated',
+      alert_high_priority: 'High-Priority Alert',
+      sync: 'Email Synced',
     },
   },
 
@@ -327,6 +334,8 @@ const en: Translations = {
     justNow: 'just now',
     minutesAgo: '{n}m ago',
     hoursAgo: '{n}h ago',
+    yesterday: 'yesterday',
+    daysAgo: '{n}d ago',
   },
 
   auth: {
@@ -386,14 +395,23 @@ const en: Translations = {
   // Notifications / Activity list UI
   notifications: {
     title: 'Notifications',
+    subtitle: 'Activity log — last 50 events',
     empty: 'No notifications yet',
+    emptyDescription: 'Events such as archiving, classification, and drafts appear here',
     today: 'Today',
     yesterday: 'Yesterday',
     earlier: 'Earlier',
+    refresh: 'Refresh',
+    allAccounts: 'All accounts',
     enable: 'Enable notifications',
     enabled: 'Notifications enabled',
     blocked: 'Notifications blocked in browser',
     syncStale: 'Sync delayed — check connection',
+    threadArchived: 'Thread archived',
+    threadTrashed: 'Thread deleted',
+    draftApproved: 'Draft approved',
+    draftSent: 'Email sent',
+    classificationChanged: 'Classification updated',
   },
 
   contacts: {

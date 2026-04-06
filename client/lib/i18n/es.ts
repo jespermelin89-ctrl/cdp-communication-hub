@@ -153,9 +153,11 @@ const es: Translations = {
 
   activity: {
     title: 'Registro de actividad',
-    subtitle: 'Historial de auditoría inmutable de todos los eventos del sistema',
+    subtitle: 'Todas las acciones tuyas y de la IA',
     loading: 'Cargando actividad...',
-    noLogs: 'No hay eventos registrados aún.',
+    noLogs: 'Sin actividad registrada aún',
+    noLogsDescription: 'Las actividades se registran al analizar correos, aprobar borradores y más',
+    loadMore: 'Cargar más',
     all: 'Todos',
     page: 'Página',
     of: 'de',
@@ -171,6 +173,11 @@ const es: Translations = {
       analysis_run: 'Análisis IA ejecutado',
       account_connected: 'Cuenta conectada',
       account_disconnected: 'Cuenta desconectada',
+      thread_archived: 'Hilo archivado',
+      thread_trashed: 'Hilo eliminado',
+      classification_override: 'Clasificación actualizada',
+      alert_high_priority: 'Alerta de alta prioridad',
+      sync: 'Correo sincronizado',
     },
   },
 
@@ -327,6 +334,8 @@ const es: Translations = {
     justNow: 'ahora mismo',
     minutesAgo: 'hace {n}m',
     hoursAgo: 'hace {n}h',
+    yesterday: 'ayer',
+    daysAgo: 'hace {n}d',
   },
 
   auth: {
@@ -384,14 +393,23 @@ const es: Translations = {
 
   notifications: {
     title: 'Notificaciones',
+    subtitle: 'Registro de actividad — últimos 50 eventos',
     empty: 'Sin notificaciones aún',
+    emptyDescription: 'Eventos como archivado, clasificación y borradores aparecerán aquí',
     today: 'Hoy',
     yesterday: 'Ayer',
     earlier: 'Antes',
+    refresh: 'Actualizar',
+    allAccounts: 'Todas las cuentas',
     enable: 'Activar notificaciones',
     enabled: 'Notificaciones activadas',
     blocked: 'Notificaciones bloqueadas en el navegador',
     syncStale: 'Sincronización retrasada',
+    threadArchived: 'Hilo archivado',
+    threadTrashed: 'Hilo eliminado',
+    draftApproved: 'Borrador aprobado',
+    draftSent: 'Correo enviado',
+    classificationChanged: 'Clasificación actualizada',
   },
 
   contacts: {

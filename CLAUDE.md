@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.1.0 (Sprint 8 klar)
+- **Version**: 2.2.0 (Sprint 8–9 klara)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 671 server (52 filer) + 129 client (9 filer) = 800 totalt
+- **Tester**: 692 server (53 filer) + 129 client (9 filer) = 821 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -292,6 +292,22 @@ All 7 issues from the security review have been fixed and merged to main:
 - `recordSuccess()` återställer circuit direkt
 - `recordFailure()` öppnar circuit med rätt duration baserat på feltyp
 - 18 nya tester i `sprint8-circuit-breaker.test.ts`
+
+## Completed Sprint 9 — i18n Completion + Route Tests (2026-04-06) — v2.2.0
+
+### ✅ i18n för activity + notifications sidor
+- `activity`: ny nyckel `subtitle`, `noLogs`, `noLogsDescription`, `loadMore` + 5 nya actionTypes (thread_archived, thread_trashed, classification_override, alert_high_priority, sync)
+- `notifications`: `subtitle`, `refresh`, `allAccounts`, `emptyDescription`, 5 label-nycklar (threadArchived, threadTrashed, draftApproved, draftSent, classificationChanged)
+- `time`: lade till `yesterday` och `daysAgo`
+- Alla 4 språk (sv/en/es/ru) uppdaterade
+- `activity/page.tsx` + `notifications/page.tsx`: all hårdkodad svenska borttagen, helper-funktioner använder `t.*`
+
+### ✅ Route-tester för review + triage (Sprint 9)
+- `sprint9-review-triage.test.ts`: 21 tester
+  - GET /review: tom kö, sammanslagning av triage-metadata, saknad analys
+  - POST /review/decide: Zod-schema validering (keep/trash/create_rule)
+  - Rule suggestions: generateSuggestions, acceptSuggestion, dismissSuggestion
+  - Triage report: period window (today/week/month), aggregering, radgruppering, schema-validering
 
 ## TODO (prio-ordning)
 

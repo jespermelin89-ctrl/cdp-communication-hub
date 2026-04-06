@@ -285,9 +285,11 @@ const sv = {
   // Activity log
   activity: {
     title: 'Aktivitetslogg',
-    subtitle: 'Oföränderlig revisionslogg över alla systemhändelser',
+    subtitle: 'Alla åtgärder av dig och AI',
     loading: 'Laddar aktivitet...',
-    noLogs: 'Inga händelser loggade ännu.',
+    noLogs: 'Ingen aktivitet loggad ännu',
+    noLogsDescription: 'Aktiviteter loggas när du analyserar mail, godkänner utkast och mer',
+    loadMore: 'Ladda fler',
     all: 'Alla',
     page: 'Sida',
     of: 'av',
@@ -303,6 +305,11 @@ const sv = {
       analysis_run: 'AI-analys körd',
       account_connected: 'Konto anslutet',
       account_disconnected: 'Konto bortkopplat',
+      thread_archived: 'Tråd arkiverad',
+      thread_trashed: 'Tråd till papperskorgen',
+      classification_override: 'Klassificering korrigerad',
+      alert_high_priority: 'Högt prioriterat mejl',
+      sync: 'Mail syncat',
     },
   },
 
@@ -338,6 +345,8 @@ const sv = {
     justNow: 'just nu',
     minutesAgo: '{n}m sedan',
     hoursAgo: '{n}t sedan',
+    yesterday: 'igår',
+    daysAgo: '{n}d sedan',
   },
 
   // Auth
@@ -400,14 +409,23 @@ const sv = {
   // Notifications / Activity list UI
   notifications: {
     title: 'Notiser',
+    subtitle: 'Aktivitetslogg — senaste 50 händelser',
     empty: 'Inga notiser ännu',
+    emptyDescription: 'Händelser som arkivering, klassificering och utkast visas här',
     today: 'Idag',
     yesterday: 'Igår',
     earlier: 'Tidigare',
+    refresh: 'Uppdatera',
+    allAccounts: 'Alla konton',
     enable: 'Aktivera notiser',
     enabled: 'Notiser aktiverade',
     blocked: 'Notiser blockerade i webbläsaren',
     syncStale: 'Synk dröjer — kontrollera anslutning',
+    threadArchived: 'Tråd arkiverad',
+    threadTrashed: 'Tråd raderad',
+    draftApproved: 'Utkast godkänt',
+    draftSent: 'Mail skickat',
+    classificationChanged: 'Klassificering ändrad',
   },
 
   // Contacts

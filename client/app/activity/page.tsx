@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/TopBar';
 import { api } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { Bot, Mail, CheckCircle, Archive, Brain, RefreshCw, AlertCircle } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 
@@ -16,37 +17,47 @@ function EventIcon({ type }: { type: string }) {
   return <Mail size={14} className="text-gray-400" />;
 }
 
-function formatEventType(type: string): string {
-  const labels: Record<string, string> = {
-    'draft_approved': 'Utkast godkänt',
-    'draft:approved': 'Utkast godkänt',
-    'thread_archived': 'Tråd arkiverad',
-    'thread_trashed': 'Tråd till papperskorgen',
-    'analysis_run': 'AI-analys körd',
-    'classification:override': 'Klassificering korrigerad',
-    'alert:high_priority': 'Högt prioriterat mejl',
-    'sync': 'Mail syncat',
-  };
-  return labels[type] || type.replace(/[_:]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function formatRelative(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-  if (mins < 1) return 'nyss';
-  if (mins < 60) return `${mins}m sedan`;
-  if (hours < 24) return `${hours}h sedan`;
-  if (days === 1) return 'igår';
-  return new Date(dateStr).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
-}
-
 export default function ActivityPage() {
+  const { t } = useI18n();
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+
+  const actionTypeLabels: Record<string, string> = {
+    draft_created: t.activity.actionTypes.draft_created,
+    draft_approved: t.activity.actionTypes.draft_approved,
+    'draft:approved': t.activity.actionTypes.draft_approved,
+    draft_sent: t.activity.actionTypes.draft_sent,
+    draft_send_failed: t.activity.actionTypes.draft_send_failed,
+    draft_discarded: t.activity.actionTypes.draft_discarded,
+    analysis_run: t.activity.actionTypes.analysis_run,
+    account_connected: t.activity.actionTypes.account_connected,
+    account_disconnected: t.activity.actionTypes.account_disconnected,
+    thread_archived: t.activity.actionTypes.thread_archived,
+    thread_trashed: t.activity.actionTypes.thread_trashed,
+    'classification:override': t.activity.actionTypes.classification_override,
+    classification_override: t.activity.actionTypes.classification_override,
+    'alert:high_priority': t.activity.actionTypes.alert_high_priority,
+    alert_high_priority: t.activity.actionTypes.alert_high_priority,
+    sync: t.activity.actionTypes.sync,
+  };
+
+  function formatEventType(type: string): string {
+    return actionTypeLabels[type] ?? type.replace(/[_:]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  function formatRelative(dateStr: string): string {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    if (mins < 1) return t.time.justNow;
+    if (mins < 60) return t.time.minutesAgo.replace('{n}', String(mins));
+    if (hours < 24) return t.time.hoursAgo.replace('{n}', String(hours));
+    if (days === 1) return t.time.yesterday;
+    return new Date(dateStr).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+  }
 
   useEffect(() => {
     loadLogs(1);
@@ -56,7 +67,7 @@ export default function ActivityPage() {
     try {
       const res = await api.getActionLogs({ page: p, limit: 30 });
       const newLogs = res.logs ?? [];
-      setLogs(prev => p === 1 ? newLogs : [...prev, ...newLogs]);
+      setLogs((prev) => (p === 1 ? newLogs : [...prev, ...newLogs]));
       setHasMore(newLogs.length === 30);
       setPage(p);
     } catch {
@@ -72,8 +83,8 @@ export default function ActivityPage() {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Aktivitetslogg</h1>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Alla åtgärder av dig och AI</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.activity.title}</h1>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">{t.activity.subtitle}</p>
           </div>
           <button
             onClick={() => { setLoading(true); loadLogs(1); }}
@@ -90,8 +101,8 @@ export default function ActivityPage() {
         ) : logs.length === 0 ? (
           <EmptyState
             icon={Brain}
-            title="Ingen aktivitet loggad ännu"
-            description="Aktiviteter loggas när du analyserar mail, godkänner utkast och mer"
+            title={t.activity.noLogs}
+            description={t.activity.noLogsDescription}
           />
         ) : (
           <div className="relative">
@@ -137,7 +148,7 @@ export default function ActivityPage() {
                   disabled={loading}
                   className="btn-secondary text-sm"
                 >
-                  {loading ? '…' : 'Ladda fler'}
+                  {loading ? '…' : t.activity.loadMore}
                 </button>
               </div>
             )}

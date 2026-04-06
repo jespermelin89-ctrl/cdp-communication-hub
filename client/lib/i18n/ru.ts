@@ -6,6 +6,8 @@ const ru: Translations = {
     commandCenter: 'Центр управления',
     drafts: 'Черновики',
     inbox: 'Входящие',
+    review: 'Проверка',
+    triage: 'Триаж',
     rules: 'Правила',
     settings: 'Настройки',
     activity: 'Активность',

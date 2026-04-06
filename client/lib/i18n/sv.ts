@@ -5,6 +5,8 @@ const sv = {
     commandCenter: 'Kontrollcenter',
     drafts: 'Utkast',
     inbox: 'Inkorg',
+    review: 'Granskning',
+    triage: 'Triage',
     rules: 'Regler',
     settings: 'Inställningar',
     activity: 'Aktivitet',

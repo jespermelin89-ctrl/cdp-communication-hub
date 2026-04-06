@@ -230,8 +230,8 @@ export async function searchRoutes(fastify: FastifyInstance) {
 
     const mapped = threads.map((t) => ({
       ...t,
-      latestAnalysis: (t.analyses as any[])[0] ?? null,
-      labels: (t as any).threadLabels?.map((tl: any) => tl.label) ?? [],
+      latestAnalysis: t.analyses[0] ?? null,
+      labels: t.threadLabels.map((tl) => tl.label),
     }));
 
     return { threads: mapped, total, page, hasMore: page * limit < total };

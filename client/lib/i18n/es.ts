@@ -6,6 +6,8 @@ const es: Translations = {
     commandCenter: 'Centro de control',
     drafts: 'Borradores',
     inbox: 'Bandeja de entrada',
+    review: 'Revisión',
+    triage: 'Triage',
     rules: 'Reglas',
     settings: 'Configuración',
     activity: 'Actividad',

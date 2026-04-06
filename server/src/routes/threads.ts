@@ -221,7 +221,7 @@ export async function threadRoutes(fastify: FastifyInstance) {
     return {
       threads: pageData.threads.map((t) => ({
         ...t,
-        latestAnalysis: (t.analyses as any[])[0] || null,
+        latestAnalysis: t.analyses[0] ?? null,
         analyses: undefined,
       })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -306,7 +306,7 @@ export async function threadRoutes(fastify: FastifyInstance) {
 
     // Expose unsubscribeUrl from the most recent message that has one
     const unsubscribeUrl =
-      [...thread.messages].reverse().find((m) => (m as any).unsubscribeUrl)?.unsubscribeUrl ?? null;
+      [...thread.messages].reverse().find((m) => m.unsubscribeUrl)?.unsubscribeUrl ?? null;
 
     return {
       thread: {
@@ -907,7 +907,7 @@ export async function threadRoutes(fastify: FastifyInstance) {
     const header = 'ID,Subject,From,Date,Priority,Classification,Labels,Read,Archived,Trashed\n';
     const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
     const rows = threads.map((t) => {
-      const analysis = (t.analyses as any[])[0] ?? null;
+      const analysis = t.analyses[0] ?? null;
       const isArchived = !t.labels.includes('INBOX') && !t.labels.includes('TRASH');
       const isTrashed = t.labels.includes('TRASH');
       return [

@@ -6,6 +6,8 @@ const en: Translations = {
     commandCenter: 'Command Center',
     drafts: 'Drafts',
     inbox: 'Inbox',
+    review: 'Review',
+    triage: 'Triage',
     rules: 'Rules',
     settings: 'Settings',
     activity: 'Activity',

@@ -4,6 +4,53 @@ All notable changes to CDP Communication Hub are documented here.
 
 ---
 
+## v2.0.0 — AI Triage & Brain Core (2026-04-06)
+
+### Sprint 1 — Smart Triage Engine
+- **`server/src/services/triage-action.service.ts`**: Action executor — trash/label_review/keep_inbox/notify_then_trash/auto_draft; Gmail TRASH (reversible, never permanent delete); deploy-dedup (6h window); `Granskning` label ensured via API
+- **`server/src/prisma/schema.prisma`**: `TriageLog` model with 30-day retention; `RuleSuggestion` model; `Draft.source` field for auto-triage tracking
+- **`server/src/utils/auto-seed.ts`**: 17 classification rules pre-seeded on first run
+
+### Sprint 2 — Rule Engine
+- **`server/src/services/rule-engine.service.ts`**: Pattern matching across senderPatterns, subjectPatterns, classificationRules; priority ordering; maps legacy actions to TriageAction
+
+### Sprint 3 — Gmail Push Sync (Pub/Sub)
+- **`server/src/services/gmail-push.service.ts`**: `watchMailbox()` / `renewWatch()` / `handleNotification()` — Pub/Sub push replacing 5-min polling; returns `{ accountId, userId }` for downstream triage chaining
+- **`server/src/routes/webhooks.ts`**: `POST /api/v1/gmail/webhook` — Pub/Sub push receiver; verifies token; triggers `autoTriageNewThreads` fire-and-forget
+- Polling interval 5 min → 30 min (push is primary); watch renewal every 24h
+
+### Sprint 4 — Granskning-vy + Regelförslag
+- **`server/src/routes/review.ts`**: `GET /review`, `POST /review/:threadId/decide` (keep/trash/create_rule), `POST /rules/suggest`, `POST /rules/accept`, `POST /rules/dismiss`
+- **`server/src/services/rule-suggestion.service.ts`**: Scans triage_log for domain patterns (≥2 trash from same domain); upserts RuleSuggestion; `acceptSuggestion` creates ClassificationRule
+- **`client/app/review/page.tsx`**: Granskning queue with keep/trash/create-rule actions; rule suggestions panel; confidence indicators
+
+### Sprint 5 — Auto-Draft med Tonanpassning
+- **`server/src/services/ai.service.ts`**: `generateDraftWithTone()` — RecipientType (authority/business/personal/unknown) injected into AI system prompt; formal tone for Swedish authorities
+- **`server/src/services/sync-scheduler.service.ts`**: `generateAutoDraft()` — creates `{ status: 'pending', source: 'auto_triage' }` draft, fires `draft.ready` webhook; `resolveRecipientType()` checks authority domains + contact profile
+- **`server/src/routes/drafts.ts`**: `GET /drafts/pending` — auto-triage drafts awaiting approval
+- **`client/app/drafts/page.tsx`**: AI auto-drafts banner with approve/discard actions
+
+### Sprint 6 — Brain Core Integration
+- **`server/src/services/brain-core-webhook.service.ts`**: Outbound webhook to Brain Core — events: `triage.high_priority`, `triage.unknown_sender`, `triage.completed`, `draft.ready`; fire-and-forget, never throws
+- **`server/src/routes/agent.ts`**: 4 new agent actions: `triage-status`, `triage-override`, `review-queue`, `rule-suggest`; extended `briefing` with `triage_today` block
+
+### Sprint 7 — Cleanup Cron + Triage Report + Röstkommando
+- **`server/src/services/sync-scheduler.service.ts`**: `cleanupTriageLogs()` runs daily at 02:00 via `cleanupInterval`; `runTriageCleanupNow()` exported for manual/test use
+- **`server/src/routes/triage.ts`**: `GET /api/v1/triage/report?period=today|week|month&action=...` — grouped by sender + classification
+- **`server/src/routes/agent.ts`**: `triage-report` action with voice-friendly Swedish summary ("Idag sorterades 22 mail bort…")
+- **`client/app/triage/page.tsx`**: Triage rapport — stat cards, action breakdown, classification bars, top senders, detail table
+
+### TypeScript & Code Quality
+- **`server/src/routes/auth.ts`**: Replaced 4× `as any` with `'reauthed' in result` type narrowing
+- **`client/lib/api.ts`**: Added `getReviewQueue()`, `decideReviewThread()`, `getPendingSuggestions()`, `acceptRuleSuggestion()`, `dismissRuleSuggestion()`, `getTriageReport()`, `getPendingAutoDrafts()`
+- **`client/components/TopBar.tsx`**: Added Granskning + Triage nav items
+
+### Tests
+- 51 test files, 653 tests — all green
+- New suites: gmail-push (14), rule-suggestion (17), auto-draft (27), sprint6-brain-core (17), sprint7-cleanup (17)
+
+---
+
 ## v1.3.0 — Communication Flow (2026-04-01)
 
 ### Sprint 1 — Thread View Overhaul

@@ -179,6 +179,7 @@ model Draft {
   bodyHtml       String?   @map("body_html")
   attachments    Json?     @default("[]") @map("attachments") // [{id, filename, mimeType, size, data}]
   status         String    @default("pending") // pending|approved|sent|failed|discarded (legacy "sending" may still exist)
+  source         String?   @default("manual") @map("source") // manual | auto_triage
   gmailMessageId String?   @map("gmail_message_id") // set after successful send
   approvedAt     DateTime? @map("approved_at")
   sentAt         DateTime? @map("sent_at")
@@ -507,6 +508,52 @@ model ThreadLabel {
 
   @@unique([threadId, labelId])
   @@map("thread_labels")
+}
+
+// ============================================================
+// TRIAGE LOG — Sprint 1 (Smart Triage)
+// 30-day retention. Records every action taken by the action executor.
+// ============================================================
+model TriageLog {
+  id             String   @id @default(uuid())
+  threadId       String   @map("thread_id")
+  accountId      String   @map("account_id")
+  userId         String   @map("user_id")
+  action         String   // keep_inbox | trash | label_review | trash_after_log | notify_then_trash | auto_draft
+  classification String
+  priority       String
+  source         String   // rule_engine | ai
+  confidence     Float
+  reason         String
+  senderEmail    String   @map("sender_email")
+  subject        String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)], name: "idx_triage_log_user")
+  @@index([userId, action, createdAt(sort: Desc)], name: "idx_triage_log_user_action")
+  @@map("triage_log")
+}
+
+// ============================================================
+// RULE SUGGESTIONS — Sprint 4 (Auto-lärande)
+// Created when the same domain is trashed 2+ times in 30 days.
+// User can accept (creates ClassificationRule) or dismiss.
+// ============================================================
+model RuleSuggestion {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  senderPattern   String   @map("sender_pattern")   // e.g. "*@instagram.com"
+  suggestedAction String   @map("suggested_action")  // "trash"
+  triggerCount    Int      @map("trigger_count")
+  status          String   @default("pending") @map("status") // pending | accepted | dismissed
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, senderPattern])
+  @@index([userId, status])
+  @@map("rule_suggestions")
 }
 
 // ============================================================

@@ -6,6 +6,7 @@
  */
 
 import { FastifyInstance } from 'fastify';
+import { prisma } from '../config/database';
 import { draftService } from '../services/draft.service';
 import { brainCoreService } from '../services/brain-core.service';
 import { authMiddleware } from '../middleware/auth.middleware';
@@ -40,6 +41,41 @@ export async function draftRoutes(fastify: FastifyInstance) {
       page: options.page,
       limit: options.limit,
     });
+  });
+
+  /**
+   * GET /drafts/pending — Sprint 5
+   * Lists AI-auto-generated pending drafts awaiting human approval.
+   * These drafts have source='auto_triage' and status='pending'.
+   * Approve via POST /drafts/:id/approve, discard via POST /drafts/:id/discard.
+   */
+  fastify.get('/drafts/pending', async (request) => {
+    const drafts = await prisma.draft.findMany({
+      where: {
+        userId: request.userId,
+        status: 'pending',
+        source: 'auto_triage',
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        subject: true,
+        toAddresses: true,
+        bodyText: true,
+        source: true,
+        status: true,
+        createdAt: true,
+        threadId: true,
+        accountId: true,
+        thread: {
+          select: { subject: true, participantEmails: true, snippet: true },
+        },
+        account: {
+          select: { emailAddress: true },
+        },
+      },
+    });
+    return { drafts, count: drafts.length };
   });
 
   /**

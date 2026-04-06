@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-02 18:40:40 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-06 10:18:47 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -110,6 +110,7 @@ Prefix: `/api/v1`
 | `GET     /docs` | `docs` |
 | `POST    /drafts` | `drafts` |
 | `GET     /drafts` | `drafts` |
+| `GET     /drafts/pending` | `drafts` |
 | `GET     /drafts/:id` | `drafts` |
 | `PATCH   /drafts/:id` | `drafts` |
 | `POST    /drafts/:id/approve` | `drafts` |
@@ -138,6 +139,10 @@ Prefix: `/api/v1`
 | `POST    /push/subscribe` | `push` |
 | `DELETE  /push/subscribe` | `push` |
 | `POST    /push/test` | `push` |
+| `GET     /review` | `review` |
+| `POST    /rules/suggest` | `review` |
+| `POST    /rules/accept` | `review` |
+| `POST    /rules/dismiss` | `review` |
 | `GET     /contacts/search` | `search` |
 | `GET     /contacts/recent` | `search` |
 | `GET     /search` | `search` |
@@ -172,6 +177,7 @@ Prefix: `/api/v1`
 | `POST    /threads/bulk/read` | `threads` |
 | `POST    /threads/bulk/classify` | `threads` |
 | `POST    /threads/bulk/priority` | `threads` |
+| `GET     /triage/report` | `triage` |
 | `GET     /views` | `views` |
 | `POST    /views` | `views` |
 | `PATCH   /views/reorder` | `views` |
@@ -186,6 +192,7 @@ Prefix: `/api/v1`
 - `action-log.service.ts`
 - `ai.service.ts`
 - `auth.service.ts`
+- `brain-core-webhook.service.ts`
 - `brain-core.service.ts`
 - `calendar.service.ts`
 - `category.service.ts`
@@ -197,13 +204,15 @@ Prefix: `/api/v1`
 - `imap.service.ts`
 - `push.service.ts`
 - `rule-engine.service.ts`
+- `rule-suggestion.service.ts`
 - `seed-brain-core.service.ts`
 - `smtp.service.ts`
 - `sync-scheduler.service.ts`
+- `triage-action.service.ts`
 
 ---
 
-## Databas — Tabeller (23 st)
+## Databas — Tabeller (25 st)
 
 - `User`
 - `EmailAccount`
@@ -227,6 +236,8 @@ Prefix: `/api/v1`
 - `UserSettings`
 - `Label`
 - `ThreadLabel`
+- `TriageLog`
+- `RuleSuggestion`
 - `SearchHistory`
 
 ### Kritisk tabell: `Draft`
@@ -257,6 +268,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `/drafts/[id]`
 - `/inbox`
 - `/notifications`
+- `/review`
 - `/search`
 - `/settings`
 - `/settings/accounts`
@@ -266,6 +278,7 @@ Inget API-anrop kan kringgå detta — `POST /drafts/:id/send` kontrollerar stat
 - `/settings/templates`
 - `/setup-siri`
 - `/threads/[id]`
+- `/triage`
 
 ---
 

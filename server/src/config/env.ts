@@ -29,8 +29,18 @@ const envSchema = z.object({
   // External API key for Apple Shortcuts / Siri integration
   COMMAND_API_KEY: z.string().optional(),
 
-  // Google Pub/Sub webhook verification token
+  // Google Cloud — Pub/Sub push integration
+  GOOGLE_CLOUD_PROJECT_ID: z.string().optional(),
+  // Override the full topic name (defaults to projects/{GOOGLE_CLOUD_PROJECT_ID}/topics/cdp-hub-gmail)
+  GMAIL_PUBSUB_TOPIC: z.string().optional(),
+  // Public URL Google will push to (e.g. https://cdp-hub-api.onrender.com/api/v1/webhooks/gmail)
+  GMAIL_PUSH_WEBHOOK_URL: z.string().url().optional(),
+  // Verification bearer token set on the Pub/Sub push subscription
   GOOGLE_PUBSUB_VERIFICATION_TOKEN: z.string().optional(),
+
+  // Brain Core integration — outbound webhooks
+  BRAIN_CORE_WEBHOOK_URL: z.string().url().optional(),
+  BRAIN_CORE_WEBHOOK_SECRET: z.string().optional(),
 
   // Web Push (VAPID)
   VAPID_PUBLIC_KEY: z.string().optional(),

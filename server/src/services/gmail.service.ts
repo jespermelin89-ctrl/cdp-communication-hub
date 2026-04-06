@@ -661,6 +661,35 @@ export class GmailService {
   }
 
   /**
+   * List all Gmail labels for an account.
+   * Returns array of { id, name } objects.
+   */
+  async listLabels(accountId: string): Promise<Array<{ id: string; name: string }>> {
+    const gmail = await this.getClient(accountId);
+    const response = await gmail.users.labels.list({ userId: 'me' });
+    return (response.data.labels ?? [])
+      .filter((l): l is { id: string; name: string } => !!l.id && !!l.name)
+      .map((l) => ({ id: l.id!, name: l.name! }));
+  }
+
+  /**
+   * Create a Gmail label and return its ID.
+   */
+  async createLabel(accountId: string, name: string): Promise<string> {
+    const gmail = await this.getClient(accountId);
+    const response = await gmail.users.labels.create({
+      userId: 'me',
+      requestBody: {
+        name,
+        labelListVisibility: 'labelShow',
+        messageListVisibility: 'show',
+      },
+    });
+    if (!response.data.id) throw new Error(`Failed to create Gmail label "${name}"`);
+    return response.data.id;
+  }
+
+  /**
    * Fetch attachment binary data from Gmail.
    * Returns base64-encoded data (standard base64, not base64url).
    */

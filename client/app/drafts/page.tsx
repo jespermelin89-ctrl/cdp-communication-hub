@@ -7,7 +7,7 @@ import TopBar from '@/components/TopBar';
 import StatusBadge from '@/components/StatusBadge';
 import { api } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
-import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown, Inbox as InboxIcon, Mail } from 'lucide-react';
+import { Clock, CheckCircle, Send, XCircle, Trash2, FileText, ChevronDown, Inbox as InboxIcon, Mail, Bot } from 'lucide-react';
 import EmptyState from '@/components/EmptyState';
 import ThreadSkeleton from '@/components/ThreadSkeleton';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -66,6 +66,13 @@ export default function DraftCenterPage() {
     { refreshInterval: 30000, revalidateOnFocus: true }
   );
   const allDrafts: Draft[] = draftData?.drafts ?? [];
+
+  const { data: autoData, mutate: mutateAuto } = useSWR(
+    '/drafts/pending-auto',
+    () => api.getPendingAutoDrafts(),
+    { revalidateOnFocus: false }
+  );
+  const autoDrafts = autoData?.drafts ?? [];
 
   function setError(id: string, msg: string) {
     setErrors((prev) => new Map(prev).set(id, msg));
@@ -202,6 +209,52 @@ export default function DraftCenterPage() {
             </div>
           )}
         </div>
+
+        {/* AI Auto-drafts banner */}
+        {autoDrafts.length > 0 && (
+          <div className="mb-6 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 font-medium">
+              <Bot size={16} />
+              {autoDrafts.length} AI-genererade utkast väntar på godkännande
+            </div>
+            {autoDrafts.map((d) => (
+              <div key={d.id} className="bg-white dark:bg-gray-800 rounded-xl border border-purple-100 dark:border-purple-800 px-4 py-3 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                    {d.subject ?? d.thread?.subject ?? '(Inget ämne)'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {d.account?.emailAddress ?? ''} · {d.bodyText?.slice(0, 80)}…
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    onClick={async () => {
+                      await api.approveDraft(d.id);
+                      toast.success('Utkast godkänt');
+                      mutateAuto();
+                      mutateDrafts();
+                    }}
+                    className="px-3 py-1 text-xs bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+                  >
+                    Godkänn
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await api.discardDraft(d.id);
+                      toast('Utkast kastat.');
+                      mutateAuto();
+                      mutateDrafts();
+                    }}
+                    className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    Kasta
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Stat cards */}
         {!loading && (

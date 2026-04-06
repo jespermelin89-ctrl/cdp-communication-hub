@@ -44,17 +44,17 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.redirect(frontendCallback);
       }
 
-      if ((result as any).reauthed) {
+      if ('reauthed' in result && result.reauthed) {
         // Reauth mode: account restored — redirect with fresh token
         const params = new URLSearchParams({
           token: result.token,
           reauthed: result.account.email,
         });
-        if ((result as any).feature) {
-          params.set('feature', (result as any).feature);
+        if ('feature' in result && result.feature) {
+          params.set('feature', result.feature as string);
         }
-        if ((result as any).returnTo) {
-          params.set('return_to', (result as any).returnTo);
+        if ('returnTo' in result && result.returnTo) {
+          params.set('return_to', result.returnTo as string);
         }
         const frontendCallback = `${env.FRONTEND_URL}/auth/callback?${params.toString()}`;
         return reply.redirect(frontendCallback);

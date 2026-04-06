@@ -14,15 +14,22 @@
 
 import { prisma } from '../config/database';
 import { emailProviderFactory } from './email-provider.factory';
-import { aiService } from './ai.service';
+import { aiService, type RecipientType } from './ai.service';
+import { notifyBrainCore } from './brain-core-webhook.service';
 import { brainCoreService } from './brain-core.service';
 import { matchClassificationRule } from './rule-engine.service';
 import { sendPushToUser, sendDigest } from './push.service';
 import { draftService } from './draft.service';
 import { gmailPushService } from './gmail-push.service';
 import { emitToUser } from '../routes/events';
+import {
+  triageActionService,
+  mapRuleActionToTriage,
+  mapAIToTriageAction,
+  type TriageDecision,
+} from './triage-action.service';
 
-const SYNC_INTERVAL_MS = 5 * 60 * 1000;           // 5 minutes
+const SYNC_INTERVAL_MS = 30 * 60 * 1000;           // 30 minutes (push is primary; polling is fallback)
 const AI_INTERVAL_MS = 10 * 60 * 1000;             // 10 minutes
 const SNOOZE_INTERVAL_MS = 60 * 1000;              // 1 minute
 const SCHEDULED_SEND_INTERVAL_MS = 60 * 1000;      // 1 minute
@@ -51,6 +58,7 @@ let snoozeInterval: ReturnType<typeof setInterval> | null = null;
 let scheduledSendInterval: ReturnType<typeof setInterval> | null = null;
 let briefingInterval: ReturnType<typeof setInterval> | null = null;
 let watchRenewalInterval: ReturnType<typeof setInterval> | null = null;
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
 // ──────────────────────────────────────────────
 // Helper: extract display name from email address
@@ -64,10 +72,139 @@ function extractName(email: string): string {
 }
 
 // ──────────────────────────────────────────────
+// Auto-draft helpers (Sprint 5)
+// ──────────────────────────────────────────────
+
+/** Authority domain suffixes that trigger formal tone */
+const AUTHORITY_DOMAINS = [
+  'skatteverket.se', 'kronofogden.se', 'forsakringskassan.se',
+  'arbetsformedlingen.se', 'lansstyrelsen.se', 'domstol.se',
+  'migrationsverket.se', 'polisen.se', 'transportstyrelsen.se',
+];
+
+/**
+ * Determine the recipient type for tone-adapted draft generation.
+ * Priority: authority domain > contact profile relationship > AI classification > unknown
+ */
+async function resolveRecipientType(
+  senderEmail: string,
+  classification: string,
+  userId: string
+): Promise<RecipientType> {
+  const domain = senderEmail.split('@')[1]?.toLowerCase() ?? '';
+
+  // 1. Known authority domains → always formal
+  if (AUTHORITY_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+    return 'authority';
+  }
+
+  // 2. Contact profile relationship
+  try {
+    const contact = await prisma.contactProfile.findFirst({
+      where: { userId, emailAddress: senderEmail.toLowerCase() },
+      select: { relationship: true },
+    });
+    if (contact?.relationship) {
+      const rel = contact.relationship.toLowerCase();
+      if (['authority', 'government', 'official', 'agency'].includes(rel)) return 'authority';
+      if (['colleague', 'friend', 'family', 'personal'].includes(rel)) return 'personal';
+      if (['client', 'lead', 'partner', 'business', 'customer', 'vendor'].includes(rel)) return 'business';
+    }
+  } catch {
+    // Non-critical
+  }
+
+  // 3. AI classification
+  switch (classification) {
+    case 'personal':
+    case 'founder':
+      return 'personal';
+    case 'lead':
+    case 'partner':
+    case 'outreach':
+      return 'business';
+    case 'operational':
+      return 'business';
+    default:
+      return 'unknown';
+  }
+}
+
+/**
+ * Generate and persist an AI draft for a thread.
+ * Called fire-and-forget after an auto_draft triage decision.
+ * SAFETY: Draft is always created as status='pending'. Never approved or sent automatically.
+ */
+async function generateAutoDraft(options: {
+  thread: {
+    id: string;
+    subject: string | null;
+    participantEmails: string[];
+    gmailThreadId: string;
+    messages: Array<{ fromAddress: string; toAddresses: string[]; bodyText: string | null; receivedAt: Date }>;
+  };
+  accountId: string;
+  userId: string;
+  classification: string;
+}): Promise<void> {
+  const { thread, accountId, userId, classification } = options;
+  const senderEmail = thread.participantEmails[0] ?? '';
+
+  const recipientType = await resolveRecipientType(senderEmail, classification, userId);
+
+  const threadData = {
+    subject: thread.subject || '(Inget ämne)',
+    messages: thread.messages.map((m) => ({
+      from: m.fromAddress,
+      to: m.toAddresses,
+      body: m.bodyText || '',
+      date: m.receivedAt.toISOString(),
+    })),
+  };
+
+  const draftText = await aiService.generateDraftWithTone({ threadData, recipientType, userId });
+
+  // Get account email for toAddresses
+  const account = await prisma.emailAccount.findUnique({
+    where: { id: accountId },
+    select: { emailAddress: true },
+  });
+
+  await prisma.draft.create({
+    data: {
+      userId,
+      accountId,
+      threadId: thread.id,
+      toAddresses: [senderEmail],
+      ccAddresses: [],
+      bccAddresses: [],
+      subject: `Re: ${thread.subject || ''}`.trim(),
+      bodyText: draftText,
+      status: 'pending', // NEVER change — approval gate
+      source: 'auto_triage',
+    },
+  });
+
+  console.log(`[AutoDraft] Created pending draft for thread ${thread.id} (tone: ${recipientType})`);
+
+  // Notify Brain Core — AI draft ready for human approval
+  notifyBrainCore({
+    type: 'draft.ready',
+    data: {
+      thread_id: thread.id,
+      subject: thread.subject,
+      sender: senderEmail,
+      recipient_type: recipientType,
+      classification: options.classification,
+    },
+  }).catch(() => {});
+}
+
+// ──────────────────────────────────────────────
 // Auto-triage — rule engine first, then AI
 // ──────────────────────────────────────────────
 
-async function autoTriageNewThreads(accountId: string, userId: string): Promise<void> {
+export async function autoTriageNewThreads(accountId: string, userId: string): Promise<void> {
   const since = new Date(Date.now() - TRIAGE_WINDOW_MS);
 
   const newThreads = await prisma.emailThread.findMany({
@@ -142,6 +279,26 @@ async function autoTriageNewThreads(accountId: string, userId: string): Promise<
         }
 
         console.log(`[Triage] Rule match for ${thread.id}: ${ruleMatch.categoryKey}/${ruleMatch.priority}`);
+
+        // ── Execute the triage action (Sprint 1) ──────────────────────────
+        const ruleDecision: TriageDecision = {
+          threadId: thread.id,
+          gmailThreadId: thread.gmailThreadId,
+          accountId,
+          userId,
+          classification: ruleMatch.categoryKey,
+          priority: ruleMatch.priority,
+          action: mapRuleActionToTriage(ruleMatch.action),
+          source: 'rule_engine',
+          confidence: 1.0,
+          reason: `Matchad regel: ${ruleMatch.categoryName}`,
+          senderEmail: thread.participantEmails[0] ?? '',
+          subject: thread.subject,
+        };
+        triageActionService.executeAction(ruleDecision).catch((e) =>
+          console.warn(`[Triage] Action executor error for ${thread.id}:`, e?.message)
+        );
+
         continue;
       }
 
@@ -203,6 +360,46 @@ async function autoTriageNewThreads(accountId: string, userId: string): Promise<
       }
 
       console.log(`[Triage] AI: ${thread.id} → ${analysis.classification}/${analysis.priority}`);
+
+      // ── Execute the triage action (Sprint 1) ──────────────────────────
+      const senderEmail = thread.participantEmails[0] ?? '';
+      const aiAction = await mapAIToTriageAction(
+        analysis.classification,
+        analysis.priority,
+        analysis.confidence,
+        senderEmail,
+        thread.subject,
+        userId
+      );
+      const aiDecision: TriageDecision = {
+        threadId: thread.id,
+        gmailThreadId: thread.gmailThreadId,
+        accountId,
+        userId,
+        classification: analysis.classification,
+        priority: analysis.priority,
+        action: aiAction,
+        source: 'ai',
+        confidence: analysis.confidence,
+        reason: `AI: ${analysis.classification}/${analysis.priority} (${Math.round(analysis.confidence * 100)}%)`,
+        senderEmail,
+        subject: thread.subject,
+      };
+      triageActionService.executeAction(aiDecision).catch((e) =>
+        console.warn(`[Triage] Action executor error for ${thread.id}:`, e?.message)
+      );
+
+      // ── Auto-draft: generate pending draft for threads requiring reply ──
+      if (aiAction === 'auto_draft' && analysis.suggested_action === 'reply') {
+        generateAutoDraft({
+          thread,
+          accountId,
+          userId,
+          classification: analysis.classification,
+        }).catch((e) =>
+          console.warn(`[AutoDraft] Error for thread ${thread.id}:`, e?.message)
+        );
+      }
     } catch (err: any) {
       console.warn(`[Triage] Skip thread ${thread.id}: ${err?.message ?? err}`);
     }
@@ -763,6 +960,85 @@ async function sendScheduledDrafts(): Promise<void> {
 }
 
 // ──────────────────────────────────────────────
+// Triage log cleanup — Sprint 7
+// Runs once per day at 02:00. Deletes entries older than 30 days.
+// Logs a summary before deletion so nothing is silently lost.
+// ──────────────────────────────────────────────
+
+// Dedup guard — prevents multiple runs within the same day
+let lastCleanupDate = '';
+
+async function cleanupTriageLogs(): Promise<void> {
+  const now = new Date();
+  if (now.getHours() !== 2) return;
+
+  const today = now.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  if (lastCleanupDate === today) return;         // already ran today
+
+  const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+
+  try {
+    // Summarise what's about to be deleted (for the log)
+    const expiring = await prisma.triageLog.findMany({
+      where: { createdAt: { lt: cutoff } },
+      select: { action: true },
+    });
+
+    if (expiring.length === 0) {
+      lastCleanupDate = today;
+      return;
+    }
+
+    const byAction: Record<string, number> = {};
+    for (const row of expiring) {
+      byAction[row.action] = (byAction[row.action] ?? 0) + 1;
+    }
+    const summary = Object.entries(byAction)
+      .map(([a, n]) => `${n} ${a}`)
+      .join(', ');
+
+    await prisma.triageLog.deleteMany({ where: { createdAt: { lt: cutoff } } });
+
+    lastCleanupDate = today;
+    console.log(
+      `[TriageCleanup] Deleted ${expiring.length} entries older than 30 days: ${summary}`
+    );
+  } catch (err: any) {
+    console.warn('[TriageCleanup] Cleanup failed:', err?.message);
+  }
+}
+
+/**
+ * Exported for tests and manual triggers (e.g. agent API).
+ */
+export async function runTriageCleanupNow(): Promise<{ deleted: number; summary: string }> {
+  const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+
+  const expiring = await prisma.triageLog.findMany({
+    where: { createdAt: { lt: cutoff } },
+    select: { action: true },
+  });
+
+  if (expiring.length === 0) {
+    return { deleted: 0, summary: 'Inga poster att rensa.' };
+  }
+
+  const byAction: Record<string, number> = {};
+  for (const row of expiring) {
+    byAction[row.action] = (byAction[row.action] ?? 0) + 1;
+  }
+
+  await prisma.triageLog.deleteMany({ where: { createdAt: { lt: cutoff } } });
+
+  const summary = Object.entries(byAction)
+    .map(([a, n]) => `${n} ${a}`)
+    .join(', ');
+
+  console.log(`[TriageCleanup] Manual cleanup: deleted ${expiring.length} entries (${summary})`);
+  return { deleted: expiring.length, summary };
+}
+
+// ──────────────────────────────────────────────
 // Lifecycle
 // ──────────────────────────────────────────────
 
@@ -796,6 +1072,11 @@ export function startSyncScheduler(): void {
 
   briefingInterval = setInterval(() => {
     runMorningBriefings().catch((e) => console.error('[Briefing] Error:', e));
+  }, BRIEFING_CHECK_INTERVAL_MS);
+
+  // Cleanup: remove triage logs older than 30 days (runs daily, actual delete at 02:00)
+  cleanupInterval = setInterval(() => {
+    cleanupTriageLogs().catch((e) => console.error('[Cleanup] Error:', e));
   }, BRIEFING_CHECK_INTERVAL_MS);
 
   // Gmail Push: renew watches every 24 hours (watches expire after 7 days)
@@ -844,6 +1125,10 @@ export function stopSyncScheduler(): void {
   if (watchRenewalInterval) {
     clearInterval(watchRenewalInterval);
     watchRenewalInterval = null;
+  }
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
   }
   console.log('[Scheduler] Stopped');
 }

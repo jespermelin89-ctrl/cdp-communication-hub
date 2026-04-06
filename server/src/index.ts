@@ -44,6 +44,8 @@ import { labelRoutes } from './routes/labels';
 import { searchRoutes } from './routes/search';
 import { eventRoutes } from './routes/events';
 import { calendarRoutes } from './routes/calendar';
+import { reviewRoutes } from './routes/review';
+import { triageRoutes } from './routes/triage';
 
 async function main() {
   // Validate environment before starting
@@ -221,6 +223,8 @@ async function main() {
     await api.register(searchRoutes);
     await api.register(eventRoutes);
     await api.register(calendarRoutes);
+    await api.register(reviewRoutes);  // Sprint 4: Granskning-vy + regelförslag
+    await api.register(triageRoutes);  // Sprint 7: Triage report
   }, { prefix: '/api/v1' });
 
   // Start server FIRST (so Render sees the port binding)

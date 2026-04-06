@@ -64,7 +64,7 @@ const SUMMARY_SYSTEM_PROMPT = `Du är en mail-assistent. Ge en KORT sammanfattni
 
 Format: Kort och koncist. Inga listor. Inga punkter. Ren löpande text på svenska.`;
 
-interface ThreadData {
+export interface ThreadData {
   subject: string;
   messages: Array<{
     from: string;
@@ -73,6 +73,9 @@ interface ThreadData {
     date: string;
   }>;
 }
+
+/** Recipient type used for tone-adapted draft generation. */
+export type RecipientType = 'authority' | 'business' | 'personal' | 'unknown';
 
 /**
  * Strip markdown code fences and extract the JSON object from AI responses.
@@ -528,6 +531,67 @@ Skriv ett kort svarsförslag.`;
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Generate a draft with tone adapted to the recipient type.
+   * Called by the auto-triage pipeline when action is 'auto_draft'.
+   *
+   * Recipient types:
+   *   authority — government agencies, courts, debt collection → formal Swedish
+   *   business  — leads, partners, customers → professional and direct
+   *   personal  — friends, colleagues → casual, like an SMS in email format
+   *   unknown   — default → neutral and professional
+   *
+   * SAFETY: Always returns draft text only. Caller must create a pending Draft.
+   * Draft is NEVER approved or sent automatically.
+   */
+  async generateDraftWithTone(options: {
+    threadData: ThreadData;
+    recipientType: RecipientType;
+    userId: string;
+  }): Promise<string> {
+    const toneInstructions: Record<RecipientType, string> = {
+      authority:
+        'TONRIKTNING: Skriv FORMELLT och ARTIGT. Använd fullständiga meningar. ' +
+        'Inga förkortningar. Titulera korrekt. Avsluta med "Med vänliga hälsningar". ' +
+        'Skriv på svenska om inte annat framgår av tråden.',
+      business:
+        'TONRIKTNING: Skriv PROFESSIONELLT men VÄNLIGT. Direkt och tydligt. ' +
+        'Håll det kort — max 3-4 meningar. Undvik formell titel i avslutning.',
+      personal:
+        'TONRIKTNING: Skriv AVSLAPPNAT och PERSONLIGT, som ett SMS fast i mailformat. ' +
+        'Inga formella fraser. Kort och naturligt.',
+      unknown:
+        'TONRIKTNING: Skriv NEUTRALT och PROFESSIONELLT tills vi vet mer om mottagaren.',
+    };
+
+    const toneInstruction = toneInstructions[options.recipientType];
+
+    // Build learning context from writing profile
+    let learningContext = toneInstruction;
+    try {
+      const profile = await brainCoreService.getWritingProfile(options.userId);
+      const modes = (profile as any)?.modes ?? [];
+      const attributes = (profile as any)?.attributes ?? [];
+      if (modes.length > 0 || attributes.length > 0) {
+        learningContext += '\n\nSKRIVPROFIL:';
+        for (const m of modes.slice(0, 3)) {
+          learningContext += `\n- ${m.name}: ${m.description || ''}`;
+        }
+        for (const a of attributes.slice(0, 3)) {
+          learningContext += `\n- ${a.attribute}: ${a.description || ''}`;
+        }
+      }
+    } catch {
+      // Non-critical — proceed without profile
+    }
+
+    return this.generateDraft({
+      instruction: 'Skriv ett lämpligt svar på detta mail baserat på tråden nedan.',
+      threadContext: options.threadData,
+      learningContext,
+    });
   }
 }
 

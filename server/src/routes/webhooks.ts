@@ -7,10 +7,17 @@
  * Google Cloud Pub/Sub sends unauthenticated POST requests.
  * Verification relies on the GOOGLE_PUBSUB_VERIFICATION_TOKEN env var
  * (bearer token set on the Pub/Sub push subscription).
+ *
+ * Flow:
+ *  1. Validate Pub/Sub bearer token (if GOOGLE_PUBSUB_VERIFICATION_TOKEN is set)
+ *  2. Decode base64 message data → { emailAddress, historyId }
+ *  3. gmailPushService.handleNotification() — incremental Gmail sync
+ *  4. autoTriageNewThreads() — fire-and-forget triage on newly synced threads
  */
 
 import { FastifyInstance } from 'fastify';
 import { gmailPushService } from '../services/gmail-push.service';
+import { autoTriageNewThreads } from '../services/sync-scheduler.service';
 import { env } from '../config/env';
 
 export async function webhookRoutes(fastify: FastifyInstance) {
@@ -63,13 +70,22 @@ export async function webhookRoutes(fastify: FastifyInstance) {
         return reply.code(200).send();
       }
 
+      const { emailAddress, historyId } = decoded as { emailAddress: string; historyId: string };
+
       // Fire-and-forget — don't block the 200 response
-      gmailPushService.handleNotification({
-        emailAddress: decoded.emailAddress,
-        historyId: decoded.historyId,
-      }).catch((err) => {
-        fastify.log.error({ err, decoded }, '[GmailPush] Notification handling failed');
-      });
+      ;(async () => {
+        try {
+          // Step 1: incremental sync → returns account info for triage
+          const accountInfo = await gmailPushService.handleNotification({ emailAddress, historyId });
+
+          // Step 2: triage newly synced threads (rule engine → AI → action executor)
+          if (accountInfo) {
+            await autoTriageNewThreads(accountInfo.accountId, accountInfo.userId);
+          }
+        } catch (err) {
+          fastify.log.error({ err, emailAddress }, '[GmailPush] Notification handling or triage failed');
+        }
+      })();
     } catch (err) {
       fastify.log.error({ err }, '[GmailPush] Webhook error');
     }

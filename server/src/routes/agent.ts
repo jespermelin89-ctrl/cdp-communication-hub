@@ -33,6 +33,10 @@ const ALLOWED_ACTIONS = [
   'bulk-classify', 'sync', 'cleanup', 'seed-brain-core',
   // v2 actions:
   'send', 'schedule', 'snooze', 'export', 'contacts', 'stats', 'compose', 'chat',
+  // Sprint 6 — Brain Core integration:
+  'triage-status', 'triage-override', 'review-queue', 'rule-suggest',
+  // Sprint 7 — Triage report + voice:
+  'triage-report',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -117,7 +121,10 @@ export default async function agentRoutes(app: FastifyInstance) {
       switch (action) {
         // ── BRIEFING ──────────────────────────────────────────────────────────
         case 'briefing': {
-          const [threads, pendingDrafts, dailySummary] = await Promise.all([
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const [threads, pendingDrafts, dailySummary, triageLogs, autoDraftsPending] = await Promise.all([
             prisma.emailThread.findMany({
               where: { account: { userId }, isRead: false },
               orderBy: { lastMessageAt: 'desc' },
@@ -147,6 +154,14 @@ export default async function agentRoutes(app: FastifyInstance) {
             prisma.dailySummary.findFirst({
               where: { userId },
               orderBy: { date: 'desc' },
+            }),
+            // Sprint 6: triage stats for today
+            prisma.triageLog.findMany({
+              where: { userId, createdAt: { gte: today } },
+              select: { action: true },
+            }),
+            prisma.draft.count({
+              where: { userId, source: 'auto_triage', status: 'pending' },
             }),
           ]);
 
@@ -187,6 +202,18 @@ export default async function agentRoutes(app: FastifyInstance) {
                     ai_recommendation: dailySummary.recommendation,
                   }
                 : null,
+              // Sprint 6: triage summary for Brain Core briefing
+              triage_today: {
+                total_sorted: triageLogs.length,
+                trashed: triageLogs.filter((l) =>
+                  ['trash', 'trash_after_log', 'notify_then_trash'].includes(l.action)
+                ).length,
+                in_review: triageLogs.filter((l) => l.action === 'label_review').length,
+                kept: triageLogs.filter((l) =>
+                  ['keep_inbox', 'auto_draft'].includes(l.action)
+                ).length,
+                auto_drafts_pending: autoDraftsPending,
+              },
             },
           };
         }
@@ -745,6 +772,190 @@ export default async function agentRoutes(app: FastifyInstance) {
               deleted_test_events: deleted.count,
               pruned_old_events: pruned,
               pattern: patterns,
+            },
+          };
+        }
+
+        // ── TRIAGE-STATUS ─────────────────────────────────────────────────
+        // Summary of triage activity. Default: today. params.days extends the window.
+        case 'triage-status': {
+          const days = Math.min(Number(params.days) || 1, 30);
+          const since = new Date(Date.now() - days * 24 * 3600 * 1000);
+          if (days === 1) since.setHours(0, 0, 0, 0); // snap to start of today
+
+          const logs = await prisma.triageLog.findMany({
+            where: { userId, createdAt: { gte: since } },
+            select: { action: true, classification: true, senderEmail: true },
+          });
+
+          const autoDraftCount = await prisma.draft.count({
+            where: { userId, source: 'auto_triage', createdAt: { gte: since } },
+          });
+
+          const byAction: Record<string, number> = {};
+          for (const log of logs) {
+            byAction[log.action] = (byAction[log.action] ?? 0) + 1;
+          }
+
+          return {
+            success: true,
+            action,
+            data: {
+              period: days === 1 ? 'today' : `last_${days}_days`,
+              total_sorted: logs.length,
+              trashed: logs.filter((l) =>
+                ['trash', 'trash_after_log', 'notify_then_trash'].includes(l.action)
+              ).length,
+              in_review: byAction['label_review'] ?? 0,
+              kept: logs.filter((l) =>
+                ['keep_inbox', 'auto_draft'].includes(l.action)
+              ).length,
+              auto_drafts_created: autoDraftCount,
+              by_action: byAction,
+            },
+          };
+        }
+
+        // ── TRIAGE-OVERRIDE ───────────────────────────────────────────────
+        // Undo a triage action — restore a thread from TRASH back to INBOX.
+        case 'triage-override': {
+          if (!params.thread_id) {
+            return reply.code(400).send({ success: false, error: 'params.thread_id krävs.' });
+          }
+          const overrideThread = await prisma.emailThread.findFirst({
+            where: { id: params.thread_id as string, account: { userId } },
+            select: { id: true, gmailThreadId: true, accountId: true, subject: true },
+          });
+          if (!overrideThread) {
+            return reply.code(404).send({ success: false, error: 'Tråd hittades inte.' });
+          }
+
+          const { gmailService } = await import('../services/gmail.service');
+          // Restore: add INBOX, remove TRASH
+          await gmailService.modifyLabels(
+            overrideThread.accountId,
+            overrideThread.gmailThreadId,
+            ['INBOX'],
+            ['TRASH']
+          );
+
+          return {
+            success: true,
+            action,
+            data: {
+              thread_id: overrideThread.id,
+              subject: overrideThread.subject,
+              message: 'Tråd återställd till inkorgen.',
+            },
+          };
+        }
+
+        // ── REVIEW-QUEUE ──────────────────────────────────────────────────
+        // List threads currently in the Granskning review queue.
+        case 'review-queue': {
+          const cutoff = new Date(Date.now() - 30 * 24 * 3600 * 1000);
+          const reviewLogs = await prisma.triageLog.findMany({
+            where: { userId, action: 'label_review', createdAt: { gte: cutoff } },
+            distinct: ['threadId'],
+            orderBy: { createdAt: 'desc' as const },
+            take: 20,
+            select: {
+              threadId: true,
+              senderEmail: true,
+              subject: true,
+              createdAt: true,
+              reason: true,
+            },
+          });
+          return {
+            success: true,
+            action,
+            data: {
+              count: reviewLogs.length,
+              threads: reviewLogs,
+              message: reviewLogs.length === 0
+                ? 'Granskningskön är tom.'
+                : `${reviewLogs.length} tråd(ar) väntar på granskning.`,
+            },
+          };
+        }
+
+        // ── RULE-SUGGEST ──────────────────────────────────────────────────
+        // List pending rule suggestions (auto-learning from triage patterns).
+        case 'rule-suggest': {
+          const { getPendingSuggestions } = await import('../services/rule-suggestion.service');
+          const suggestions = await getPendingSuggestions(userId);
+          return {
+            success: true,
+            action,
+            data: {
+              count: suggestions.length,
+              suggestions,
+              message: suggestions.length === 0
+                ? 'Inga regelförslag just nu.'
+                : `${suggestions.length} regelförslag väntar på godkännande.`,
+            },
+          };
+        }
+
+        // ── TRIAGE-REPORT ─────────────────────────────────────────────────
+        // Voice-friendly triage activity summary. Params: { period?: 'today'|'week'|'month' }
+        case 'triage-report': {
+          const period = (params?.period as string) ?? 'today';
+          const validPeriods = ['today', 'week', 'month'];
+          const safePeriod = validPeriods.includes(period) ? period : 'today';
+
+          const now = new Date();
+          const from = new Date();
+          if (safePeriod === 'today') {
+            from.setHours(0, 0, 0, 0);
+          } else if (safePeriod === 'week') {
+            from.setDate(from.getDate() - 7);
+          } else {
+            from.setDate(now.getDate() - 30);
+          }
+
+          const logs = await prisma.triageLog.findMany({
+            where: { userId, createdAt: { gte: from, lte: now } },
+            select: { action: true, classification: true, senderEmail: true },
+          });
+
+          const total = logs.length;
+          const trashed = logs.filter((l) =>
+            ['trash', 'trash_after_log', 'notify_then_trash'].includes(l.action)
+          ).length;
+          const inReview = logs.filter((l) => l.action === 'label_review').length;
+          const kept = logs.filter((l) => ['keep_inbox', 'auto_draft'].includes(l.action)).length;
+
+          // Top senders trashed (for voice context)
+          const trashedSenders: Record<string, number> = {};
+          for (const l of logs) {
+            if (['trash', 'trash_after_log', 'notify_then_trash'].includes(l.action)) {
+              const domain = l.senderEmail.split('@')[1] ?? l.senderEmail;
+              trashedSenders[domain] = (trashedSenders[domain] ?? 0) + 1;
+            }
+          }
+          const topTrashed = Object.entries(trashedSenders)
+            .sort(([, a], [, b]) => b - a)
+            .slice(0, 3)
+            .map(([domain, count]) => `${domain} (${count})`);
+
+          const periodLabel = safePeriod === 'today' ? 'Idag' : safePeriod === 'week' ? 'Den senaste veckan' : 'Den senaste månaden';
+          const voice = total === 0
+            ? `${periodLabel} har inga mail sorterats.`
+            : `${periodLabel} sorterades ${total} mail bort. ${trashed} raderades, ${inReview} skickades till granskning och ${kept} behölls i inkorgen.${topTrashed.length > 0 ? ` Vanligaste avsändarna: ${topTrashed.join(', ')}.` : ''}`;
+
+          return {
+            success: true,
+            action,
+            data: {
+              period: safePeriod,
+              total_sorted: total,
+              trashed,
+              in_review: inReview,
+              kept,
+              top_trashed_domains: topTrashed,
+              voice_summary: voice,
             },
           };
         }

@@ -217,12 +217,12 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 - Settings + onboarding: unified sidebar-layout, 5-stegs wizard, compact mode, externa bilder
 - 443 server + 129 client tester — alla gröna
 
-## Nuläge (2026-04-01)
+## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 1.3.0 i client/package.json och server/package.json
+- **Version**: 2.0.0 (Sprint 3–7 klara)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 443 server (38 filer) + 129 client (9 filer) = 572 totalt
+- **Tester**: 653 server (51 filer) + 129 client (9 filer) = 782 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -245,24 +245,52 @@ All 7 issues from the security review have been fixed and merged to main:
 - ✅ Lokala feature-branches städade (codex/calendar-invite-awareness, feat/sprint2-docs-and-config, master)
 - Totalt: 56 testfiler (43 server + 13 client)
 
-## TODO (prio-ordning)
+## Completed AI Triage Sprint (2026-04-06) — v2.0.0
 
-### Nästa sprint — Sista `as any`-städning + Zod
-Kvar: ~25 `as any` i backend routes. Av dessa:
-- **Fixbara (behöver Zod-schemas):** templates.ts (2), auth.ts (1), categories.ts (4), agent.ts (2) = 9 st
-- **Prisma JSON-fields (acceptabla):** drafts.ts (2), search.ts (2-3), threads.ts (5), views.ts (2), templates.ts (2) = ~14 st
-- **Auth union type (kräver refactor):** auth.ts (4) — authService.handleCallback() returnerar otypad union
+### ✅ Sprint 3 — Gmail Push Sync
+- `gmail-push.service.ts` — Pub/Sub push notifications replacing 5-min polling
+- `POST /api/v1/gmail/webhook` — push receiver, token verification, triage chaining
+- Polling fallback 30 min, watch renewal every 24h
+
+### ✅ Sprint 4 — Granskning-vy + Regelförslag
+- `review.ts` routes — keep/trash/create_rule decisions on unknown-sender threads
+- `rule-suggestion.service.ts` — auto-learning from trash patterns (≥2 same domain → suggestion)
+- `client/app/review/page.tsx` — full review UI with confidence indicators
+
+### ✅ Sprint 5 — Auto-Draft med Tonanpassning
+- `ai.service.ts`: `generateDraftWithTone()` with RecipientType (authority/business/personal/unknown)
+- Auto-drafts created as `{ status: 'pending', source: 'auto_triage' }` — never auto-approved
+- `GET /drafts/pending` + banner in drafts UI
+
+### ✅ Sprint 6 — Brain Core Integration
+- `brain-core-webhook.service.ts` — 4 outbound event types, fire-and-forget, never throws
+- Agent: `triage-status`, `triage-override`, `review-queue`, `rule-suggest` actions
+- Extended briefing with `triage_today` block
+
+### ✅ Sprint 7 — Cleanup Cron + Rapport + Röst
+- `cleanupTriageLogs()` — daily 02:00, deletes triage_log entries > 30 days old
+- `GET /api/v1/triage/report` — period/action/sender/classification grouping
+- Agent `triage-report` with voice-friendly Swedish summary
+- `client/app/triage/page.tsx` — full triage rapport UI
+
+### ✅ TypeScript fixes
+- `auth.ts`: 4× `as any` replaced with `'reauthed' in result` type narrowing
+- Remaining `as any` are Prisma JSON fields — acceptable per spec
+
+## TODO (prio-ordning)
 
 ### Post-deploy (manuellt)
 1. **Seed Brain Core** — kör `npm run seed:brain-core` en gång i Render Shell
 2. **Sätt GOOGLE_PUBSUB_VERIFICATION_TOKEN** i Render dashboard
 3. **Städa remote branches** — `origin/codex-meeting-calendar-flow`, `origin/codex/calendar-hold-release`
+4. **Bump version** i `client/package.json` och `server/package.json` till `2.0.0`
 
 ### ⏳ Framtida (bygg inte nu)
 - n8n workflow automation (ersätt setInterval-cronjobs)
 - Microsoft OAuth
 - Push notifications browser-permission prompt i onboarding
 - Circuit breaker för AI provider fallback (W6)
+- i18n för `/review` och `/triage` sidor
 
 ## Key API Patterns
 - All API calls go through `client/lib/api.ts` which handles auth headers + base URL

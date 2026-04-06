@@ -941,6 +941,84 @@ class ApiClient {
       instruction,
     });
   }
+
+  // ── Review Queue (Sprint 4) ────────────────────────────────────────────────
+
+  async getReviewQueue() {
+    return this.request<{
+      threads: Array<{
+        threadId: string;
+        gmailThreadId: string;
+        subject: string | null;
+        senderEmail: string;
+        snippet: string | null;
+        classification: string;
+        priority: string;
+        confidence: number;
+        labeledAt: string;
+      }>;
+      total: number;
+    }>('GET', '/review');
+  }
+
+  async decideReviewThread(threadId: string, action: 'keep' | 'trash' | 'create_rule') {
+    return this.request<{ ok: boolean; rule?: { id: string } }>('POST', `/review/${threadId}/decide`, { action });
+  }
+
+  async getPendingSuggestions() {
+    return this.request<{
+      suggestions: Array<{
+        id: string;
+        senderPattern: string;
+        suggestedAction: string;
+        triggerCount: number;
+        createdAt: string;
+      }>;
+    }>('POST', '/rules/suggest');
+  }
+
+  async acceptRuleSuggestion(suggestionId: string) {
+    return this.request<{ ok: boolean }>('POST', '/rules/accept', { suggestionId });
+  }
+
+  async dismissRuleSuggestion(suggestionId: string) {
+    return this.request<{ ok: boolean }>('POST', '/rules/dismiss', { suggestionId });
+  }
+
+  // ── Triage Report (Sprint 7) ───────────────────────────────────────────────
+
+  async getTriageReport(period: 'today' | 'week' | 'month' = 'today', action?: string) {
+    const params = new URLSearchParams({ period });
+    if (action) params.set('action', action);
+    return this.request<{
+      period: string;
+      from: string;
+      to: string;
+      total: number;
+      by_action: Record<string, number>;
+      by_classification: Record<string, number>;
+      by_sender: Array<{ sender: string; count: number }>;
+      rows: Array<{ sender: string; classification: string; count: number; actions: Record<string, number> }>;
+    }>('GET', `/triage/report?${params.toString()}`);
+  }
+
+  // ── Pending Auto-Drafts (Sprint 5) ────────────────────────────────────────
+
+  async getPendingAutoDrafts() {
+    return this.request<{
+      drafts: Array<{
+        id: string;
+        subject: string | null;
+        bodyText: string | null;
+        threadId: string;
+        accountId: string;
+        createdAt: string;
+        thread?: { subject: string | null; senderEmail?: string };
+        account?: { emailAddress: string; color?: string | null };
+      }>;
+      total: number;
+    }>('GET', '/drafts/pending');
+  }
 }
 
 export const api = new ApiClient();

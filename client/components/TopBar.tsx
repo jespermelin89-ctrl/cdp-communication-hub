@@ -129,6 +129,8 @@ export default function TopBar({ pendingCount: pendingCountProp, userEmail }: To
     { href: '/', label: t.nav.commandCenter, icon: '⚡' },
     { href: '/drafts', label: t.nav.drafts, icon: '📝' },
     { href: '/inbox', label: t.nav.inbox, icon: '📥' },
+    { href: '/review', label: 'Granskning', icon: '🔍' },
+    { href: '/triage', label: 'Triage', icon: '📊' },
     { href: '/categories', label: t.nav.rules, icon: '🏷️' },
     { href: '/activity', label: t.nav.activity, icon: '📋' },
   ];

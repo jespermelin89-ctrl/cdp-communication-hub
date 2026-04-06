@@ -752,8 +752,8 @@ export default function ThreadDetailPage() {
 
       toast.success(
         response === 'accept'
-          ? ((t.thread as any).inviteAcceptDraftCreated ?? 'Utkast för att acceptera mötet skapat')
-          : ((t.thread as any).inviteDeclineDraftCreated ?? 'Utkast för att avböja mötet skapat')
+          ? (t.thread.inviteAcceptDraftCreated)
+          : (t.thread.inviteDeclineDraftCreated)
       );
       router.push(`/drafts/${result.draft.id}`);
     } catch (err: any) {
@@ -810,8 +810,8 @@ export default function ThreadDetailPage() {
         }));
         toast.success(
           responseStatus === 'accepted'
-            ? ((t.thread as any).inviteAcceptedInCalendar ?? 'Mötet markerades som accepterat i Google Calendar')
-            : ((t.thread as any).inviteDeclinedInCalendar ?? 'Mötet markerades som avböjt i Google Calendar')
+            ? (t.thread.inviteAcceptedInCalendar)
+            : (t.thread.inviteDeclinedInCalendar)
         );
       }
     } catch (err: any) {
@@ -829,7 +829,7 @@ export default function ThreadDetailPage() {
     if (!bookingLink) return;
     try {
       await navigator.clipboard.writeText(bookingLink);
-      toast.success((t.thread as any).bookingLinkCopied ?? 'Bokningslänken kopierades');
+      toast.success(t.thread.bookingLinkCopied);
     } catch {
       toast.error('Kunde inte kopiera bokningslänken');
     }
@@ -862,11 +862,11 @@ export default function ThreadDetailPage() {
       }
 
       if (result.slots.length === 0) {
-        toast.error((t.thread as any).noAvailabilityFound ?? 'Inga lediga tider hittades i kalendern just nu');
+        toast.error(t.thread.noAvailabilityFound);
         return;
       }
 
-      toast.success((t.thread as any).availabilityLoaded ?? 'Lediga tider hämtade från Google Calendar');
+      toast.success(t.thread.availabilityLoaded);
     } catch (err: any) {
       toast.error(`Kunde inte hämta lediga tider: ${err.message}`);
     } finally {
@@ -905,7 +905,7 @@ export default function ThreadDetailPage() {
 
       if (result.event) {
         setCreatedCalendarEvent(result.event);
-        toast.success((t.thread as any).calendarEventCreated ?? 'Tiden reserverades i Google Calendar');
+        toast.success(t.thread.calendarEventCreated);
       }
     } catch (err: any) {
       toast.error(`Kunde inte reservera tiden i Google Calendar: ${err.message}`);
@@ -931,7 +931,7 @@ export default function ThreadDetailPage() {
         subject: thread.subject?.toLowerCase().startsWith('re:') ? thread.subject : `Re: ${thread.subject ?? ''}`,
         body_text: buildBookingReplyText(bookingLink),
       });
-      toast.success((t.thread as any).bookingDraftCreated ?? 'Utkast med bokningslänk skapat');
+      toast.success(t.thread.bookingDraftCreated);
       router.push(`/drafts/${result.draft.id}`);
     } catch (err: any) {
       toast.error(`Kunde inte skapa bokningsutkast: ${err.message}`);
@@ -947,7 +947,7 @@ export default function ThreadDetailPage() {
 
     const slots = calendarAvailability.slots.slice(0, 3);
     if (slots.length === 0) {
-      toast.error((t.thread as any).noAvailabilityFound ?? 'Inga lediga tider hittades i kalendern just nu');
+      toast.error(t.thread.noAvailabilityFound);
       return;
     }
 
@@ -970,7 +970,7 @@ export default function ThreadDetailPage() {
           bookingLink: bookingLink || undefined,
         }),
       });
-      toast.success((t.thread as any).availabilityDraftCreated ?? 'Utkast med lediga tider skapat');
+      toast.success(t.thread.availabilityDraftCreated);
       router.push(`/drafts/${result.draft.id}`);
     } catch (err: any) {
       toast.error(`Kunde inte skapa tidsförslag: ${err.message}`);
@@ -1009,7 +1009,7 @@ export default function ThreadDetailPage() {
           }
         ),
       });
-      toast.success((t.thread as any).heldSlotDraftCreated ?? 'Utkast för reserverad tid skapat');
+      toast.success(t.thread.heldSlotDraftCreated);
       router.push(`/drafts/${result.draft.id}`);
     } catch (err: any) {
       toast.error(`Kunde inte skapa svar för reserverad tid: ${err.message}`);
@@ -1050,7 +1050,7 @@ export default function ThreadDetailPage() {
 
       if (result.released) {
         setCreatedCalendarEvent(null);
-        toast.success((t.thread as any).calendarEventReleased ?? 'Reservationen togs bort från Google Calendar');
+        toast.success(t.thread.calendarEventReleased);
       }
     } catch (err: any) {
       toast.error(`Kunde inte släppa reservationen i Google Calendar: ${err.message}`);
@@ -1162,13 +1162,13 @@ export default function ThreadDetailPage() {
             <div className="flex items-center gap-2 mb-2">
               <Bell size={16} className={bookingLink ? 'text-emerald-500' : 'text-amber-500'} />
               <span className={`text-sm font-medium ${bookingLink ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-700 dark:text-amber-300'}`}>
-                {(t.thread as any).meetingIntentDetected ?? 'Mötesförfrågan upptäckt'}
+                {t.thread.meetingIntentDetected}
               </span>
             </div>
             <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
               {bookingLink
-                ? ((t.thread as any).meetingIntentWithLink ?? 'Den här tråden ser ut att handla om att boka tid. Du kan snabbt skapa ett svar med din bokningslänk.')
-                : ((t.thread as any).meetingIntentMissingLink ?? 'Den här tråden ser ut att handla om att boka tid. Lägg till din bokningslänk i inställningarna för att kunna svara snabbare härifrån.')}
+                ? (t.thread.meetingIntentWithLink)
+                : (t.thread.meetingIntentMissingLink)}
             </p>
             <div className="flex flex-wrap gap-2">
               {bookingLink ? (
@@ -1180,19 +1180,19 @@ export default function ThreadDetailPage() {
                   >
                     {creatingBookingDraft
                       ? '...'
-                      : ((t.thread as any).createBookingDraft ?? 'Skapa bokningsutkast')}
+                      : (t.thread.createBookingDraft)}
                   </button>
                   <button
                     onClick={handleCopyBookingLink}
                     className="text-xs px-3 py-1.5 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30"
                   >
-                    {(t.thread as any).copyBookingLink ?? 'Kopiera bokningslänk'}
+                    {t.thread.copyBookingLink}
                   </button>
                   <button
                     onClick={() => window.open(bookingLink, '_blank', 'noopener,noreferrer')}
                     className="text-xs px-3 py-1.5 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
                   >
-                    {(t.thread as any).openBookingLink ?? 'Öppna bokningssida'}
+                    {t.thread.openBookingLink}
                   </button>
                   {thread.account.provider === 'gmail' && (
                     <button
@@ -1201,8 +1201,8 @@ export default function ThreadDetailPage() {
                       className="text-xs px-3 py-1.5 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 disabled:opacity-60"
                     >
                       {loadingAvailability
-                        ? ((t.thread as any).loadingAvailability ?? 'Hämtar lediga tider...')
-                        : ((t.thread as any).loadAvailability ?? 'Hämta lediga tider')}
+                        ? (t.thread.loadingAvailability)
+                        : (t.thread.loadAvailability)}
                     </button>
                   )}
                 </>
@@ -1212,7 +1212,7 @@ export default function ThreadDetailPage() {
                     onClick={() => router.push('/settings')}
                     className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
                   >
-                    {(t.thread as any).addBookingLink ?? 'Lägg till bokningslänk'}
+                    {t.thread.addBookingLink}
                   </button>
                   {thread.account.provider === 'gmail' && (
                     <button
@@ -1221,8 +1221,8 @@ export default function ThreadDetailPage() {
                       className="text-xs px-3 py-1.5 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 disabled:opacity-60"
                     >
                       {loadingAvailability
-                        ? ((t.thread as any).loadingAvailability ?? 'Hämtar lediga tider...')
-                        : ((t.thread as any).loadAvailability ?? 'Hämta lediga tider')}
+                        ? (t.thread.loadingAvailability)
+                        : (t.thread.loadAvailability)}
                     </button>
                   )}
                 </>
@@ -1244,19 +1244,19 @@ export default function ThreadDetailPage() {
                         onClick={() => { window.location.href = calendarAvailability.reauthUrl!; }}
                         className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
                       >
-                        {(t.thread as any).connectCalendar ?? 'Aktivera Google Calendar'}
+                        {t.thread.connectCalendar}
                       </button>
                     )}
                   </div>
                 ) : calendarAvailability.slots.length === 0 ? (
                   <p className="text-xs text-gray-600 dark:text-gray-300">
-                    {(t.thread as any).noAvailabilityFound ?? 'Inga lediga tider hittades i kalendern just nu'}.
+                    {t.thread.noAvailabilityFound}.
                   </p>
                 ) : (
                   <>
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <p className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                        {(t.thread as any).availabilityPreview ?? 'Lediga tider från Google Calendar'}
+                        {t.thread.availabilityPreview}
                       </p>
                       <button
                         onClick={handleCreateAvailabilityDraft}
@@ -1265,7 +1265,7 @@ export default function ThreadDetailPage() {
                       >
                         {creatingAvailabilityDraft
                           ? '...'
-                          : ((t.thread as any).createAvailabilityDraft ?? 'Skapa svar med tider')}
+                          : (t.thread.createAvailabilityDraft)}
                       </button>
                     </div>
                     <div className="space-y-1.5">
@@ -1283,8 +1283,8 @@ export default function ThreadDetailPage() {
                             className="px-2.5 py-1 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-gray-800 disabled:opacity-60"
                           >
                             {creatingCalendarSlot === slot.start
-                              ? ((t.thread as any).reservingCalendarSlot ?? 'Reserverar...')
-                              : ((t.thread as any).reserveCalendarSlot ?? 'Reservera i Google Calendar')}
+                              ? (t.thread.reservingCalendarSlot)
+                              : (t.thread.reserveCalendarSlot)}
                           </button>
                         </div>
                       ))}
@@ -1299,7 +1299,7 @@ export default function ThreadDetailPage() {
                             onClick={() => { window.location.href = calendarWriteReconnect.reauthUrl!; }}
                             className="text-xs px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700"
                           >
-                            {(t.thread as any).connectCalendarWrite ?? 'Aktivera kalender-skrivning'}
+                            {t.thread.connectCalendarWrite}
                           </button>
                         )}
                       </div>
@@ -1307,7 +1307,7 @@ export default function ThreadDetailPage() {
                     {createdCalendarEvent && (
                       <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2">
                         <p className="text-xs text-emerald-700 dark:text-emerald-300 flex-1">
-                          {(t.thread as any).calendarEventCreatedInline ?? 'Tiden ligger nu som en tentativ reservation i Google Calendar.'}
+                          {t.thread.calendarEventCreatedInline}
                         </p>
                         <button
                           onClick={handleCreateHeldSlotDraft}
@@ -1316,7 +1316,7 @@ export default function ThreadDetailPage() {
                         >
                           {creatingHeldSlotDraft
                             ? '...'
-                            : ((t.thread as any).createHeldSlotDraft ?? 'Skapa svar för tiden')}
+                            : (t.thread.createHeldSlotDraft)}
                         </button>
                         <button
                           onClick={handleReleaseCalendarEvent}
@@ -1325,14 +1325,14 @@ export default function ThreadDetailPage() {
                         >
                           {releasingCalendarEvent
                             ? '...'
-                            : ((t.thread as any).releaseCalendarEvent ?? 'Släpp reservation')}
+                            : (t.thread.releaseCalendarEvent)}
                         </button>
                         {createdCalendarEvent.htmlLink && (
                           <button
                             onClick={() => window.open(createdCalendarEvent.htmlLink!, '_blank', 'noopener,noreferrer')}
                             className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
                           >
-                            {(t.thread as any).openCalendarEvent ?? 'Öppna kalenderhändelse'}
+                            {t.thread.openCalendarEvent}
                           </button>
                         )}
                       </div>
@@ -1784,7 +1784,7 @@ export default function ThreadDetailPage() {
                                   >
                                     {respondingToInvite === `${calendarInvite.uid}:accepted`
                                       ? '...'
-                                      : ((t.thread as any).acceptInviteInCalendar ?? 'Acceptera i kalendern')}
+                                      : (t.thread.acceptInviteInCalendar)}
                                   </button>
                                   <button
                                     onClick={() => handleRespondToInvite(calendarInvite, 'declined')}
@@ -1793,7 +1793,7 @@ export default function ThreadDetailPage() {
                                   >
                                     {respondingToInvite === `${calendarInvite.uid}:declined`
                                       ? '...'
-                                      : ((t.thread as any).declineInviteInCalendar ?? 'Avböj i kalendern')}
+                                      : (t.thread.declineInviteInCalendar)}
                                   </button>
                                 </div>
                               )}
@@ -1806,7 +1806,7 @@ export default function ThreadDetailPage() {
                                   >
                                     {creatingInviteReplyDraft === 'accept'
                                       ? '...'
-                                      : ((t.thread as any).createInviteAcceptDraft ?? 'Skapa ja-svar')}
+                                      : (t.thread.createInviteAcceptDraft)}
                                   </button>
                                   <button
                                     onClick={() => handleCreateInviteReplyDraft(calendarInvite, 'decline')}
@@ -1815,7 +1815,7 @@ export default function ThreadDetailPage() {
                                   >
                                     {creatingInviteReplyDraft === 'decline'
                                       ? '...'
-                                      : ((t.thread as any).createInviteDeclineDraft ?? 'Skapa nej-svar')}
+                                      : (t.thread.createInviteDeclineDraft)}
                                   </button>
                                 </div>
                               )}

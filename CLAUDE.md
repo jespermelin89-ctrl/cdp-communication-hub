@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.6.0 (Sprint 13 klar)
+- **Version**: 2.7.0 (Sprint 14 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 839 server (60 filer) + 129 client (9 filer) = 968 totalt
+- **Tester**: 880 server (61 filer) + 129 client (9 filer) = 1009 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -403,6 +403,37 @@ All 7 issues from the security review have been fixed and merged to main:
   - analyze-thread auto-draft: created for external sender + reply action, NOT created for non-reply action, NOT created for noreply/mailer-daemon senders
   - generate-draft: 400 on schema validation failure, 404 account not found, 503 AI_ERROR, 400 empty recipients, 200 success with to_addresses
   - bulk-classify: limit default=10/custom/clamped to 20, rule-first (AI not called when rule matches), AI called when no rule, MAX_AI=10 cap (threads 11+ skipped), failed threads skipped, response shape
+
+## Completed Sprint 14 — Thread i18n Calendar Keys + Agent Route Tests (2026-04-06) — v2.7.0
+
+### ✅ i18n: 35 kalendernycklar i thread-sektionen
+- Alla 4 språkfiler (sv/en/es/ru) fick 35 nya nycklar i `thread`-sektionen:
+  - Mötesinbjudan: inviteAcceptDraftCreated, inviteDeclineDraftCreated, inviteAcceptedInCalendar, inviteDeclinedInCalendar
+  - Bokningslänk: bookingLinkCopied, createBookingDraft, copyBookingLink, openBookingLink, addBookingLink
+  - Tillgänglighet: noAvailabilityFound, availabilityLoaded, loadAvailability, loadingAvailability, availabilityPreview, createAvailabilityDraft
+  - Kalenderreservation: calendarEventCreated, reserveCalendarSlot, reservingCalendarSlot, calendarEventCreatedInline, heldSlotDraftCreated, createHeldSlotDraft, releaseCalendarEvent, openCalendarEvent, calendarEventReleased
+  - Mötesdetektion: meetingIntentDetected, meetingIntentWithLink, meetingIntentMissingLink
+  - Kalenderanslutning: connectCalendar, connectCalendarWrite
+  - Svar på inbjudningar: acceptInviteInCalendar, declineInviteInCalendar, createInviteAcceptDraft, createInviteDeclineDraft, bookingDraftCreated, availabilityDraftCreated
+- `client/app/threads/[id]/page.tsx`: alla 39 `(t.thread as any).KEY ?? 'fallback'` ersatta med `t.thread.KEY`
+- TypeScript kompilerar rent — inga `as any` kvar för kalendernycklar
+
+### ✅ Route-tester för agent.ts (Sprint 14)
+- `sprint14-agent.test.ts`: 41 tester
+  - X-API-Key auth: tom nyckel → 401, fel nyckel → 401, korrekt → 200
+  - Action-validering: okänd action → 400, inga aktiva konton → 503
+  - callback_url: giltig URL → 202, ogiltig URL → 400
+  - briefing: response-form (unread_count, high/medium_priority, triage_today), priority-separering
+  - classify: saknar thread_id → 400, tråd ej hittad → 404, success → analysis shape
+  - draft: saknar instruction → 400, inga mottagare → 400, success
+  - send (SAFETY GATE): saknar draft_id → 400, ej funnen → 404, pending → 409, godkänt → skickar
+  - schedule: saknar params → 400, ogiltigt datum → 400, ej hittad → 404, success
+  - snooze: saknar params → 400, ogiltigt datum → 400, tråd ej hittad → 404, success
+  - triage-status: byAction-aggregering, today-period
+  - triage-report: ogiltig period → "today", week/month korrekt, tom voice summary, fylld voice summary med rätt tal
+  - stats: response-form (unread, high_priority, snoozed, pending_drafts, accounts)
+  - batch: tom array → 400, >10 → 400, inga aktiva konton → 503
+  - Felhantering: Prisma/database-meddelanden sanitiseras → "Databasfel — försök igen om en stund."
 
 ## TODO (prio-ordning)
 

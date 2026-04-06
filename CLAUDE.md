@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.5.0 (Sprint 12 klar)
+- **Version**: 2.6.0 (Sprint 13 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 773 server (57 filer) + 129 client (9 filer) = 902 totalt
+- **Tester**: 839 server (60 filer) + 129 client (9 filer) = 968 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -372,6 +372,37 @@ All 7 issues from the security review have been fixed and merged to main:
   - Alla filter (action_type, target_type, target_id) passas korrekt
   - Response-form: logs-array, pagination (page/limit/total/totalPages)
   - Pagination-aritmetik: ceil(total/limit), 0 vid inga logs
+
+## Completed Sprint 13 — Command Center + Analytics + AI Route Tests (2026-04-06) — v2.6.0
+
+### ✅ Bugfix: command-center.ts — participant email comparison
+- `high_priority_senders` extraction compared participant emails against account IDs instead of account email addresses
+- Fixed: added `accountEmails = new Set(accounts.map(a => a.emailAddress))` and used `.has(e)` instead of comparing against `accountIds`
+
+### ✅ Route-tester för command-center (Sprint 13)
+- `sprint13-command-center.test.ts`: 14 tester
+  - Overview counts: pending/approved drafts, unanalyzed = totalThreads - analyzedThreads (6 thread.count calls), zero accounts
+  - Priority breakdown (high/medium/low)
+  - high_priority_senders: external participant extract, fallback to first, fallback to subject word, fallback '—', empty list
+  - per_account_stats: unread + highPriority merged from two groupBy results
+  - Response shape: all top-level keys, all overview fields, recent_actions limit
+
+### ✅ Route-tester för analytics (Sprint 13)
+- `sprint13-analytics.test.ts`: 30 tester
+  - Days clamping: default 30, custom, max 365 (clamp), min 1 (valid), NaN→30
+  - mailPerDay bucketing: zero-initialized, sorted ascending, correct received count, out-of-window ignored, sent count, null sentAt skipped
+  - Classification distribution: priorityMap always has high/medium/low (pre-seeded), classification/priority counts, rule-engine excluded from aiClassifications, empty case
+  - topSenders: sorted desc, max 10, lowercase normalization, null/empty fromAddress ignored
+  - avgResponseTimeHours: null when empty, mean calculation, single thread
+  - Totals: received/sent/analyzed counts, all zeros on empty DB
+  - Response shape: all top-level keys, amanda block fields, period fields
+
+### ✅ Route-tester för AI-routes (Sprint 13)
+- `sprint13-ai-routes.test.ts`: 22 tester
+  - analyze-thread validation: 400 on missing/invalid thread_id (UUID required), 404 not found, 400 no messages, 503 AI_ERROR on AI failure
+  - analyze-thread auto-draft: created for external sender + reply action, NOT created for non-reply action, NOT created for noreply/mailer-daemon senders
+  - generate-draft: 400 on schema validation failure, 404 account not found, 503 AI_ERROR, 400 empty recipients, 200 success with to_addresses
+  - bulk-classify: limit default=10/custom/clamped to 20, rule-first (AI not called when rule matches), AI called when no rule, MAX_AI=10 cap (threads 11+ skipped), failed threads skipped, response shape
 
 ## TODO (prio-ordning)
 

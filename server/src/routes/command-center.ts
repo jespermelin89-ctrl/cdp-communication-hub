@@ -22,6 +22,7 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
     });
 
     const accountIds = accounts.map((a) => a.id);
+    const accountEmails = new Set(accounts.map((a) => a.emailAddress));
 
     // Run all queries in parallel for performance
     const [
@@ -111,7 +112,7 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
       take: 3,
     });
     const highPrioritySenders = highPriorityThreadList.map((t) => {
-      const ext = t.participantEmails.find((e: string) => !accountIds.some((id) => id === e))
+      const ext = t.participantEmails.find((e: string) => !accountEmails.has(e))
         || t.participantEmails[0];
       return ext ? ext.split('@')[0] : t.subject?.split(' ')[0] || '—';
     });

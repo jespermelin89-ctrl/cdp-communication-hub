@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.11.0 (Sprint 18 klar)
+- **Version**: 2.12.0 (Sprint 19 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 1186 server (69 filer) + 153 client (13 filer) = 1339 totalt
+- **Tester**: 1255 server (71 filer) + 153 client (13 filer) = 1408 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -458,6 +458,38 @@ All 7 issues from the security review have been fixed and merged to main:
   - POST /drafts/:id/discard: 404, success
   - POST /drafts/:id/send-delayed: 404, fel status → 400, delay=0 → skickar direkt, pending → godkänns först, använder user settings undoSendDelay
   - POST /drafts/:id/cancel-send: 404, fel status → 400, ingen scheduledAt → 400, förflutet datum → 400, success (cancelled: true)
+
+## Completed Sprint 19 — Follow-Ups + Push + Views + Templates Route Tests (2026-04-06) — v2.12.0
+
+### ✅ Route-tester för follow-ups.ts (Sprint 19)
+- `sprint19-followups-push.test.ts` (delvis): 17 tester
+  - GET /follow-ups: returnerar reminders med isCompleted:false filter, inkluderar thread-detaljer, tom lista
+  - POST /threads/:id/follow-up: saknar remind_at→400, tråd ej hittad→404, skapar reminder med korrekt data, konverterar remind_at string→Date, note=null när ej angiven, verifierar ägande via account.userId
+  - PATCH /follow-ups/:id/complete: 404, sätter isCompleted=true, letar upp med id+userId
+  - DELETE /follow-ups/:id: 404, raderar och returnerar ok:true, raderar ej utan ownership
+
+### ✅ Route-tester för push.ts (Sprint 19)
+- `sprint19-followups-push.test.ts` (delvis): 10 tester
+  - POST /push/subscribe: saknar endpoint→400, endpoint ej URL→400, saknar keys→400, tom p256dh→400, upsert returnerar 201, upsert med compound key userId_endpoint
+  - DELETE /push/subscribe: saknar endpoint→400, deleteMany + ok:true, sväljer deleteMany-fel tyst
+  - POST /push/test: 403 när NODE_ENV≠development, anropar sendPushToUser i development, anropar ej sendPushToUser vid 403
+
+### ✅ Route-tester för views.ts (Sprint 19)
+- `sprint19-views-templates.test.ts` (delvis): 17 tester
+  - GET /views: returnerar vyer sorterade på position asc, tom lista
+  - POST /views: saknar name→400, saknar filters→400, position=max+1, position=0 vid null max, skapar vy med korrekt data, icon/sortKey=null som default
+  - PATCH /views/reorder: ids ej array→400, ids saknas→400, anropar updateMany per id med rätt index, returnerar omhämtade vyer
+  - PATCH /views/:id: 404, uppdaterar bara angivna fält, sort_key→sortKey
+  - DELETE /views/:id: 404, raderar och returnerar ok:true
+
+### ✅ Route-tester för templates.ts (Sprint 19)
+- `sprint19-views-templates.test.ts` (delvis): 25 tester
+  - GET /templates: returnerar sorterat på usageCount desc + createdAt desc, tom lista
+  - POST /templates: saknar name→400, tom name→400, >200 tecken→400, skapar med korrekt data, optionella fält defaultar till null
+  - PATCH /templates/:id: 404, uppdaterar bara angivna fält, body_text→bodyText/body_html→bodyHtml mapping
+  - DELETE /templates/:id: 404, raderar och returnerar ok:true
+  - POST /templates/:id/use: 404, inkrementerar usageCount med {increment:1}
+  - POST /templates/generate: saknar instructions→400, tom instructions→400, parsar AI JSON och skapar template, fallback body_text när JSON-parse misslyckas, JSON inuti fritext extraheras med regex, name/category från request, category defaultar till 'ai-generated', aiService.chat kastar→500, skapar ej template vid AI-fel
 
 ## Completed Sprint 18 — Calendar + Search Route Tests (2026-04-06) — v2.11.0
 

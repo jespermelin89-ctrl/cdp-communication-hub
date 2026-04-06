@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.10.0 (Sprint 17 klar)
+- **Version**: 2.11.0 (Sprint 18 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 1123 server (67 filer) + 153 client (13 filer) = 1276 totalt
+- **Tester**: 1186 server (69 filer) + 153 client (13 filer) = 1339 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -458,6 +458,27 @@ All 7 issues from the security review have been fixed and merged to main:
   - POST /drafts/:id/discard: 404, success
   - POST /drafts/:id/send-delayed: 404, fel status → 400, delay=0 → skickar direkt, pending → godkänns först, använder user settings undoSendDelay
   - POST /drafts/:id/cancel-send: 404, fel status → 400, ingen scheduledAt → 400, förflutet datum → 400, success (cancelled: true)
+
+## Completed Sprint 18 — Calendar + Search Route Tests (2026-04-06) — v2.11.0
+
+### ✅ Route-tester för calendar.ts (Sprint 18)
+- `sprint18-calendar.test.ts`: 28 tester
+  - GET /calendar/availability: saknar account_id→400, 404 konto, delegerar options (days/limit/slot_minutes/time_zone), requiresReconnect→reauthUrl med feature=calendar, ingen reauthUrl när requiresReconnect=false
+  - POST /calendar/events: saknar start/end→400, 404 konto, 404 tråd, success utan tråd, buildCalendarEventSummary anropas med trådens subject, filtererar eget konto-email ur participants, requiresReconnect→reauthUrl feature=calendar_write
+  - POST /calendar/events/release: saknar event_id→400, 404 konto, "Calendar event not found"→404, "Only tentative..."→400, okänt fel propageras (throws), success, requiresReconnect→reauthUrl
+  - POST /calendar/invites/respond: saknar invite_uid→400, ogiltig response_status (maybe)→400, accepterar accepted/declined, 404 konto, "Calendar invite not found"→404, requiresReconnect→reauthUrl, alla params skickas korrekt till service
+
+### ✅ Route-tester för search.ts (Sprint 18)
+- `sprint18-search.test.ts`: 35 tester
+  - GET /contacts/search: tom q→alla profiler (ingen EmailMessage-fråga), sökning slår ihop+deduplicerar, profil vinner över email-meddelande (samma adress), extraherar email ur "Name <email>" format, limit clampas till 30, sorteras efter recency (null-träffar sist)
+  - GET /contacts/recent: returnerar kontakter, mappar emailAddress→email, limit clampas till 20, default limit=5
+  - GET /search — paginering: default page=1/limit=20, page 2 skip korrekt, limit clampas till 50, response-shape (total/page/hasMore), hasMore=false på sista sidan
+  - GET /search — filter-konstruktion: textfråga→OR-clause, accountId, dateFrom/dateTo som Date-objekt, hasAttachment, classification, priority, labelIds (kommaseparerad), tom labelIds ignoreras, ingen OR utan q
+  - GET /search — sökhistorik: sparas när q finns, sparas när classification-filter satt, sparas INTE vid tom sökning utan filter, filter-objekt inkluderas i sparad entry
+  - GET /search — mapping: latestAnalysis från analyses[0], threadLabels→labels-array
+  - GET /search/history: returnerar max 20, filtreras på userId
+  - DELETE /search/history: rensar allt, returnerar deleted=true
+  - DELETE /search/history/:id: 404 vid ej hittad, raderar korrekt entry
 
 ## Completed Sprint 17 — Chat + Categories + Providers Route Tests (2026-04-06) — v2.10.0
 

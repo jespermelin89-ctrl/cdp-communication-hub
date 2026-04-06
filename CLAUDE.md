@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.4.0 (Sprint 11 klar)
+- **Version**: 2.5.0 (Sprint 12 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 745 server (55 filer) + 129 client (9 filer) = 874 totalt
+- **Tester**: 773 server (57 filer) + 129 client (9 filer) = 902 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -349,6 +349,29 @@ All 7 issues from the security review have been fixed and merged to main:
   - `POST /drafts/:id/send`: 200 på success, 403 på SECURITY-fel (pending draft), 404/500 för övriga fel
   - `POST /drafts/:id/schedule`: validering av send_at (saknas, ogiltigt datum, förflutet), 404/400 fel, 200 på success
   - `POST /threads/batch`: input-validering (tom array, okänd action), dispatch för alla 6 actions (archive/trash/read/unread/star/unstar), partial failure med allSettled, 0 results
+
+## Completed Sprint 12 — i18n accounts/brain-core + Webhook + Action-log Tests (2026-04-06) — v2.5.0
+
+### ✅ i18n för settings/accounts + settings/brain-core
+- 15 nya nycklar i `settings` sektionen (sv/en/es/ru): accountDefaultUpdated/UpdateError, accountInactivated/Activated/UpdateError, accountDisconnected/DisconnectError, accountSaveError, accountSyncStarted/Failed, cleanTestData/Cleaning/ConfirmTitle/ConfirmDesc, brainCoreNotSeeded
+- `client/app/settings/accounts/page.tsx`: alla toast-meddelanden (set-default, toggle-active, disconnect, save, sync) via `t.settings.*`
+- `client/app/settings/brain-core/page.tsx`: "Rensa test-data" heading/button, ConfirmDialog title/description/labels, "Brain Core inte seedat?" heading
+
+### ✅ Webhook-tester (säkerhetskritisk route)
+- `sprint12-webhooks.test.ts`: 16 tester
+  - Token verification: rätt token → processas, fel token/saknar/ingen Bearer-prefix → 200 men skippas
+  - Ingen token konfigurerad → processas fritt
+  - Message parsing: saknas body/message/data, ogiltig base64, saknar emailAddress/historyId, null body
+  - Triage chaining: handleNotification anropas med korrekt data, autoTriageNewThreads anropas om accountInfo returneras, skippas om null
+  - Error resilience: handleNotification kastar → 200, autoTriageNewThreads kastar → 200
+  - **Alltid 200** — Google-retry prevention
+
+### ✅ Action-log-tester
+- `sprint12-action-logs.test.ts`: 12 tester
+  - Delegation med userId, default page=1/limit=50, strängparsning av page/limit
+  - Alla filter (action_type, target_type, target_id) passas korrekt
+  - Response-form: logs-array, pagination (page/limit/total/totalPages)
+  - Pagination-aritmetik: ceil(total/limit), 0 vid inga logs
 
 ## TODO (prio-ordning)
 

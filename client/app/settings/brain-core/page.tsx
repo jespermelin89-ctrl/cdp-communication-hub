@@ -519,7 +519,7 @@ export default function BrainCorePage() {
               <Trash2 size={16} className="text-red-500 dark:text-red-400" />
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">Rensa test-data</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">{t.settings.cleanTestData}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                 Ta bort test-learning events (prefix "test:"). Riktiga events behålls.
               </p>
@@ -534,7 +534,7 @@ export default function BrainCorePage() {
                 className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 rounded-xl text-sm font-medium transition-colors disabled:opacity-50"
               >
                 {cleaning ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                {cleaning ? 'Rensar…' : 'Rensa test-data'}
+                {cleaning ? t.settings.cleanTestDataCleaning : t.settings.cleanTestData}
               </button>
             </div>
           </div>
@@ -545,7 +545,7 @@ export default function BrainCorePage() {
           <div className="flex items-start gap-2.5">
             <Zap size={14} className="text-indigo-500 dark:text-indigo-400 mt-0.5 shrink-0" />
             <div>
-              <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Brain Core inte seedat?</div>
+              <div className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-1">{t.settings.brainCoreNotSeeded}</div>
               <div className="text-xs text-indigo-600 dark:text-indigo-400">
                 Kör <code className="bg-indigo-100 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded font-mono">npm run seed:brain-core</code> en gång i Render Shell efter deploy för att ladda skrivstilar och röstattribut.
               </div>
@@ -556,10 +556,10 @@ export default function BrainCorePage() {
 
       <ConfirmDialog
         open={cleanupConfirmOpen}
-        title="Rensa test-data?"
-        description="Rensar test-data från Brain Core learning events. Riktiga events behålls."
-        confirmLabel="Rensa"
-        cancelLabel="Avbryt"
+        title={t.settings.cleanTestDataConfirmTitle}
+        description={t.settings.cleanTestDataConfirmDesc}
+        confirmLabel={t.settings.cleanTestData}
+        cancelLabel={t.settings.cancel}
         variant="warning"
         onConfirm={executeCleanup}
         onCancel={() => setCleanupConfirmOpen(false)}

@@ -52,10 +52,10 @@ export default function AccountsSettingsPage() {
     setActionLoading(true);
     try {
       await api.setDefaultAccount(accountId);
-      toast.success('Standardkonto uppdaterat');
+      toast.success(t.settings.accountDefaultUpdated);
       await loadAccounts();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte uppdatera standardkonto');
+      toast.error(err.message || t.settings.accountDefaultUpdateError);
     } finally {
       setActionLoading(false);
     }
@@ -65,10 +65,10 @@ export default function AccountsSettingsPage() {
     setActionLoading(true);
     try {
       await api.updateAccount(account.id, { is_active: !account.isActive });
-      toast.success(account.isActive ? 'Konto inaktiverat' : 'Konto aktiverat');
+      toast.success(account.isActive ? t.settings.accountInactivated : t.settings.accountActivated);
       await loadAccounts();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte uppdatera konto');
+      toast.error(err.message || t.settings.accountUpdateError);
     } finally {
       setActionLoading(false);
     }
@@ -85,10 +85,10 @@ export default function AccountsSettingsPage() {
     setActionLoading(true);
     try {
       await api.deleteAccount(account.id);
-      toast.success(`${account.emailAddress} kopplades bort`);
+      toast.success(t.settings.accountDisconnected.replace('{email}', account.emailAddress));
       await loadAccounts();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte koppla bort konto');
+      toast.error(err.message || t.settings.accountDisconnectError);
     } finally {
       setActionLoading(false);
     }
@@ -125,7 +125,7 @@ export default function AccountsSettingsPage() {
       setEditingAccount(null);
       await loadAccounts();
     } catch (err: any) {
-      toast.error(err.message || 'Kunde inte spara ändringar');
+      toast.error(err.message || t.settings.accountSaveError);
     } finally {
       setActionLoading(false);
     }
@@ -135,10 +135,10 @@ export default function AccountsSettingsPage() {
     setSyncingId(accountId);
     try {
       await api.syncAccount(accountId);
-      toast.success('Synkronisering startad');
+      toast.success(t.settings.accountSyncStarted);
       setTimeout(loadAccounts, 3000); // Refresh after a brief delay
     } catch (err: any) {
-      toast.error(err.message || 'Synkronisering misslyckades');
+      toast.error(err.message || t.settings.accountSyncFailed);
     } finally {
       setSyncingId(null);
     }

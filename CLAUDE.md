@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.7.0 (Sprint 14 klar)
+- **Version**: 2.9.0 (Sprint 16 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 880 server (61 filer) + 129 client (9 filer) = 1009 totalt
+- **Tester**: 1049 server (65 filer) + 153 client (13 filer) = 1202 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -434,6 +434,66 @@ All 7 issues from the security review have been fixed and merged to main:
   - stats: response-form (unread, high_priority, snoozed, pending_drafts, accounts)
   - batch: tom array → 400, >10 → 400, inga aktiva konton → 503
   - Felhantering: Prisma/database-meddelanden sanitiseras → "Databasfel — försök igen om en stund."
+
+## Completed Sprint 15 — Auth + Drafts Route Tests (2026-04-06) — v2.8.0
+
+### ✅ Route-tester för auth.ts (Sprint 15)
+- `sprint15-auth.test.ts`: 21 tester
+  - OAuth callback (GET /auth/google/callback): saknar code → 400; normal login → redirect ?token=...; addedAccount → redirect ?token=...&added=...; reauthed → redirect ?reauthed=... + optional feature= + return_to=; throws → redirect ?error=...
+  - Reauth (GET /auth/google/reauth): saknar account_id → 400; skickar feature + return_to till getReauthUrl
+  - Provider detection (POST /auth/connect): ogiltig email → 400; OAuth → authUrl; IMAP-provider → requiresImap=true; OAuth-fel + IMAP-fallback → requiresImap+message; OAuth-fel, ingen IMAP → 400
+  - User settings (PATCH /user/settings): upsert med userId; undoSendDelay clampad 0-30 (Zod enforces max); bookingLink-valideringsfel → 400; returnerar uppdaterade inställningar
+
+### ✅ Route-tester för drafts.ts (Sprint 15)
+- `sprint15-drafts.test.ts`: 38 tester
+  - POST /drafts: schema-validering, 201 + draft, delegerar userId
+  - GET /drafts: delegerar till draftService.list med options
+  - GET /drafts/pending: returnerar auto_triage pending, tom lista
+  - GET /drafts/:id: 404 vid fel
+  - PATCH /drafts/:id: schema-valideringsfel, 404 (not found), 400 (other error), success
+  - POST /drafts/:id/approve: 404, success + learning event fire-and-forget
+  - DELETE /drafts/:id/schedule: 404, rensar scheduledAt
+  - POST /drafts/:id/attachments: 404 draft, 400 ingen fil, 400 för stor (>25MB), 400 otillåten MIME, 201 success (data ej returneras), alla tillåtna MIME-typer
+  - DELETE /drafts/:id/attachments/:attachmentId: 404, tar bort rätt bilaga
+  - POST /drafts/:id/discard: 404, success
+  - POST /drafts/:id/send-delayed: 404, fel status → 400, delay=0 → skickar direkt, pending → godkänns först, använder user settings undoSendDelay
+  - POST /drafts/:id/cancel-send: 404, fel status → 400, ingen scheduledAt → 400, förflutet datum → 400, success (cancelled: true)
+
+## Completed Sprint 16 — Threads + Accounts Route Tests (2026-04-06) — v2.9.0
+
+### ✅ Route-tester för threads.ts (Sprint 16)
+- `sprint16-threads.test.ts`: 64 tester
+  - GET /threads: UUID-validering på account_id, 404 för ej tillhörande konto, 200 med threads + total
+  - GET /threads/:id: 404, latestAnalysis=null, latestAnalysis från analyses[0], smart reply triggas (unread + high-priority + question), ej triggas (isRead=true, priority≠high, ingen frågemarkering)
+  - POST /threads/:id/spam: 404, 409 provider, 502 gmail-fel, skapar sender rule, uppdaterar befintlig rule
+  - POST /threads/:id/read: 404, 409 (imap), 502 gmail-fel, 200 markerar som läst
+  - POST /threads/:id/star: 404, 409, 200 stjärnmärkt
+  - POST /threads/:id/unstar: 200
+  - POST /threads/:id/archive: 404, 409, INBOX borttagen från labels
+  - POST /threads/:id/trash: 404, TRASH tillagd + INBOX borttagen
+  - POST /threads/:id/restore: 404, 200
+  - POST /threads/:id/snooze: saknar until→400, ogiltigt datum→400, 404, snoozedUntil satt som Date
+  - DELETE /threads/:id/snooze: 404, snoozedUntil=null
+  - PATCH /threads/:id: 404, labels-uppdatering, recordLearning triggas vid priority/classification, ej vid labels-only
+  - POST /threads/sync: saknar account_id→400, 404, 401 invalid_grant, 200, max_results clampas till 50
+  - POST /threads/:id/sync-messages: 404, 401 (3 feltyper: invalid_grant/Token expired/Invalid Credentials), 502, 400 inga meddelanden, 200
+  - POST /threads/bulk/archive: tom array, delvisa fel räknas korrekt, success
+  - POST /threads/bulk/classify: tom array, saknar classification, hoppar threads utan analys, success
+  - POST /threads/bulk/priority: tom array, saknar priority, success
+
+### ✅ Route-tester för accounts.ts (Sprint 16)
+- `sprint16-accounts.test.ts`: 46 tester
+  - GET /accounts: tom lista, _count.threads → threadCount, _count borttagen
+  - POST /accounts/imap: ogiltig email→400, saknar imap_host→400, tom password→400, 409 duplicate, 400 connection failed, 201 success, lösenord krypterat, default-port 993/465
+  - POST /accounts/test-imap: ogiltig email→400, delegerar till emailProviderFactory, returnerar råresultat inkl. failure
+  - PATCH /accounts/:id: ogiltig color→400, ogiltig account_type→400, ogiltig ai_handling→400, 404, success, giltig hex-färg, null signature
+  - POST /accounts/set-default: saknar account_id→400, 404, kör transaction, 200
+  - DELETE /accounts/:id: 404, skyddar sista kontot (400), raderar + loggar, returnerar email
+  - POST /accounts/:id/sync: 404, startar sync
+  - POST /accounts/:id/badges: okänd badge→400, undefined→400, 404, redan satt→"Badge already set", lägger till badge, alla 3 giltiga badges accepteras
+  - DELETE /accounts/:id/badges/:badge: 404, tar bort badge, idempotent vid saknad badge
+  - GET /accounts/:id/signature: 404, returnerar signature-objekt
+  - PUT /accounts/:id/signature: 404, sparar text, sparar HTML + use-flags, partiell uppdatering
 
 ## TODO (prio-ordning)
 

@@ -220,9 +220,9 @@ Brand-colored "+ Lägg till konto" button in TopBar (all pages).
 ## Nuläge (2026-04-06)
 
 - **Git**: utgå från `git status` i arbetskopian för aktuell sanning; dokumentet lovar inte ren worktree
-- **Version**: 2.9.0 (Sprint 16 klar)
+- **Version**: 2.10.0 (Sprint 17 klar)
 - **Deploy**: Vercel + Render triggas automatiskt på push till main
-- **Tester**: 1049 server (65 filer) + 153 client (13 filer) = 1202 totalt
+- **Tester**: 1123 server (67 filer) + 153 client (13 filer) = 1276 totalt
 
 ## Completed Security Sprint (2026-04-02)
 
@@ -458,6 +458,32 @@ All 7 issues from the security review have been fixed and merged to main:
   - POST /drafts/:id/discard: 404, success
   - POST /drafts/:id/send-delayed: 404, fel status → 400, delay=0 → skickar direkt, pending → godkänns först, använder user settings undoSendDelay
   - POST /drafts/:id/cancel-send: 404, fel status → 400, ingen scheduledAt → 400, förflutet datum → 400, success (cancelled: true)
+
+## Completed Sprint 17 — Chat + Categories + Providers Route Tests (2026-04-06) — v2.10.0
+
+### ✅ Route-tester för chat.ts (Sprint 17)
+- `sprint17-chat.test.ts`: 49 tester
+  - chatAuthMiddleware: korrekt API-nyckel → userId från konto, inga aktiva konton → 403, fel nyckel → JWT auth, ingen nyckel → JWT auth
+  - POST /chat/command — alla 8 kommandon: inbox_summary, mark_spam (saknar sender_pattern→500), categorize (saknar params→500), list_rules, list_categories, filter_threads (alla params, undefineds), create_category (saknar name→500, success), remove_rule (saknar rule_id→500, success)
+  - Okänt kommando → type:'error' med kommandonamnet
+  - Felhantering: Prisma-fel sanitiseras → "Kunde inte hämta data…", icke-Prisma-fel passeras igenom
+  - recordLearning triggas efter success, ej vid fel
+  - POST /chat/ask — tom/whitespace → 400; keyword routing: sammanfatta→getInboxSummary, sammanfatta med thread_ids→getFilteredThreads, spam (email/domain/kända mönster: github ci/skool, ci/cd→subjectPattern), regler/kategorier/viktig/olästa, statistik/"hur många"; AI fallback → type:'ai_response'; Prisma-sanitering i error path
+
+### ✅ Route-tester för categories.ts (Sprint 17)
+- `sprint17-categories-providers.test.ts` (delvis): 25 tester
+  - GET /categories: returnerar från service, tom lista
+  - POST /categories: saknar name→400, tom name→400, >100 tecken→400, success med optionella fält
+  - DELETE /categories/:id: delegerar korrekt
+  - GET /categories/rules: returnerar från service
+  - POST /categories/rules: saknar action→400, saknar category_slug→400, saknar sender_pattern→400, skapar regel, priority konverteras till sträng, undefined priority
+  - DELETE /categories/rules/:id: delegerar korrekt
+  - POST /categories/classify: inga konton/trådar→classified=0, korrekt räkning, extraherar extern avsändare, fallback till första deltagare
+
+### ✅ Route-tester för providers.ts (Sprint 17)
+- `sprint17-categories-providers.test.ts` (delvis): 8 tester
+  - POST /providers/detect: ogiltig email→400, saknar email→400, oauth→provider+authUrl, oauth-fel→requiresOauth, imap→imapDefaults+smtpDefaults, oauth utan imapDefaults→undefined
+  - GET /providers: returnerar mappad lista, tom lista, utesluter imapDefaults vid frånvaro
 
 ## Completed Sprint 16 — Threads + Accounts Route Tests (2026-04-06) — v2.9.0
 

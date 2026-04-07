@@ -42,6 +42,8 @@ const ALLOWED_ACTIONS = [
   'triage-report',
   // Sprint 8 — Brain Core classified-summary:
   'classified-summary',
+  // Sprint 9 — Agent-driven bulk triage:
+  'bulk-triage',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -571,6 +573,217 @@ export default async function agentRoutes(app: FastifyInstance) {
             success: true,
             action,
             data: { analyzed: results.length, total_unanalyzed: unanalyzed.length, results },
+            provider_used: env.AI_PROVIDER,
+          };
+        }
+
+        // ── BULK-TRIAGE — classify + execute actions on backlog ──────────
+        case 'bulk-triage': {
+          const { matchClassificationRule } = await import('../services/rule-engine.service');
+          const { triageActionService, mapRuleActionToTriage, mapAIToTriageAction } = await import('../services/triage-action.service');
+
+          const batchSize = Math.min(Number(params.limit) || 30, 50);
+          const dryRun = params.dry_run === true;
+
+          // Find threads without any analysis — no time window restriction
+          const untriaged = await prisma.emailThread.findMany({
+            where: {
+              account: { userId },
+              analyses: { none: {} },
+            },
+            take: batchSize,
+            orderBy: { lastMessageAt: 'desc' },
+            include: {
+              messages: {
+                orderBy: { receivedAt: 'asc' },
+                take: 3,
+                select: { fromAddress: true, toAddresses: true, bodyText: true, receivedAt: true },
+              },
+            },
+          });
+
+          if (untriaged.length === 0) {
+            // Count total threads to check remaining
+            const totalThreads = await prisma.emailThread.count({ where: { account: { userId } } });
+            const totalAnalyzed = await prisma.aIAnalysis.count({ where: { thread: { account: { userId } } } });
+            return {
+              success: true,
+              action,
+              data: {
+                message: 'Alla trådar är redan triagerade.',
+                total_threads: totalThreads,
+                total_analyzed: totalAnalyzed,
+                processed: 0,
+                remaining: 0,
+              },
+            };
+          }
+
+          // Count total untriaged for progress reporting
+          const totalUntriaged = await prisma.emailThread.count({
+            where: { account: { userId }, analyses: { none: {} } },
+          });
+
+          const summary = {
+            processed: 0,
+            rule_matched: 0,
+            ai_classified: 0,
+            actions: {} as Record<string, number>,
+            errors: 0,
+            remaining: totalUntriaged - untriaged.length,
+            details: [] as Array<{ thread_id: string; subject: string | null; classification: string; priority: string; action: string; source: string }>,
+          };
+
+          let aiCalls = 0;
+          const MAX_AI = 15; // budget per call
+
+          for (const thread of untriaged) {
+            try {
+              const senderEmail = thread.participantEmails[0] ?? '';
+
+              // ── Step 1: Rule engine (zero cost) ──
+              const ruleMatch = await matchClassificationRule(
+                {
+                  subject: thread.subject,
+                  participantEmails: thread.participantEmails,
+                  messages: thread.messages.map((m) => ({ bodyText: m.bodyText })),
+                },
+                userId
+              );
+
+              if (ruleMatch) {
+                await prisma.aIAnalysis.create({
+                  data: {
+                    threadId: thread.id,
+                    summary: `Matchad regel: ${ruleMatch.categoryName}`,
+                    classification: ruleMatch.categoryKey,
+                    priority: ruleMatch.priority,
+                    suggestedAction: ruleMatch.action,
+                    confidence: 1.0,
+                    modelUsed: 'rule-engine',
+                  },
+                });
+
+                const triageAction = mapRuleActionToTriage(ruleMatch.action);
+                if (!dryRun) {
+                  await triageActionService.executeAction({
+                    threadId: thread.id,
+                    gmailThreadId: thread.gmailThreadId,
+                    accountId: thread.accountId,
+                    userId,
+                    classification: ruleMatch.categoryKey,
+                    priority: ruleMatch.priority,
+                    action: triageAction,
+                    source: 'rule_engine',
+                    confidence: 1.0,
+                    reason: `Matchad regel: ${ruleMatch.categoryName}`,
+                    senderEmail,
+                    subject: thread.subject,
+                  });
+                }
+
+                summary.rule_matched++;
+                summary.actions[triageAction] = (summary.actions[triageAction] || 0) + 1;
+                summary.details.push({
+                  thread_id: thread.id,
+                  subject: thread.subject,
+                  classification: ruleMatch.categoryKey,
+                  priority: ruleMatch.priority,
+                  action: triageAction,
+                  source: 'rule',
+                });
+                summary.processed++;
+                continue;
+              }
+
+              // ── Step 2: AI classification (budget-limited) ──
+              if (aiCalls >= MAX_AI) {
+                // Skip AI — mark as processed without action
+                summary.processed++;
+                continue;
+              }
+
+              const threadData = {
+                subject: thread.subject || '(No Subject)',
+                messages: thread.messages.map((m) => ({
+                  from: m.fromAddress,
+                  to: m.toAddresses,
+                  body: m.bodyText || '',
+                  date: m.receivedAt.toISOString(),
+                })),
+              };
+
+              const analysis = await aiService.analyzeThread(threadData);
+              aiCalls++;
+
+              await prisma.aIAnalysis.create({
+                data: {
+                  threadId: thread.id,
+                  summary: analysis.summary,
+                  classification: analysis.classification,
+                  priority: analysis.priority,
+                  suggestedAction: analysis.suggested_action,
+                  draftText: analysis.draft_text ?? null,
+                  confidence: analysis.confidence,
+                  modelUsed: analysis.model_used,
+                },
+              });
+
+              const aiAction = await mapAIToTriageAction(
+                analysis.classification,
+                analysis.priority,
+                analysis.confidence,
+                senderEmail,
+                thread.subject,
+                userId
+              );
+
+              if (!dryRun) {
+                await triageActionService.executeAction({
+                  threadId: thread.id,
+                  gmailThreadId: thread.gmailThreadId,
+                  accountId: thread.accountId,
+                  userId,
+                  classification: analysis.classification,
+                  priority: analysis.priority,
+                  action: aiAction,
+                  source: 'ai',
+                  confidence: analysis.confidence,
+                  reason: `AI: ${analysis.classification}/${analysis.priority} (${Math.round(analysis.confidence * 100)}%)`,
+                  senderEmail,
+                  subject: thread.subject,
+                });
+              }
+
+              summary.ai_classified++;
+              summary.actions[aiAction] = (summary.actions[aiAction] || 0) + 1;
+              summary.details.push({
+                thread_id: thread.id,
+                subject: thread.subject,
+                classification: analysis.classification,
+                priority: analysis.priority,
+                action: aiAction,
+                source: 'ai',
+              });
+              summary.processed++;
+            } catch (err: any) {
+              summary.errors++;
+              summary.processed++;
+              console.warn(`[BulkTriage] Error on thread ${thread.id}:`, err?.message);
+            }
+          }
+
+          return {
+            success: true,
+            action,
+            data: {
+              ...summary,
+              dry_run: dryRun,
+              ai_budget_used: `${aiCalls}/${MAX_AI}`,
+              message: dryRun
+                ? `Dry run: ${summary.processed} trådar analyserade utan att utföra actions.`
+                : `${summary.processed} trådar triagerade (${summary.rule_matched} regler, ${summary.ai_classified} AI). ${summary.remaining} kvar.`,
+            },
             provider_used: env.AI_PROVIDER,
           };
         }

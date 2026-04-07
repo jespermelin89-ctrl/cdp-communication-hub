@@ -218,7 +218,8 @@ class ApiClient {
 
       this.clearToken();
       // Guard against multiple simultaneous 401s triggering redirect race
-      if (!this.isRedirecting) {
+      // Skip redirect if already on root (prevents infinite reload loop on unauthenticated pages)
+      if (!this.isRedirecting && window.location.pathname !== '/') {
         this.isRedirecting = true;
         window.location.href = '/';
       }

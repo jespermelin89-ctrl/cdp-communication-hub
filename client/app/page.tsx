@@ -45,15 +45,17 @@ export default function DashboardPage() {
     router.prefetch('/notifications');
   }, [router]);
 
+  const isAuthed = api.isAuthenticated();
+
   const { data: cmdSWR, isLoading: loading, error: cmdError, mutate: mutateDashboard } = useSWR(
-    'command-center',
+    isAuthed ? 'command-center' : null,
     () => api.getCommandCenter(),
     { refreshInterval: 120000, revalidateOnFocus: true }
   );
   const data: CommandCenterData | null = cmdSWR ?? null;
 
   const { data: catSWR } = useSWR(
-    'categories',
+    isAuthed ? 'categories' : null,
     () => api.getCategories().catch(() => ({ categories: [] })),
     { refreshInterval: 300000 }
   );
@@ -222,7 +224,7 @@ export default function DashboardPage() {
     }
   }
 
-  if (!api.isAuthenticated()) {
+  if (!isAuthed) {
     return <AddEmailAccount onSuccess={() => window.location.reload()} />;
   }
 

@@ -48,6 +48,11 @@ const ALLOWED_ACTIONS = [
   'batch-cleanup',
   // Direct Gmail trash by Gmail thread IDs (for inbox cleanup):
   'gmail-trash',
+  // Gmail label management (create, apply, remove labels):
+  'gmail-label',
+  // Gmail archive (remove from inbox) + mark-as-read:
+  'gmail-archive',
+  'gmail-mark-read',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -978,6 +983,235 @@ export default async function agentRoutes(app: FastifyInstance) {
               errors: gmailErrors,
               total: gmailThreadIds.length,
               message: `${gmailTrashed} Gmail-trådar slängda. ${gmailErrors > 0 ? `${gmailErrors} fel.` : ''}`.trim(),
+            },
+          };
+        }
+
+        // ── GMAIL-LABEL ──────────────────────────────────────────────────
+        // Create labels + apply/remove labels on Gmail threads.
+        // params: {
+        //   operation: 'create' | 'apply' | 'remove' | 'list',
+        //   label_name?: string,          // for create/apply/remove
+        //   label_id?: string,            // for apply/remove (alternative to label_name)
+        //   gmail_thread_ids?: string[],  // for apply/remove
+        //   account_email?: string
+        // }
+        case 'gmail-label': {
+          const operation = params.operation as string | undefined;
+          if (!operation || !['create', 'apply', 'remove', 'list'].includes(operation)) {
+            return reply.code(400).send({
+              success: false,
+              error: 'params.operation krävs: "create", "apply", "remove", eller "list".',
+            });
+          }
+          const labelAccountEmail = (params.account_email as string) || 'jesper.melin89@gmail.com';
+          const labelAccount = await prisma.emailAccount.findFirst({
+            where: { emailAddress: labelAccountEmail, userId },
+          });
+          if (!labelAccount) {
+            return reply.code(404).send({
+              success: false,
+              error: `Konto "${labelAccountEmail}" hittades inte.`,
+            });
+          }
+
+          if (operation === 'list') {
+            const labels = await gmailService.listLabels(labelAccount.id);
+            return {
+              success: true,
+              action,
+              data: { labels, count: labels.length },
+            };
+          }
+
+          if (operation === 'create') {
+            const labelName = params.label_name as string | undefined;
+            if (!labelName) {
+              return reply.code(400).send({
+                success: false,
+                error: 'params.label_name krävs för "create".',
+              });
+            }
+            // Check if label already exists
+            const existingLabels = await gmailService.listLabels(labelAccount.id);
+            const existing = existingLabels.find(
+              (l) => l.name.toLowerCase() === labelName.toLowerCase()
+            );
+            if (existing) {
+              return {
+                success: true,
+                action,
+                data: {
+                  label_id: existing.id,
+                  label_name: existing.name,
+                  created: false,
+                  message: `Label "${existing.name}" finns redan (ID: ${existing.id}).`,
+                },
+              };
+            }
+            const newLabelId = await gmailService.createLabel(labelAccount.id, labelName);
+            return {
+              success: true,
+              action,
+              data: {
+                label_id: newLabelId,
+                label_name: labelName,
+                created: true,
+                message: `Label "${labelName}" skapad (ID: ${newLabelId}).`,
+              },
+            };
+          }
+
+          // apply or remove
+          const threadIds = params.gmail_thread_ids as string[] | undefined;
+          if (!Array.isArray(threadIds) || threadIds.length === 0) {
+            return reply.code(400).send({
+              success: false,
+              error: 'params.gmail_thread_ids krävs (array av Gmail thread-ID:n).',
+            });
+          }
+
+          // Resolve label ID from name or direct ID
+          let targetLabelId = params.label_id as string | undefined;
+          if (!targetLabelId && params.label_name) {
+            const allLabels = await gmailService.listLabels(labelAccount.id);
+            const found = allLabels.find(
+              (l) => l.name.toLowerCase() === (params.label_name as string).toLowerCase()
+            );
+            if (!found) {
+              return reply.code(404).send({
+                success: false,
+                error: `Label "${params.label_name}" hittades inte. Skapa den först med operation: "create".`,
+              });
+            }
+            targetLabelId = found.id;
+          }
+          if (!targetLabelId) {
+            return reply.code(400).send({
+              success: false,
+              error: 'params.label_id eller params.label_name krävs.',
+            });
+          }
+
+          const labelBatchSize = 10;
+          let labelOk = 0;
+          let labelFail = 0;
+          for (let li = 0; li < threadIds.length; li += labelBatchSize) {
+            const batch = threadIds.slice(li, li + labelBatchSize);
+            const results = await Promise.allSettled(
+              batch.map((tid) =>
+                operation === 'apply'
+                  ? gmailService.modifyLabels(labelAccount.id, tid, [targetLabelId!], [])
+                  : gmailService.modifyLabels(labelAccount.id, tid, [], [targetLabelId!])
+              )
+            );
+            for (const r of results) {
+              if (r.status === 'fulfilled') labelOk++;
+              else labelFail++;
+            }
+          }
+          return {
+            success: true,
+            action,
+            data: {
+              operation,
+              label_id: targetLabelId,
+              processed: labelOk,
+              errors: labelFail,
+              total: threadIds.length,
+              message: `${labelOk} trådar ${operation === 'apply' ? 'märkta' : 'avmärkta'}. ${labelFail > 0 ? `${labelFail} fel.` : ''}`.trim(),
+            },
+          };
+        }
+
+        // ── GMAIL-ARCHIVE ────────────────────────────────────────────────
+        // Remove INBOX label from Gmail threads (archive without deleting).
+        // params: { gmail_thread_ids: string[], account_email?: string }
+        case 'gmail-archive': {
+          const archiveThreadIds = params.gmail_thread_ids as string[] | undefined;
+          if (!Array.isArray(archiveThreadIds) || archiveThreadIds.length === 0) {
+            return reply.code(400).send({
+              success: false,
+              error: 'params.gmail_thread_ids krävs (array av Gmail thread-ID:n).',
+            });
+          }
+          const archiveEmail = (params.account_email as string) || 'jesper.melin89@gmail.com';
+          const archiveAccount = await prisma.emailAccount.findFirst({
+            where: { emailAddress: archiveEmail, userId },
+          });
+          if (!archiveAccount) {
+            return reply.code(404).send({
+              success: false,
+              error: `Konto "${archiveEmail}" hittades inte.`,
+            });
+          }
+          const archBatchSize = 10;
+          let archOk = 0;
+          let archFail = 0;
+          for (let ai = 0; ai < archiveThreadIds.length; ai += archBatchSize) {
+            const batch = archiveThreadIds.slice(ai, ai + archBatchSize);
+            const results = await Promise.allSettled(
+              batch.map((tid) => gmailService.archiveThread(archiveAccount.id, tid))
+            );
+            for (const r of results) {
+              if (r.status === 'fulfilled') archOk++;
+              else archFail++;
+            }
+          }
+          return {
+            success: true,
+            action,
+            data: {
+              archived: archOk,
+              errors: archFail,
+              total: archiveThreadIds.length,
+              message: `${archOk} trådar arkiverade. ${archFail > 0 ? `${archFail} fel.` : ''}`.trim(),
+            },
+          };
+        }
+
+        // ── GMAIL-MARK-READ ──────────────────────────────────────────────
+        // Mark Gmail threads as read (remove UNREAD label).
+        // params: { gmail_thread_ids: string[], account_email?: string }
+        case 'gmail-mark-read': {
+          const readThreadIds = params.gmail_thread_ids as string[] | undefined;
+          if (!Array.isArray(readThreadIds) || readThreadIds.length === 0) {
+            return reply.code(400).send({
+              success: false,
+              error: 'params.gmail_thread_ids krävs (array av Gmail thread-ID:n).',
+            });
+          }
+          const readEmail = (params.account_email as string) || 'jesper.melin89@gmail.com';
+          const readAccount = await prisma.emailAccount.findFirst({
+            where: { emailAddress: readEmail, userId },
+          });
+          if (!readAccount) {
+            return reply.code(404).send({
+              success: false,
+              error: `Konto "${readEmail}" hittades inte.`,
+            });
+          }
+          const readBatchSize = 10;
+          let readOk = 0;
+          let readFail = 0;
+          for (let ri = 0; ri < readThreadIds.length; ri += readBatchSize) {
+            const batch = readThreadIds.slice(ri, ri + readBatchSize);
+            const results = await Promise.allSettled(
+              batch.map((tid) => gmailService.markAsRead(readAccount.id, tid))
+            );
+            for (const r of results) {
+              if (r.status === 'fulfilled') readOk++;
+              else readFail++;
+            }
+          }
+          return {
+            success: true,
+            action,
+            data: {
+              marked_read: readOk,
+              errors: readFail,
+              total: readThreadIds.length,
+              message: `${readOk} trådar markerade som lästa. ${readFail > 0 ? `${readFail} fel.` : ''}`.trim(),
             },
           };
         }

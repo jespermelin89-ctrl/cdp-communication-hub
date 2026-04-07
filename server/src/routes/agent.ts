@@ -46,6 +46,8 @@ const ALLOWED_ACTIONS = [
   'bulk-triage',
   // Sprint 10 — Agent batch cleanup by classification:
   'batch-cleanup',
+  // Direct Gmail trash by Gmail thread IDs (for inbox cleanup):
+  'gmail-trash',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -930,6 +932,52 @@ export default async function agentRoutes(app: FastifyInstance) {
               processed,
               errors,
               message: `${processed} trådar med "${classification}" ${cleanupAction === 'trash' ? 'slängda' : 'arkiverade'}. ${errors > 0 ? `${errors} fel.` : ''}`.trim(),
+            },
+          };
+        }
+
+        // ── GMAIL-TRASH ───────────────────────────────────────────────────
+        // Trash Gmail threads directly by Gmail thread IDs (bypasses DB lookup).
+        // params: { gmail_thread_ids: string[], account_email?: string }
+        case 'gmail-trash': {
+          const gmailThreadIds = params.gmail_thread_ids as string[] | undefined;
+          if (!Array.isArray(gmailThreadIds) || gmailThreadIds.length === 0) {
+            return reply.code(400).send({
+              success: false,
+              error: 'params.gmail_thread_ids krävs (array av Gmail thread-ID:n).',
+            });
+          }
+          const accountEmail = (params.account_email as string) || 'jesper.melin89@gmail.com';
+          const account = await prisma.emailAccount.findFirst({
+            where: { email: accountEmail, userId },
+          });
+          if (!account) {
+            return reply.code(404).send({
+              success: false,
+              error: `Konto "${accountEmail}" hittades inte.`,
+            });
+          }
+          const batchSize = 10;
+          let trashProcessed = 0;
+          let trashErrors = 0;
+          for (let i = 0; i < gmailThreadIds.length; i += batchSize) {
+            const batch = gmailThreadIds.slice(i, i + batchSize);
+            const results = await Promise.allSettled(
+              batch.map((tid) => gmailService.trashThread(account.id, tid))
+            );
+            for (const r of results) {
+              if (r.status === 'fulfilled') trashProcessed++;
+              else trashErrors++;
+            }
+          }
+          return {
+            success: true,
+            action,
+            data: {
+              trashed: trashProcessed,
+              errors: trashErrors,
+              total: gmailThreadIds.length,
+              message: `${trashProcessed} Gmail-trådar slängda. ${trashErrors > 0 ? `${trashErrors} fel.` : ''}`.trim(),
             },
           };
         }

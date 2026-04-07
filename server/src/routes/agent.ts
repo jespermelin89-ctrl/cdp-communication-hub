@@ -44,6 +44,8 @@ const ALLOWED_ACTIONS = [
   'classified-summary',
   // Sprint 9 — Agent-driven bulk triage:
   'bulk-triage',
+  // Sprint 10 — Agent batch cleanup by classification:
+  'batch-cleanup',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -785,6 +787,147 @@ export default async function agentRoutes(app: FastifyInstance) {
                 : `${summary.processed} trådar triagerade (${summary.rule_matched} regler, ${summary.ai_classified} AI). ${summary.remaining} kvar.`,
             },
             provider_used: env.AI_PROVIDER,
+          };
+        }
+
+        // ── BATCH-CLEANUP ─────────────────────────────────────────────────
+        // Trash or archive all threads matching a given AI classification.
+        // params: { classification: string, action: 'trash'|'archive', limit?: number, dry_run?: boolean }
+        case 'batch-cleanup': {
+          const classification = params.classification as string | undefined;
+          const cleanupAction = (params.action as string) || 'trash';
+          const cleanupLimit = Math.min(Number(params.limit) || 100, 500);
+          const cleanupDryRun = params.dry_run === true || params.dry_run === 'true';
+
+          if (!classification) {
+            return reply.code(400).send({
+              success: false,
+              error: 'params.classification krävs (t.ex. "spam", "noreply_auto", "github_ci_fail").',
+            });
+          }
+          if (!['trash', 'archive'].includes(cleanupAction)) {
+            return reply.code(400).send({
+              success: false,
+              error: 'params.action måste vara "trash" eller "archive".',
+            });
+          }
+
+          // Find threads with this classification via AI analyses
+          const matchingAnalyses = await prisma.aIAnalysis.findMany({
+            where: { classification },
+            select: { threadId: true },
+            take: cleanupLimit,
+          });
+
+          const threadIds = [...new Set(matchingAnalyses.map((a) => a.threadId))];
+
+          if (threadIds.length === 0) {
+            return {
+              success: true,
+              action,
+              data: {
+                classification,
+                matched: 0,
+                processed: 0,
+                message: `Inga trådar hittades med klassificering "${classification}".`,
+              },
+            };
+          }
+
+          // Fetch thread details (need gmailThreadId + accountId for Gmail API)
+          const threads = await prisma.emailThread.findMany({
+            where: {
+              id: { in: threadIds },
+              account: { userId },
+            },
+            select: {
+              id: true,
+              gmailThreadId: true,
+              accountId: true,
+              subject: true,
+            },
+          });
+
+          if (cleanupDryRun) {
+            return {
+              success: true,
+              action,
+              data: {
+                classification,
+                action: cleanupAction,
+                dry_run: true,
+                matched: threads.length,
+                threads: threads.map((t) => ({
+                  thread_id: t.id,
+                  subject: t.subject,
+                })),
+                message: `Dry run: ${threads.length} trådar med "${classification}" skulle ${cleanupAction === 'trash' ? 'slängas' : 'arkiveras'}.`,
+              },
+            };
+          }
+
+          // Execute cleanup via Gmail API
+          const { gmailService: gms } = await import('../services/gmail.service');
+          let processed = 0;
+          let errors = 0;
+
+          for (const thread of threads) {
+            try {
+              if (cleanupAction === 'trash') {
+                // Remove from INBOX, add to TRASH
+                await gms.modifyLabels(
+                  thread.accountId,
+                  thread.gmailThreadId,
+                  ['TRASH'],
+                  ['INBOX', 'UNREAD']
+                );
+              } else {
+                // Archive: just remove from INBOX
+                await gms.modifyLabels(
+                  thread.accountId,
+                  thread.gmailThreadId,
+                  [],
+                  ['INBOX']
+                );
+              }
+              processed++;
+            } catch (err: any) {
+              errors++;
+              console.warn(`[BatchCleanup] Error on thread ${thread.id}:`, err?.message);
+            }
+          }
+
+          // Log the cleanup action
+          for (const thread of threads) {
+            try {
+              await prisma.triageLog.create({
+                data: {
+                  threadId: thread.id,
+                  userId,
+                  action: cleanupAction === 'trash' ? 'trash' : 'archive',
+                  source: 'agent',
+                  confidence: 1.0,
+                  reason: `batch-cleanup: ${classification} → ${cleanupAction}`,
+                  senderEmail: '',
+                  subject: thread.subject,
+                },
+              });
+            } catch {
+              // Non-critical — don't fail the whole batch for logging
+            }
+          }
+
+          return {
+            success: true,
+            action,
+            data: {
+              classification,
+              action: cleanupAction,
+              matched: threads.length,
+              processed,
+              errors,
+              message: `${processed} trådar med "${classification}" ${cleanupAction === 'trash' ? 'slängda' : 'arkiverade'}. ${errors > 0 ? `${errors} fel.` : ''}`.trim(),
+            },
           };
         }
 

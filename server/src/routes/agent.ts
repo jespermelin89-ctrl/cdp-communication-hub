@@ -957,27 +957,27 @@ export default async function agentRoutes(app: FastifyInstance) {
               error: `Konto "${accountEmail}" hittades inte.`,
             });
           }
-          const batchSize = 10;
-          let trashProcessed = 0;
-          let trashErrors = 0;
-          for (let i = 0; i < gmailThreadIds.length; i += batchSize) {
-            const batch = gmailThreadIds.slice(i, i + batchSize);
-            const results = await Promise.allSettled(
-              batch.map((tid) => gmailService.trashThread(account.id, tid))
+          const gmailBatchSize = 10;
+          let gmailTrashed = 0;
+          let gmailErrors = 0;
+          for (let gi = 0; gi < gmailThreadIds.length; gi += gmailBatchSize) {
+            const gmailBatch = gmailThreadIds.slice(gi, gi + gmailBatchSize);
+            const trashResults = await Promise.allSettled(
+              gmailBatch.map((tid) => gmailService.trashThread(account.id, tid))
             );
-            for (const r of results) {
-              if (r.status === 'fulfilled') trashProcessed++;
-              else trashErrors++;
+            for (const tr of trashResults) {
+              if (tr.status === 'fulfilled') gmailTrashed++;
+              else gmailErrors++;
             }
           }
           return {
             success: true,
             action,
             data: {
-              trashed: trashProcessed,
-              errors: trashErrors,
+              trashed: gmailTrashed,
+              errors: gmailErrors,
               total: gmailThreadIds.length,
-              message: `${trashProcessed} Gmail-trådar slängda. ${trashErrors > 0 ? `${trashErrors} fel.` : ''}`.trim(),
+              message: `${gmailTrashed} Gmail-trådar slängda. ${gmailErrors > 0 ? `${gmailErrors} fel.` : ''}`.trim(),
             },
           };
         }

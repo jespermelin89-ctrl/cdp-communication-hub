@@ -1,5 +1,8 @@
 # CDP Communication Hub - Project Context
 
+## VIKTIGT: Läs MAIL-MEMORY.md först!
+Innan du gör NÅGOT med Jespers mail, läs `../MAIL-MEMORY.md` — det är det permanenta minnet för alla mail-ärenden, historik, regler och pågående processer. Uppdatera dokumentet efter varje session.
+
 ## What This Is
 An AI-powered communication layer above Gmail and connected mail accounts. NOT an email client replacement. Gmail remains source of truth for Gmail accounts. The AI layer reads, analyzes, classifies, and drafts responses, but never auto-sends or auto-deletes on its own.
 

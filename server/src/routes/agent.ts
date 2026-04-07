@@ -903,9 +903,12 @@ export default async function agentRoutes(app: FastifyInstance) {
               await prisma.triageLog.create({
                 data: {
                   threadId: thread.id,
+                  accountId: thread.accountId,
                   userId,
                   action: cleanupAction === 'trash' ? 'trash' : 'archive',
                   source: 'agent',
+                  classification,
+                  priority: 'low',
                   confidence: 1.0,
                   reason: `batch-cleanup: ${classification} → ${cleanupAction}`,
                   senderEmail: '',

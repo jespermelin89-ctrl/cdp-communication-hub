@@ -142,7 +142,35 @@ async function simulateExecute(
         const withAnalysis = threads.map((t: any) => ({ ...t, latestAnalysis: t.analyses?.[0] ?? null }));
         const high = withAnalysis.filter((t: any) => t.latestAnalysis?.priority === 'high');
         const medium = withAnalysis.filter((t: any) => t.latestAnalysis?.priority === 'medium');
-        return { code: 200, body: { success: true, action, data: { unread_count: threads.length, high_priority: high, medium_priority: medium, pending_drafts: pendingDrafts, daily_summary: dailySummary, triage_today: { total_sorted: triageLogs.length, auto_drafts_pending: autoDraftsPending } } } };
+        return {
+          code: 200,
+          body: {
+            success: true,
+            action,
+            data: {
+              unread_count: threads.length,
+              high_priority: high.map((t: any) => ({
+                id: t.id,
+                subject: t.subject,
+                participants: t.participantEmails,
+                account: t.account.emailAddress,
+                summary: t.latestAnalysis?.summary ?? null,
+                classification: t.latestAnalysis?.classification ?? null,
+                last_message_at: t.lastMessageAt,
+              })),
+              medium_priority: medium.map((t: any) => ({
+                id: t.id,
+                subject: t.subject,
+                participants: t.participantEmails,
+                summary: t.latestAnalysis?.summary ?? null,
+                last_message_at: t.lastMessageAt,
+              })),
+              pending_drafts: pendingDrafts,
+              daily_summary: dailySummary,
+              triage_today: { total_sorted: triageLogs.length, auto_drafts_pending: autoDraftsPending },
+            },
+          },
+        };
       }
 
       case 'classify': {
@@ -201,9 +229,33 @@ async function simulateExecute(
         const days = Math.min(Number(params.days) || 1, 30);
         const logs = await (prisma.triageLog.findMany as any)({ where: { userId }, select: { action: true, classification: true, senderEmail: true } });
         const byAction: Record<string, number> = {};
+        const senderCounts: Record<string, number> = {};
         for (const log of logs) { byAction[log.action] = (byAction[log.action] ?? 0) + 1; }
+        for (const log of logs) {
+          const sender = log.senderEmail?.trim()?.toLowerCase?.();
+          if (sender) senderCounts[sender] = (senderCounts[sender] ?? 0) + 1;
+        }
         const autoDraftCount = await (prisma.draft.count as any)({ where: { userId, source: 'auto_triage' } });
-        return { code: 200, body: { success: true, action, data: { period: days === 1 ? 'today' : `last_${days}_days`, total_sorted: logs.length, trashed: logs.filter((l: any) => ['trash', 'trash_after_log', 'notify_then_trash'].includes(l.action)).length, by_action: byAction, auto_drafts_created: autoDraftCount } } };
+        const review = byAction['label_review'] ?? 0;
+        return {
+          code: 200,
+          body: {
+            success: true,
+            action,
+            data: {
+              period: days === 1 ? 'today' : `last_${days}_days`,
+              total_sorted: logs.length,
+              trashed: logs.filter((l: any) => ['trash', 'trash_after_log', 'notify_then_trash'].includes(l.action)).length,
+              review,
+              in_review: review,
+              kept: logs.filter((l: any) => ['keep_inbox', 'auto_draft'].includes(l.action)).length,
+              by_action: byAction,
+              auto_drafts_created: autoDraftCount,
+              drafts_pending: autoDraftCount,
+              top_senders: Object.entries(senderCounts).sort((a, b) => b[1] - a[1]).map(([sender]) => sender),
+            },
+          },
+        };
       }
 
       case 'triage-report': {
@@ -231,6 +283,52 @@ async function simulateExecute(
           (prisma.emailAccount.findMany as any)({ where: { userId, isActive: true }, select: { emailAddress: true, lastSyncAt: true } }),
         ]);
         return { code: 200, body: { success: true, action, data: { unread, high_priority: highPrio, snoozed, pending_drafts: pendingDrafts, accounts: accounts.map((a: any) => ({ email: a.emailAddress, last_sync: a.lastSyncAt })) } } };
+      }
+
+      case 'search': {
+        if (!params.query) return { code: 400, body: { success: false, error: 'params.query krävs.' } };
+        const q = params.query as string;
+        const threads = await (prisma.emailThread.findMany as any)({
+          where: {
+            account: { userId },
+            OR: [
+              { subject: { contains: q, mode: 'insensitive' } },
+              { snippet: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+          take: Math.min(Number(params.limit) || 10, 50),
+          include: {
+            analyses: { take: 1 },
+            account: { select: { emailAddress: true } },
+          },
+        });
+
+        return {
+          code: 200,
+          body: {
+            success: true,
+            action,
+            data: {
+              query: q,
+              count: threads.length,
+              threads: threads.map((t: any) => {
+                const latest = t.analyses?.[0] ?? null;
+                return {
+                  id: t.id,
+                  subject: t.subject,
+                  participants: t.participantEmails,
+                  account: t.account.emailAddress,
+                  snippet: t.snippet,
+                  is_read: t.isRead,
+                  last_message_at: t.lastMessageAt,
+                  priority: latest?.priority ?? null,
+                  classification: latest?.classification ?? null,
+                  summary: latest?.summary ?? null,
+                };
+              }),
+            },
+          },
+        };
       }
 
       default:
@@ -370,6 +468,26 @@ describe('Agent action: briefing', () => {
     expect(data.medium_priority).toHaveLength(1);
     expect(data.unread_count).toBe(3);
   });
+
+  it('does not expose sentiment or suggestedAction in briefing thread payloads', async () => {
+    vi.mocked(prisma.emailThread.findMany).mockResolvedValue([
+      {
+        id: 't-1',
+        subject: 'HP',
+        participantEmails: ['anna@example.com'],
+        account: { emailAddress: 'a@b.com' },
+        analyses: [{ priority: 'high', classification: 'x', summary: 'Kort summary', suggestedAction: 'reply', sentiment: 'urgent' }],
+      },
+    ] as any);
+
+    const result = await simulateExecute('briefing');
+    const thread = (result.body as any).data.high_priority[0];
+
+    expect(thread.summary).toBe('Kort summary');
+    expect(thread).not.toHaveProperty('suggestedAction');
+    expect(thread).not.toHaveProperty('suggested_action');
+    expect(thread).not.toHaveProperty('sentiment');
+  });
 });
 
 // ─── classify ────────────────────────────────────────────────────────────────
@@ -398,6 +516,36 @@ describe('Agent action: classify', () => {
     expect(data.thread_id).toBe('t-1');
     expect(data.priority).toBe('high');
     expect(data.analysis_id).toBe('ana-1');
+  });
+});
+
+// ─── search ─────────────────────────────────────────────────────────────────
+
+describe('Agent action: search', () => {
+  beforeEach(() => { vi.clearAllMocks(); setupActiveAccount(); });
+
+  it('does not expose sentiment or suggestedAction in search results', async () => {
+    vi.mocked(prisma.emailThread.findMany).mockResolvedValue([
+      {
+        id: 't-1',
+        subject: 'Match',
+        participantEmails: ['anna@example.com'],
+        account: { emailAddress: 'a@b.com' },
+        snippet: 'Hej',
+        isRead: false,
+        lastMessageAt: new Date('2026-04-07T08:00:00.000Z'),
+        analyses: [{ priority: 'high', classification: 'important', summary: 'Kort summary', suggestedAction: 'reply', sentiment: 'urgent' }],
+      },
+    ] as any);
+
+    const result = await simulateExecute('search', { query: 'match' });
+    expect(result.code).toBe(200);
+
+    const thread = (result.body as any).data.threads[0];
+    expect(thread.summary).toBe('Kort summary');
+    expect(thread).not.toHaveProperty('suggestedAction');
+    expect(thread).not.toHaveProperty('suggested_action');
+    expect(thread).not.toHaveProperty('sentiment');
   });
 });
 
@@ -545,7 +693,11 @@ describe('Agent action: triage-status', () => {
     expect(data.trashed).toBe(2);
     expect(data.by_action['trash']).toBe(2);
     expect(data.by_action['keep_inbox']).toBe(1);
+    expect(data.kept).toBe(1);
+    expect(data.review).toBe(0);
     expect(data.auto_drafts_created).toBe(2);
+    expect(data.drafts_pending).toBe(2);
+    expect(data.top_senders).toEqual(['s@x.com', 'o@x.com']);
   });
 
   it('uses "today" period label for days=1', async () => {

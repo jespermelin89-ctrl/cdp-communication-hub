@@ -792,13 +792,23 @@ export default async function agentRoutes(app: FastifyInstance) {
           });
 
           const autoDraftCount = await prisma.draft.count({
-            where: { userId, source: 'auto_triage', createdAt: { gte: since } },
+            where: { userId, source: 'auto_triage', status: 'pending' },
           });
 
           const byAction: Record<string, number> = {};
+          const senderCounts: Record<string, number> = {};
           for (const log of logs) {
             byAction[log.action] = (byAction[log.action] ?? 0) + 1;
+            const sender = log.senderEmail?.trim().toLowerCase();
+            if (sender) senderCounts[sender] = (senderCounts[sender] ?? 0) + 1;
           }
+
+          const topSenders = Object.entries(senderCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([sender]) => sender);
+
+          const reviewCount = byAction['label_review'] ?? 0;
 
           return {
             success: true,
@@ -809,11 +819,14 @@ export default async function agentRoutes(app: FastifyInstance) {
               trashed: logs.filter((l) =>
                 ['trash', 'trash_after_log', 'notify_then_trash'].includes(l.action)
               ).length,
-              in_review: byAction['label_review'] ?? 0,
+              in_review: reviewCount,
+              review: reviewCount,
               kept: logs.filter((l) =>
                 ['keep_inbox', 'auto_draft'].includes(l.action)
               ).length,
               auto_drafts_created: autoDraftCount,
+              drafts_pending: autoDraftCount,
+              top_senders: topSenders,
               by_action: byAction,
             },
           };

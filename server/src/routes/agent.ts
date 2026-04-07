@@ -40,6 +40,8 @@ const ALLOWED_ACTIONS = [
   'approve-rule', 'dismiss-rule', 'review-keep', 'review-trash', 'inbox-status',
   // Sprint 7 — Triage report + voice:
   'triage-report',
+  // Sprint 8 — Brain Core classified-summary:
+  'classified-summary',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -1086,6 +1088,90 @@ export default async function agentRoutes(app: FastifyInstance) {
               triage_total_24h: triageLogs24h.length,
               by_classification: byClassification,
               snapshot_at: new Date().toISOString(),
+            },
+          };
+        }
+
+        // ── CLASSIFIED-SUMMARY ────────────────────────────────────────────
+        // Returns classified inbox data in the format Brain Core expects.
+        // Params: { period?: 'today' | 'week' } — defaults to last 24 hours (today).
+        case 'classified-summary': {
+          const since24h = new Date(Date.now() - 24 * 3600 * 1000);
+
+          const [unreadLogs, spamLogs, attentionLogs, urgentLogs] = await Promise.all([
+            // total_unread: kept in inbox or sent to review
+            prisma.triageLog.count({
+              where: {
+                userId,
+                action: { in: ['keep_inbox', 'label_review'] },
+                createdAt: { gte: since24h },
+              },
+            }),
+            // spam_archived: trashed by any trash action
+            prisma.triageLog.count({
+              where: {
+                userId,
+                action: { in: ['trash', 'trash_after_log', 'notify_then_trash'] },
+                createdAt: { gte: since24h },
+              },
+            }),
+            // need_attention: kept, medium priority — top 5
+            prisma.triageLog.findMany({
+              where: {
+                userId,
+                action: 'keep_inbox',
+                priority: 'medium',
+                createdAt: { gte: since24h },
+              },
+              orderBy: { createdAt: 'desc' as const },
+              take: 5,
+              select: { threadId: true, subject: true, senderEmail: true, classification: true },
+            }),
+            // urgent: kept, high priority — top 3
+            prisma.triageLog.findMany({
+              where: {
+                userId,
+                action: 'keep_inbox',
+                priority: 'high',
+                createdAt: { gte: since24h },
+              },
+              orderBy: { createdAt: 'desc' as const },
+              take: 3,
+              select: { threadId: true, subject: true, senderEmail: true, classification: true },
+            }),
+          ]);
+
+          // Batch-fetch snippets from EmailThread for need_attention + urgent
+          const allThreadIds = [
+            ...attentionLogs.map((l) => l.threadId),
+            ...urgentLogs.map((l) => l.threadId),
+          ];
+          const snippetMap = new Map<string, string | null>();
+          if (allThreadIds.length > 0) {
+            const threads = await prisma.emailThread.findMany({
+              where: { id: { in: allThreadIds } },
+              select: { id: true, snippet: true },
+            });
+            for (const t of threads) snippetMap.set(t.id, t.snippet ?? null);
+          }
+
+          const mapLog = (l: { threadId: string; subject: string | null; senderEmail: string; classification: string }) => ({
+            thread_id: l.threadId,
+            subject: l.subject ?? '(inget ämne)',
+            from: l.senderEmail,
+            classification: l.classification,
+            snippet: snippetMap.get(l.threadId) ?? null,
+          });
+
+          return {
+            success: true,
+            action,
+            data: {
+              total_unread: unreadLogs,
+              spam_archived: spamLogs,
+              need_attention: attentionLogs.map(mapLog),
+              urgent: urgentLogs.map(mapLog),
+              since: since24h.toISOString(),
             },
           };
         }

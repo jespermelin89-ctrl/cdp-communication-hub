@@ -949,7 +949,7 @@ export default async function agentRoutes(app: FastifyInstance) {
           }
           const accountEmail = (params.account_email as string) || 'jesper.melin89@gmail.com';
           const account = await prisma.emailAccount.findFirst({
-            where: { email: accountEmail, userId },
+            where: { emailAddress: accountEmail, userId },
           });
           if (!account) {
             return reply.code(404).send({

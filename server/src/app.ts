@@ -163,6 +163,9 @@ export async function createApp(): Promise<FastifyInstance> {
     // Webhook routes are exempt — they receive from external services (Google Pub/Sub)
     if (request.url.includes('/webhooks/')) return;
 
+    // Admin login verification is called server-to-server from Next.js — no CSRF cookie available
+    if (request.url.includes('/auth/admin/verify')) return;
+
     const cookieToken = request.cookies?.['csrf_token'];
     const headerToken = request.headers['x-csrf-token'] as string | undefined;
 

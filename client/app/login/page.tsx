@@ -1,14 +1,12 @@
 'use client';
 
 import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -23,8 +21,9 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        router.push('/');
-        router.refresh();
+        // Hard navigation so the middleware picks up the fresh session cookie
+        window.location.href = '/';
+        return;
       } else {
         const data = await res.json();
         setError(data.error || 'Fel användarnamn eller lösenord');

@@ -559,6 +559,17 @@ export default function InboxPage() {
     { id: 'snoozed' as MailboxView, label: t.inbox.mailboxSnoozed ?? 'Snoozade', icon: Clock },
   ] as const;
 
+  function getViewTitle(): string {
+    switch (mailboxView) {
+      case 'inbox': return t.inbox.mailboxInbox ?? 'Inkorg';
+      case 'sent': return t.inbox.mailboxSent ?? 'Skickat';
+      case 'trash': return t.inbox.mailboxTrash ?? 'Papperskorg';
+      case 'archive': return t.inbox.mailboxArchive ?? 'Arkiv';
+      case 'snoozed': return t.inbox.mailboxSnoozed ?? 'Snoozade';
+      default: return t.inbox.title;
+    }
+  }
+
   function getEmptyStateMessage(): string {
     switch (mailboxView) {
       case 'inbox': return t.inbox.emptyInbox ?? 'Inget nytt \u2014 du \u00e4r i kapp!';
@@ -632,7 +643,7 @@ export default function InboxPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{t.inbox.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{getViewTitle()}</h1>
             {!loading && (
               <p className="text-sm text-gray-400 mt-0.5">
                 {filteredThreads.length} {t.inbox.messages}

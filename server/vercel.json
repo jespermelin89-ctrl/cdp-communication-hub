@@ -6,9 +6,5 @@
   "routes": [
     { "src": "/api/cron/(.*)", "dest": "/api/cron/$1" },
     { "src": "/(.*)", "dest": "/api/index.ts" }
-  ],
-  "crons": [
-    { "path": "/api/cron/sync-email", "schedule": "0 */4 * * *" },
-    { "path": "/api/cron/daily-briefing", "schedule": "0 7 * * *" }
   ]
 }

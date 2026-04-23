@@ -206,6 +206,16 @@ const es: Translations = {
     digestEnabled: 'Resumen matutino',
     digestHint: 'Acumular notificaciones perdidas y enviar a las:',
     saved: 'Guardado',
+    password: 'Contraseña',
+    changePassword: 'Cambiar contraseña',
+    currentPassword: 'Contraseña actual',
+    newPassword: 'Nueva contraseña',
+    confirmPassword: 'Confirmar nueva contraseña',
+    passwordMismatch: 'Las contraseñas no coinciden',
+    passwordTooShort: 'La contraseña debe tener al menos 6 caracteres',
+    passwordChanged: 'Contraseña actualizada',
+    passwordChangeError: 'No se pudo cambiar la contraseña',
+    changingPassword: 'Guardando…',
   },
 
   activity: {

@@ -209,6 +209,16 @@ const sv = {
     digestEnabled: 'Morgondigest',
     digestHint: 'Samla missade notiser och skicka vid:',
     saved: 'Sparat',
+    password: 'Lösenord',
+    changePassword: 'Byt lösenord',
+    currentPassword: 'Nuvarande lösenord',
+    newPassword: 'Nytt lösenord',
+    confirmPassword: 'Bekräfta nytt lösenord',
+    passwordMismatch: 'Lösenorden matchar inte',
+    passwordTooShort: 'Lösenordet måste vara minst 6 tecken',
+    passwordChanged: 'Lösenordet har ändrats',
+    passwordChangeError: 'Kunde inte byta lösenord',
+    changingPassword: 'Sparar…',
   },
 
   // Thread detail

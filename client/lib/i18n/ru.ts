@@ -206,6 +206,16 @@ const ru: Translations = {
     digestEnabled: 'Утренний дайджест',
     digestHint: 'Собирать пропущенные уведомления и отправлять в:',
     saved: 'Сохранено',
+    password: 'Пароль',
+    changePassword: 'Сменить пароль',
+    currentPassword: 'Текущий пароль',
+    newPassword: 'Новый пароль',
+    confirmPassword: 'Подтвердить новый пароль',
+    passwordMismatch: 'Пароли не совпадают',
+    passwordTooShort: 'Пароль должен содержать не менее 6 символов',
+    passwordChanged: 'Пароль изменён',
+    passwordChangeError: 'Не удалось сменить пароль',
+    changingPassword: 'Сохранение…',
   },
 
   activity: {

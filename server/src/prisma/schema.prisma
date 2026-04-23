@@ -476,6 +476,7 @@ model UserSettings {
   notificationSound       Boolean  @default(false) @map("notification_sound")
   externalImages          String   @default("ask") @map("external_images")
   compactMode             Boolean  @default(false) @map("compact_mode")
+  adminPasswordHash       String?  @map("admin_password_hash")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

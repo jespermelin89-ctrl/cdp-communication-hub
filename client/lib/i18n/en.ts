@@ -206,6 +206,16 @@ const en: Translations = {
     digestEnabled: 'Morning digest',
     digestHint: 'Collect missed notifications and send at:',
     saved: 'Saved',
+    password: 'Password',
+    changePassword: 'Change password',
+    currentPassword: 'Current password',
+    newPassword: 'New password',
+    confirmPassword: 'Confirm new password',
+    passwordMismatch: 'Passwords do not match',
+    passwordTooShort: 'Password must be at least 6 characters',
+    passwordChanged: 'Password changed',
+    passwordChangeError: 'Could not change password',
+    changingPassword: 'Saving…',
   },
 
   activity: {

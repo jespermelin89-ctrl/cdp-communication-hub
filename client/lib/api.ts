@@ -761,6 +761,13 @@ class ApiClient {
     return this.request<{ settings: import('./types').UserSettings }>('PATCH', '/user/settings', data);
   }
 
+  async changePassword(currentPassword: string, newPassword: string) {
+    return this.request<{ ok: boolean; message: string }>('PATCH', '/user/password', {
+      currentPassword,
+      newPassword,
+    });
+  }
+
   async getCalendarAvailability(accountId: string, params?: {
     days?: number;
     limit?: number;

@@ -227,4 +227,99 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
     return { settings };
   });
+
+  /**
+   * POST /auth/admin/verify - Verify admin login credentials.
+   * Checks DB password hash first, falls back to ADMIN_PASSWORD env var.
+   * No auth required (this IS the login check).
+   */
+  fastify.post('/auth/admin/verify', async (request, reply) => {
+    const schema = z.object({
+      username: z.string().min(1),
+      password: z.string().min(1),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Ogiltigt anrop' });
+    }
+
+    const { username, password } = parsed.data;
+    const adminUser = env.ADMIN_USERNAME || 'jesper';
+
+    if (username !== adminUser) {
+      return reply.code(401).send({ error: 'Fel användarnamn eller lösenord' });
+    }
+
+    // Try DB password first
+    const { hashPassword, verifyPassword } = await import('../utils/password');
+    const user = await prisma.user.findFirst({
+      where: { email: { contains: username } },
+      include: { settings: { select: { adminPasswordHash: true } } },
+    });
+
+    if (user?.settings?.adminPasswordHash) {
+      const valid = await verifyPassword(password, user.settings.adminPasswordHash);
+      if (valid) return { ok: true };
+      return reply.code(401).send({ error: 'Fel användarnamn eller lösenord' });
+    }
+
+    // Fall back to env var
+    const adminPass = env.ADMIN_PASSWORD || '';
+    if (!adminPass) {
+      return reply.code(500).send({ error: 'Inloggning inte konfigurerad' });
+    }
+    if (password === adminPass) {
+      return { ok: true };
+    }
+    return reply.code(401).send({ error: 'Fel användarnamn eller lösenord' });
+  });
+
+  /**
+   * PATCH /user/password - Change admin login password.
+   * Requires current password for verification.
+   */
+  fastify.patch('/user/password', {
+    preHandler: authMiddleware,
+  }, async (request, reply) => {
+    const schema = z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(6, 'Lösenordet måste vara minst 6 tecken'),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: parsed.error.issues[0]?.message || 'Ogiltigt anrop' });
+    }
+
+    const { currentPassword, newPassword } = parsed.data;
+    const { hashPassword, verifyPassword } = await import('../utils/password');
+
+    // Verify current password (DB hash or env var)
+    const settings = await prisma.userSettings.findUnique({
+      where: { userId: request.userId },
+      select: { adminPasswordHash: true },
+    });
+
+    if (settings?.adminPasswordHash) {
+      const valid = await verifyPassword(currentPassword, settings.adminPasswordHash);
+      if (!valid) {
+        return reply.code(401).send({ error: 'Nuvarande lösenord är fel' });
+      }
+    } else {
+      // First time: verify against env var
+      const adminPass = env.ADMIN_PASSWORD || '';
+      if (currentPassword !== adminPass) {
+        return reply.code(401).send({ error: 'Nuvarande lösenord är fel' });
+      }
+    }
+
+    // Hash and store new password
+    const hash = await hashPassword(newPassword);
+    await prisma.userSettings.upsert({
+      where: { userId: request.userId },
+      update: { adminPasswordHash: hash },
+      create: { userId: request.userId, adminPasswordHash: hash },
+    });
+
+    return { ok: true, message: 'Lösenordet har ändrats' };
+  });
 }

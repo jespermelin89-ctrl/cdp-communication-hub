@@ -17,6 +17,96 @@ const FLAG_MAP: Record<Locale, string> = {
   es: '🇪🇸',
 };
 
+function PasswordChangeCard({ t }: { t: any }) {
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+
+    if (newPw.length < 6) {
+      setMessage({ type: 'error', text: t.settings.passwordTooShort });
+      return;
+    }
+    if (newPw !== confirmPw) {
+      setMessage({ type: 'error', text: t.settings.passwordMismatch });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await api.changePassword(currentPw, newPw);
+      setMessage({ type: 'success', text: t.settings.passwordChanged });
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || t.settings.passwordChangeError });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">{t.settings.changePassword}</h2>
+      <form onSubmit={handleSubmit} className="space-y-3 max-w-sm">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">{t.settings.currentPassword}</label>
+          <input
+            type="password"
+            value={currentPw}
+            onChange={(e) => setCurrentPw(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
+            required
+            autoComplete="current-password"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">{t.settings.newPassword}</label>
+          <input
+            type="password"
+            value={newPw}
+            onChange={(e) => setNewPw(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
+            required
+            minLength={6}
+            autoComplete="new-password"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">{t.settings.confirmPassword}</label>
+          <input
+            type="password"
+            value={confirmPw}
+            onChange={(e) => setConfirmPw(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-brand-500 focus:border-transparent outline-none"
+            required
+            minLength={6}
+            autoComplete="new-password"
+          />
+        </div>
+        {message && (
+          <p className={`text-xs ${message.type === 'success' ? 'text-green-600' : 'text-red-500'}`}>
+            {message.text}
+          </p>
+        )}
+        <button
+          type="submit"
+          disabled={saving || !currentPw || !newPw || !confirmPw}
+          className="px-4 py-2 text-sm font-medium text-white bg-brand-500 hover:bg-brand-600 rounded-lg disabled:opacity-50 transition-colors"
+        >
+          {saving ? t.settings.changingPassword : t.settings.changePassword}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -201,6 +291,9 @@ export default function SettingsPage() {
                 <div><span className="text-gray-500">{t.settings.email}:</span> {user.email}</div>
               </div>
             </div>
+
+            {/* Password */}
+            <PasswordChangeCard t={t} />
 
             {/* Appearance */}
             <div className="card">

@@ -26,6 +26,10 @@ const envSchema = z.object({
 
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
 
+  // Admin login fallback (overridden by DB password hash when set)
+  ADMIN_USERNAME: z.string().default('jesper'),
+  ADMIN_PASSWORD: z.string().optional(),
+
   // External API key for Apple Shortcuts / Siri integration
   COMMAND_API_KEY: z.string().optional(),
 

@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-07 17:18:12 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-23 08:59:40 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -86,6 +86,18 @@ Prefix: `/api/v1`
 | `GET     /auth/me` | `auth` |
 | `GET     /user/settings` | `auth` |
 | `PATCH   /user/settings` | `auth` |
+| `GET     /connectors/brain-core/health` | `brain-core-connector` |
+| `GET     /connectors/brain-core/inbox-summary` | `brain-core-connector` |
+| `GET     /connectors/brain-core/threads` | `brain-core-connector` |
+| `GET     /connectors/brain-core/threads/:id` | `brain-core-connector` |
+| `POST    /connectors/brain-core/threads/:id/read` | `brain-core-connector` |
+| `POST    /connectors/brain-core/threads/:id/archive` | `brain-core-connector` |
+| `GET     /connectors/brain-core/triage-status` | `brain-core-connector` |
+| `GET     /connectors/brain-core/classified-summary` | `brain-core-connector` |
+| `POST    /connectors/brain-core/drafts` | `brain-core-connector` |
+| `GET     /connectors/brain-core/drafts/:id` | `brain-core-connector` |
+| `POST    /connectors/brain-core/drafts/:id/approve` | `brain-core-connector` |
+| `POST    /connectors/brain-core/drafts/:id/send` | `brain-core-connector` |
 | `GET     /brain-core/writing-profile` | `brain-core` |
 | `PATCH   /brain-core/writing-mode/:key` | `brain-core` |
 | `GET     /brain-core/contacts` | `brain-core` |
@@ -192,6 +204,7 @@ Prefix: `/api/v1`
 - `action-log.service.ts`
 - `ai.service.ts`
 - `auth.service.ts`
+- `brain-core-connector.service.ts`
 - `brain-core-webhook.service.ts`
 - `brain-core.service.ts`
 - `calendar.service.ts`

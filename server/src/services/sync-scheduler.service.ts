@@ -170,7 +170,7 @@ async function generateAutoDraft(options: {
     select: { emailAddress: true },
   });
 
-  await prisma.draft.create({
+  const createdDraft = await prisma.draft.create({
     data: {
       userId,
       accountId,
@@ -190,8 +190,17 @@ async function generateAutoDraft(options: {
   // Notify Brain Core — AI draft ready for human approval
   notifyBrainCore({
     type: 'draft.ready',
+    context: {
+      userId,
+      accountId,
+      threadId: thread.id,
+      gmailThreadId: thread.gmailThreadId,
+      draftId: createdDraft.id,
+    },
     data: {
+      draft_id: createdDraft.id,
       thread_id: thread.id,
+      account_id: accountId,
       subject: thread.subject,
       sender: senderEmail,
       recipient_type: recipientType,

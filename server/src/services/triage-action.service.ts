@@ -226,8 +226,15 @@ async function moveToReviewLabel(decision: TriageDecision): Promise<void> {
   // Notify Brain Core — unknown sender queued for review
   notifyBrainCore({
     type: 'triage.unknown_sender',
+    context: {
+      userId: decision.userId,
+      accountId: decision.accountId,
+      threadId: decision.threadId,
+      gmailThreadId: decision.gmailThreadId,
+    },
     data: {
       thread_id: decision.threadId,
+      account_id: decision.accountId,
       subject: decision.subject,
       sender: decision.senderEmail,
       classification: decision.classification,
@@ -245,8 +252,15 @@ async function keepInInbox(decision: TriageDecision): Promise<void> {
   if (decision.priority === 'high') {
     notifyBrainCore({
       type: 'triage.high_priority',
+      context: {
+        userId: decision.userId,
+        accountId: decision.accountId,
+        threadId: decision.threadId,
+        gmailThreadId: decision.gmailThreadId,
+      },
       data: {
         thread_id: decision.threadId,
+        account_id: decision.accountId,
         subject: decision.subject,
         sender: decision.senderEmail,
         classification: decision.classification,

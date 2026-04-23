@@ -41,6 +41,7 @@ const envSchema = z.object({
   // Brain Core integration — outbound webhooks
   BRAIN_CORE_WEBHOOK_URL: z.string().url().optional(),
   BRAIN_CORE_WEBHOOK_SECRET: z.string().optional(),
+  BRAIN_CORE_ORGANIZATION_ID: z.string().optional(),
 
   // Web Push (VAPID)
   VAPID_PUBLIC_KEY: z.string().optional(),

@@ -18,6 +18,7 @@ vi.mock('../config/env', () => ({
   env: {
     BRAIN_CORE_WEBHOOK_URL: undefined,
     BRAIN_CORE_WEBHOOK_SECRET: undefined,
+    BRAIN_CORE_ORGANIZATION_ID: undefined,
   },
 }));
 
@@ -36,7 +37,11 @@ vi.mock('../config/database', () => ({
 import { env } from '../config/env';
 import { prisma } from '../config/database';
 
-const mockEnv = env as { BRAIN_CORE_WEBHOOK_URL: string | undefined; BRAIN_CORE_WEBHOOK_SECRET: string | undefined };
+const mockEnv = env as {
+  BRAIN_CORE_WEBHOOK_URL: string | undefined;
+  BRAIN_CORE_WEBHOOK_SECRET: string | undefined;
+  BRAIN_CORE_ORGANIZATION_ID: string | undefined;
+};
 const mockTriageLog = prisma.triageLog as { findMany: ReturnType<typeof vi.fn>; count: ReturnType<typeof vi.fn> };
 const mockDraft = prisma.draft as { count: ReturnType<typeof vi.fn> };
 
@@ -44,6 +49,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockEnv.BRAIN_CORE_WEBHOOK_URL = undefined;
   mockEnv.BRAIN_CORE_WEBHOOK_SECRET = undefined;
+  mockEnv.BRAIN_CORE_ORGANIZATION_ID = undefined;
 });
 
 // ──────────────────────────────────────────────
@@ -81,8 +87,18 @@ describe('notifyBrainCore', () => {
 
     const body = JSON.parse(options?.body as string);
     expect(body.event).toBe('draft.ready');
+    expect(body.event_id).toMatch(/^[0-9a-f-]{36}$/i);
     expect(body.source).toBe('cdp-communication-hub');
+    expect(body.contract_version).toBe('brain-core-webhook.v1');
     expect(body.data.thread_id).toBe('thread-abc');
+    expect(body.context).toEqual({
+      organization_id: null,
+      user_id: null,
+      account_id: null,
+      thread_id: null,
+      gmail_thread_id: null,
+      draft_id: null,
+    });
     expect(body.timestamp).toBeTruthy();
 
     const headers = options?.headers as Record<string, string>;
@@ -104,6 +120,52 @@ describe('notifyBrainCore', () => {
     const [, options] = fetchSpy.mock.calls[0];
     const headers = options?.headers as Record<string, string>;
     expect(headers['X-Webhook-Secret']).toBeUndefined();
+
+    fetchSpy.mockRestore();
+  });
+
+  it('injects organization_id into webhook context when configured', async () => {
+    mockEnv.BRAIN_CORE_WEBHOOK_URL = 'https://brain-core.example.com/webhook';
+    mockEnv.BRAIN_CORE_ORGANIZATION_ID = 'org-123';
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+
+    const { notifyBrainCore } = await import('../services/brain-core-webhook.service');
+    await notifyBrainCore({
+      type: 'triage.high_priority',
+      context: { userId: 'user-1', accountId: 'acc-1', threadId: 'thread-1', gmailThreadId: 'gmail-1' },
+      data: { thread_id: 'thread-1' },
+    });
+
+    const [, options] = fetchSpy.mock.calls[0];
+    const body = JSON.parse(options?.body as string);
+    expect(body.context).toEqual({
+      organization_id: 'org-123',
+      user_id: 'user-1',
+      account_id: 'acc-1',
+      thread_id: 'thread-1',
+      gmail_thread_id: 'gmail-1',
+      draft_id: null,
+    });
+
+    fetchSpy.mockRestore();
+  });
+
+  it('uses provided eventId when supplied by caller', async () => {
+    mockEnv.BRAIN_CORE_WEBHOOK_URL = 'https://brain-core.example.com/webhook';
+
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue(new Response('', { status: 200 }));
+
+    const { notifyBrainCore } = await import('../services/brain-core-webhook.service');
+    await notifyBrainCore({
+      eventId: 'event-fixed-123',
+      type: 'triage.completed',
+      data: { processed: 5 },
+    });
+
+    const [, options] = fetchSpy.mock.calls[0];
+    const body = JSON.parse(options?.body as string);
+    expect(body.event_id).toBe('event-fixed-123');
 
     fetchSpy.mockRestore();
   });

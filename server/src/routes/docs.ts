@@ -71,6 +71,20 @@ const ENDPOINTS = [
   // ── Brain Summary (BRAIN-OS integration) ─────────────────────────────────
   { method: 'GET',    path: '/brain-summary',               auth: true,  stable: true,  description: 'Aggregated read-only summary for BRAIN-OS. NOTE: draft body_text is never included.' },
 
+  // ── Brain Core Connector (stable adapter surface) ────────────────────────
+  { method: 'GET',    path: '/connectors/brain-core/health',             auth: true,  stable: true,  description: 'Health and contract metadata for the Brain Core connector surface' },
+  { method: 'GET',    path: '/connectors/brain-core/inbox-summary',       auth: true,  stable: true,  description: 'Dedicated inbox summary contract for Brain Core' },
+  { method: 'GET',    path: '/connectors/brain-core/threads',             auth: true,  stable: true,  description: 'List threads in Brain Core connector format. Returns data=array, pagination in meta.' },
+  { method: 'GET',    path: '/connectors/brain-core/threads/:id',         auth: true,  stable: true,  description: 'Get thread detail in Brain Core connector format' },
+  { method: 'POST',   path: '/connectors/brain-core/threads/:id/read',    auth: true,  stable: true,  description: 'Mark thread as read using Brain Core connector contract' },
+  { method: 'POST',   path: '/connectors/brain-core/threads/:id/archive', auth: true,  stable: true,  description: 'Archive thread using Brain Core connector contract' },
+  { method: 'GET',    path: '/connectors/brain-core/triage-status',       auth: true,  stable: true,  description: 'Fetch triage status summary in Brain Core connector format' },
+  { method: 'GET',    path: '/connectors/brain-core/classified-summary',  auth: true,  stable: true,  description: 'Fetch classified inbox summary in Brain Core connector format' },
+  { method: 'POST',   path: '/connectors/brain-core/drafts',              auth: true,  stable: true,  description: 'Create a draft using Brain Core-friendly input aliases (to/body/threadId)' },
+  { method: 'GET',    path: '/connectors/brain-core/drafts/:id',          auth: true,  stable: true,  description: 'Get a draft in Brain Core connector format' },
+  { method: 'POST',   path: '/connectors/brain-core/drafts/:id/approve',  auth: true,  stable: true,  description: 'Approve a draft using Brain Core connector contract' },
+  { method: 'POST',   path: '/connectors/brain-core/drafts/:id/send',     auth: true,  stable: true,  description: 'Send an approved draft using Brain Core connector contract' },
+
   // ── Push Notifications ────────────────────────────────────────────────────
   { method: 'POST',   path: '/push/subscribe',              auth: true,  stable: true,  description: 'Subscribe device to Web Push notifications' },
   { method: 'DELETE', path: '/push/subscribe',              auth: true,  stable: true,  description: 'Unsubscribe device from Web Push notifications' },
@@ -99,6 +113,7 @@ export async function docsRoutes(fastify: FastifyInstance) {
         never_auto_send: true,
         never_auto_delete: true,
         draft_gate: 'POST /drafts/:id/send requires status=approved',
+        connector_contract: 'Brain Core connector endpoints return { success, contract_version, data, meta? }',
       },
       endpoints: ENDPOINTS,
       total: ENDPOINTS.length,

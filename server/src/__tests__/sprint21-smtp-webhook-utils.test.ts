@@ -293,6 +293,7 @@ describe('Sprint 21 — Brain-Core Webhook Service', () => {
     // Reset env
     (env as any).BRAIN_CORE_WEBHOOK_URL = '';
     (env as any).BRAIN_CORE_WEBHOOK_SECRET = '';
+    (env as any).BRAIN_CORE_ORGANIZATION_ID = '';
   });
 
   it('is a no-op when BRAIN_CORE_WEBHOOK_URL is not set', async () => {
@@ -315,8 +316,18 @@ describe('Sprint 21 — Brain-Core Webhook Service', () => {
 
     const body = JSON.parse(fetchCall[1].body);
     expect(body.event).toBe('triage.completed');
+    expect(body.event_id).toMatch(/^[0-9a-f-]{36}$/i);
     expect(body.data).toEqual({ processed: 5 });
     expect(body.source).toBe('cdp-communication-hub');
+    expect(body.contract_version).toBe('brain-core-webhook.v1');
+    expect(body.context).toEqual({
+      organization_id: null,
+      user_id: null,
+      account_id: null,
+      thread_id: null,
+      gmail_thread_id: null,
+      draft_id: null,
+    });
     expect(body.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
@@ -368,6 +379,50 @@ describe('Sprint 21 — Brain-Core Webhook Service', () => {
 
     const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(fetchCall[1].headers['Content-Type']).toBe('application/json');
+  });
+
+  it('includes organization and entity context when provided', async () => {
+    (env as any).BRAIN_CORE_WEBHOOK_URL = 'https://brain.example.com/webhook';
+    (env as any).BRAIN_CORE_ORGANIZATION_ID = 'org-42';
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
+
+    await notifyBrainCore({
+      type: 'draft.ready',
+      context: {
+        userId: 'user-42',
+        accountId: 'acc-42',
+        threadId: 'thread-42',
+        gmailThreadId: 'gmail-42',
+        draftId: 'draft-42',
+      },
+      data: { draft_id: 'draft-42' },
+    });
+
+    const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const body = JSON.parse(fetchCall[1].body);
+    expect(body.context).toEqual({
+      organization_id: 'org-42',
+      user_id: 'user-42',
+      account_id: 'acc-42',
+      thread_id: 'thread-42',
+      gmail_thread_id: 'gmail-42',
+      draft_id: 'draft-42',
+    });
+  });
+
+  it('preserves caller-supplied event_id for idempotent delivery', async () => {
+    (env as any).BRAIN_CORE_WEBHOOK_URL = 'https://brain.example.com/webhook';
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true });
+
+    await notifyBrainCore({
+      eventId: 'event-fixed-abc',
+      type: 'triage.completed',
+      data: { processed: 5 },
+    });
+
+    const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const body = JSON.parse(fetchCall[1].body);
+    expect(body.event_id).toBe('event-fixed-abc');
   });
 });
 

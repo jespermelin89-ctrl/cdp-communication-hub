@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/**/*.ts", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/cron/(.*)", "dest": "/api/cron/$1" },
+    { "src": "/(.*)", "dest": "/api/index.ts" }
+  ],
+  "crons": [
+    { "path": "/api/cron/sync-email", "schedule": "*/30 * * * *" },
+    { "path": "/api/cron/classify", "schedule": "*/10 * * * *" },
+    { "path": "/api/cron/check-snooze", "schedule": "* * * * *" },
+    { "path": "/api/cron/send-scheduled", "schedule": "* * * * *" },
+    { "path": "/api/cron/daily-briefing", "schedule": "0 7 * * *" }
+  ]
+}

@@ -4,6 +4,10 @@
 **Base URL (produktion):** `https://cdp-communication-hub.onrender.com/api/v1`
 **Auth:** `Authorization: Bearer <JWT>` (alla routes utom `/auth/*`)
 
+För connector-routes till `BrainCore` stöds även `X-API-Key: <COMMAND_API_KEY>`.
+Om flera aktiva användare finns måste klienten även skicka `X-Account-Id: <account_uuid>`
+för att undvika att fel konto väljs implicit.
+
 ---
 
 ## Stabila endpoints (konsumerbara av BRAIN-OS och externa system)
@@ -47,11 +51,46 @@ major-version och kommuniceras i förväg.
 | `GET` | `/api/v1/brain-core/classification` | Klassificeringsregler |
 | `POST` | `/api/v1/brain-core/learn` | Registrera ett lärandevände (learning event) |
 
+### Brain Core Connector
+
+Den här ytan är den nya stabila adapter-ytan för `BrainCore`. Den lämnar befintliga
+`/threads`, `/drafts` och `/agent/*` orörda, men exponerar ett separat kontrakt som
+inte läcker interna route-shapes.
+
+Alla connector-svar använder:
+
+```json
+{
+  "success": true,
+  "contract_version": "brain-core-connector.v1",
+  "data": {},
+  "meta": {}
+}
+```
+
+`meta` används bara när extra metadata behövs, t.ex. pagination.
+
+| Method | Path | Beskrivning |
+|--------|------|-------------|
+| `GET` | `/api/v1/connectors/brain-core/health` | Hälsostatus + kontraktsversion |
+| `GET` | `/api/v1/connectors/brain-core/inbox-summary` | Dedikerad inbox-sammanfattning för BrainCore |
+| `GET` | `/api/v1/connectors/brain-core/threads` | Lista trådar i BrainCore-format (`data` = array, `meta.pagination` = paging) |
+| `GET` | `/api/v1/connectors/brain-core/threads/:id` | Tråddetalj med messages + drafts i connector-format |
+| `POST` | `/api/v1/connectors/brain-core/threads/:id/read` | Markera tråd som läst |
+| `POST` | `/api/v1/connectors/brain-core/threads/:id/archive` | Arkivera tråd korrekt via Gmail archive |
+| `GET` | `/api/v1/connectors/brain-core/triage-status` | Triage-status i formatet BrainCore förväntar sig |
+| `GET` | `/api/v1/connectors/brain-core/classified-summary` | Klassificerad inbox-summary i BrainCore-format |
+| `POST` | `/api/v1/connectors/brain-core/drafts` | Skapa draft med BrainCore-vänlig payload (`to`, `body`, `threadId`) |
+| `GET` | `/api/v1/connectors/brain-core/drafts/:id` | Hämta draft i connector-format |
+| `POST` | `/api/v1/connectors/brain-core/drafts/:id/approve` | Godkänn draft |
+| `POST` | `/api/v1/connectors/brain-core/drafts/:id/send` | Skicka godkänd draft |
+
 ---
 
 ## Interna endpoints (kan ändras utan varning)
 
-Dessa används av frontend-appen men är INTE stabiliserade för extern konsumtion.
+Dessa används av frontend-appen eller äldre integrationer men är INTE den rekommenderade
+externa BrainCore-ytan längre.
 
 | Path | Anmärkning |
 |------|------------|
@@ -66,6 +105,9 @@ Dessa används av frontend-appen men är INTE stabiliserade för extern konsumti
 | `/api/v1/brain-core/contact/:email` | PATCH kontaktprofil — intern |
 | `/api/v1/brain-core/writing-mode/:key` | PATCH skrivläge — intern |
 | `/api/v1/brain-core/learning-stats` | Lärandestatistik — intern |
+| `/api/v1/threads/*` | Webb-UI-kontrakt, inte BrainCore connector-kontrakt |
+| `/api/v1/drafts/*` | Webb-UI-kontrakt, inte BrainCore connector-kontrakt |
+| `/api/v1/agent/*` | Agent-API, fortfarande single-owner-orienterat |
 
 ---
 
@@ -77,15 +119,16 @@ Dessa används av frontend-appen men är INTE stabiliserade för extern konsumti
 
 ---
 
-## API-prefix-mismatch med BRAIN-OS
+## Rekommenderad BrainCore-koppling
 
-**Problem:** BRAIN-OS connectors anropar `/api/threads`, `/api/drafts` etc.
-**Korrekt prefix:** Alla Communication Hub routes serveras under `/api/v1/`.
-**Lösning:** BRAIN-OS uppdaterar sina connectors till `/api/v1/`. Communication Hub
-skapar INGA aliases — konsumenten anpassar sig till publicerat API.
+`BrainCore` ska framåt använda `/api/v1/connectors/brain-core/*` i stället för att läsa
+direkt från webb-UI-routes eller tolka agent-svar som primärt integrationskontrakt.
 
-BRAIN-OS-filer att uppdatera:
-- `comm-hub.client.ts` — byt alla `/api/` till `/api/v1/`
+Det löser tre problem:
+
+1. Trådar och drafts får stabil shape utan wrappers som varierar mellan routes.
+2. Arkivering går via riktig archive-mutation, inte via felaktig important-semantik.
+3. Draft-create kan ta BrainCore-fält (`to`, `body`, `threadId`) och resolvera konto säkert.
 
 ---
 

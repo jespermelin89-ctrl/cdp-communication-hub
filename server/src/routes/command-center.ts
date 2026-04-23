@@ -18,7 +18,7 @@ export async function commandCenterRoutes(fastify: FastifyInstance) {
     // Get user's account IDs
     const accounts = await prisma.emailAccount.findMany({
       where: { userId },
-      select: { id: true, emailAddress: true, isDefault: true },
+      select: { id: true, emailAddress: true, isDefault: true, isActive: true },
     });
 
     const accountIds = accounts.map((a) => a.id);

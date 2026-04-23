@@ -1,6 +1,6 @@
 # CDP Communication Hub — Styrdokument
 
-> **Auto-genererat** — senast uppdaterat: 2026-04-23 20:35:59 UTC
+> **Auto-genererat** — senast uppdaterat: 2026-04-23 21:42:41 UTC
 > Kör `npm run styrdokument` för att uppdatera.
 
 ---
@@ -148,6 +148,7 @@ Prefix: `/api/v1`
 | `POST    /threads/:id/labels` | `labels` |
 | `DELETE  /threads/:id/labels/:labelId` | `labels` |
 | `POST    /threads/bulk/label` | `labels` |
+| `GET     /openapi.json` | `openapi` |
 | `POST    /providers/detect` | `providers` |
 | `GET     /providers` | `providers` |
 | `POST    /push/subscribe` | `push` |
@@ -204,6 +205,8 @@ Prefix: `/api/v1`
 ## Backend — Tjänster
 
 - `action-log.service.ts`
+- `agent-auth.service.ts`
+- `agent-events.service.ts`
 - `ai.service.ts`
 - `auth.service.ts`
 - `brain-core-connector.service.ts`

@@ -28,6 +28,13 @@ import { seedBrainCore } from '../services/seed-brain-core.service';
 import { gmailService } from '../services/gmail.service';
 import { env } from '../config/env';
 import { getAgentDraftStatusError } from '../utils/agent-safety';
+import { agentError, ErrorCodes } from '../utils/error-codes';
+import {
+  registerWebhook, listWebhooks, deleteWebhook,
+  getJob, listJobs, createJob, startJob, completeJob, failJob,
+  dispatchEvent, EVENT_TYPES, type EventType,
+} from '../services/agent-events.service';
+import { validateAgentKey, logAgentRequest, getAuditLog, getAgentStats } from '../services/agent-auth.service';
 
 const ALLOWED_ACTIONS = [
   'briefing', 'classify', 'draft', 'search', 'brain-status', 'learn',
@@ -61,19 +68,37 @@ const AgentExecuteSchema = z.object({
   params: z.record(z.unknown()).optional(),
 });
 
-/** Reject request if X-API-Key header does not match COMMAND_API_KEY */
+/** Validate API key — supports named agent keys + legacy single key */
 async function agentKeyAuth(request: FastifyRequest, reply: FastifyReply) {
-  const key = request.headers['x-api-key'];
-  if (!env.COMMAND_API_KEY) {
-    return reply.code(503).send({ success: false, error: 'Agent API is not configured (COMMAND_API_KEY missing).' });
+  const key = request.headers['x-api-key'] as string | undefined;
+  if (!key) {
+    return reply.code(401).send(agentError(ErrorCodes.AUTH_MISSING_API_KEY, 'Missing X-API-Key header.'));
   }
-  if (!key || key !== env.COMMAND_API_KEY) {
-    return reply.code(401).send({ success: false, error: 'Invalid or missing X-API-Key.' });
+
+  const result = validateAgentKey(key);
+  if (!result.valid) {
+    return reply.code(401).send(agentError(ErrorCodes.AUTH_INVALID_API_KEY, 'Invalid API key.'));
   }
+  if (result.rateLimited) {
+    return reply.code(429).send(agentError(ErrorCodes.RATE_LIMITED, `Agent "${result.agent}" rate limited. Try again in a moment.`));
+  }
+
+  // Attach agent label to request for audit logging
+  (request as any).agentLabel = result.agent;
 }
 
 export default async function agentRoutes(app: FastifyInstance) {
   app.addHook('onRequest', agentKeyAuth);
+
+  // Audit logging hook — logs every agent request
+  app.addHook('onResponse', async (request, reply) => {
+    const agent = (request as any).agentLabel ?? 'unknown';
+    const body = request.body as Record<string, unknown> | undefined;
+    const action = (body?.action as string) ?? request.url;
+    const success = reply.statusCode < 400;
+    const duration = Math.round(reply.elapsedTime);
+    logAgentRequest(agent, action, success, duration);
+  });
 
   /**
    * POST /agent/execute
@@ -85,16 +110,17 @@ export default async function agentRoutes(app: FastifyInstance) {
     const params: Record<string, any> = body.params ?? {};
 
     if (!action || !ALLOWED_ACTIONS.includes(action)) {
-      return reply.code(400).send({
-        success: false,
-        error: `Okänd action. Tillåtna: ${ALLOWED_ACTIONS.join(', ')}`,
-      });
+      return reply.code(400).send(agentError(
+        ErrorCodes.AGENT_UNKNOWN_ACTION,
+        `Unknown action "${action}". Allowed: ${ALLOWED_ACTIONS.join(', ')}`,
+        { allowed_actions: [...ALLOWED_ACTIONS] }
+      ));
     }
 
     // Resolve userId from the first active account (single-owner deployment)
     const account = await prisma.emailAccount.findFirst({ where: { isActive: true } });
     if (!account) {
-      return reply.code(503).send({ success: false, error: 'Inga aktiva e-postkonton hittades.' });
+      return reply.code(503).send(agentError(ErrorCodes.ACCOUNT_NONE_ACTIVE, 'No active email accounts found.'));
     }
     const userId = account.userId;
 
@@ -103,7 +129,7 @@ export default async function agentRoutes(app: FastifyInstance) {
     if (callbackUrl) {
       // Validate URL format before accepting
       try { new URL(callbackUrl); } catch {
-        return reply.code(400).send({ success: false, error: 'callback_url måste vara en giltig URL.' });
+        return reply.code(400).send(agentError(ErrorCodes.INVALID_URL, 'callback_url must be a valid URL.'));
       }
 
       // Fire and forget — execute then POST to callback_url
@@ -1828,11 +1854,13 @@ export default async function agentRoutes(app: FastifyInstance) {
         }
       }
     } catch (err: any) {
-      const msg: string = err?.message ?? 'Okänt fel';
-      const safe = /prisma|database|connection/i.test(msg)
-        ? 'Databasfel — försök igen om en stund.'
-        : msg;
-      return reply.code(500).send({ success: false, action, error: safe });
+      const msg: string = err?.message ?? 'Unknown error';
+      const isDbError = /prisma|database|connection/i.test(msg);
+      return reply.code(500).send(agentError(
+        isDbError ? ErrorCodes.DATABASE_ERROR : ErrorCodes.INTERNAL_ERROR,
+        isDbError ? 'Database error — retry in a moment.' : msg,
+        { action }
+      ));
     }
   });
 
@@ -1842,14 +1870,14 @@ export default async function agentRoutes(app: FastifyInstance) {
     const actions = body?.actions;
 
     if (!Array.isArray(actions) || actions.length === 0) {
-      return reply.code(400).send({ success: false, error: 'body.actions måste vara en icke-tom array.' });
+      return reply.code(400).send(agentError(ErrorCodes.AGENT_BATCH_EMPTY, 'body.actions must be a non-empty array.'));
     }
     if (actions.length > 10) {
-      return reply.code(400).send({ success: false, error: 'Max 10 actions per batch.' });
+      return reply.code(400).send(agentError(ErrorCodes.AGENT_BATCH_TOO_LARGE, 'Max 10 actions per batch.', { max: 10, received: actions.length }));
     }
 
     const account = await prisma.emailAccount.findFirst({ where: { isActive: true } });
-    if (!account) return reply.code(503).send({ success: false, error: 'Inga aktiva konton.' });
+    if (!account) return reply.code(503).send(agentError(ErrorCodes.ACCOUNT_NONE_ACTIVE, 'No active accounts.'));
 
     const results: Array<{ action: string; success: boolean; data?: any; error?: string }> = [];
 
@@ -1923,6 +1951,160 @@ export default async function agentRoutes(app: FastifyInstance) {
         high_priority_unread: highPriorityUnread,
         checked_at: new Date().toISOString(),
       },
+    };
+  });
+
+  // ── POST /webhooks — Register a webhook ───────────────────────────────────
+  app.post('/webhooks', async (req, reply) => {
+    const body = z.object({
+      url: z.string().url(),
+      events: z.array(z.enum(EVENT_TYPES)),
+      secret: z.string().optional(),
+    }).safeParse(req.body);
+
+    if (!body.success) {
+      return reply.code(400).send(agentError(
+        ErrorCodes.VALIDATION_ERROR,
+        'Invalid webhook registration.',
+        { issues: body.error.issues }
+      ));
+    }
+
+    const wh = registerWebhook(body.data.url, body.data.events, body.data.secret);
+    return reply.code(201).send({ success: true, webhook: wh });
+  });
+
+  // ── GET /webhooks — List webhooks ─────────────────────────────────────────
+  app.get('/webhooks', async () => {
+    return { success: true, webhooks: listWebhooks() };
+  });
+
+  // ── DELETE /webhooks/:id — Delete a webhook ───────────────────────────────
+  app.delete('/webhooks/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const deleted = deleteWebhook(id);
+    if (!deleted) {
+      return reply.code(404).send(agentError(ErrorCodes.RESOURCE_NOT_FOUND, 'Webhook not found.'));
+    }
+    return { success: true, message: 'Webhook deleted.' };
+  });
+
+  // ── GET /jobs/:id — Check job status ──────────────────────────────────────
+  app.get('/jobs/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const job = getJob(id);
+    if (!job) {
+      return reply.code(404).send(agentError(ErrorCodes.RESOURCE_NOT_FOUND, 'Job not found.'));
+    }
+    return { success: true, ...job };
+  });
+
+  // ── GET /jobs — List recent jobs ──────────────────────────────────────────
+  app.get('/jobs', async (req) => {
+    const limit = Math.min(Number((req.query as any)?.limit) || 20, 100);
+    return { success: true, jobs: listJobs(limit) };
+  });
+
+  // ── POST /execute-async — Execute action and return job_id ────────────────
+  app.post('/execute-async', async (req, reply) => {
+    const body = AgentExecuteSchema.parse(req.body);
+    const action = body.action as AgentAction;
+    const params = body.params ?? {};
+
+    if (!ALLOWED_ACTIONS.includes(action)) {
+      return reply.code(400).send(agentError(
+        ErrorCodes.AGENT_UNKNOWN_ACTION,
+        `Unknown action "${action}".`,
+        { allowed_actions: [...ALLOWED_ACTIONS] }
+      ));
+    }
+
+    const jobId = createJob(action, params);
+    startJob(jobId);
+
+    // Execute in background
+    setImmediate(async () => {
+      try {
+        const response = await app.inject({
+          method: 'POST',
+          url: '/execute',
+          headers: { 'x-api-key': env.COMMAND_API_KEY ?? '' },
+          payload: { action, params },
+        });
+        const result = response.json();
+        completeJob(jobId, result);
+
+        // Dispatch completion event
+        dispatchEvent({
+          event: 'triage.completed',
+          timestamp: new Date().toISOString(),
+          data: { job_id: jobId, action, success: result.success },
+        });
+      } catch (err: any) {
+        failJob(jobId, err?.message ?? 'Unknown error');
+      }
+    });
+
+    return reply.code(202).send({
+      success: true,
+      job_id: jobId,
+      action,
+      status: 'running',
+      message: 'Job started. Poll GET /agent/jobs/:id for status.',
+      poll_url: `/api/v1/agent/jobs/${jobId}`,
+    });
+  });
+
+  // ── GET /capabilities — Machine-readable capability manifest ──────────────
+  app.get('/capabilities', async () => {
+    return {
+      success: true,
+      version: '2.0.0',
+      auth: {
+        method: 'api_key',
+        header: 'X-API-Key',
+        description: 'Single API key (COMMAND_API_KEY env var)',
+      },
+      endpoints: {
+        execute: 'POST /api/v1/agent/execute',
+        execute_async: 'POST /api/v1/agent/execute-async',
+        batch: 'POST /api/v1/agent/batch',
+        notifications: 'GET /api/v1/agent/notifications',
+        capabilities: 'GET /api/v1/agent/capabilities',
+        webhooks: 'POST/GET/DELETE /api/v1/agent/webhooks',
+        jobs: 'GET /api/v1/agent/jobs/:id',
+        openapi: 'GET /api/v1/openapi.json',
+      },
+      actions: [...ALLOWED_ACTIONS],
+      action_count: ALLOWED_ACTIONS.length,
+      features: {
+        async_execution: true,
+        batch_execution: true,
+        webhook_events: true,
+        job_tracking: true,
+        callback_url: true,
+        openapi_spec: true,
+        structured_errors: true,
+        hmac_signatures: true,
+      },
+      event_types: [...EVENT_TYPES],
+      safety: {
+        draft_gate: 'Drafts require human approval before sending',
+        body_text_hidden: 'Draft body_text never exposed in briefing/search',
+        max_batch_size: 10,
+        max_ai_budget_per_triage: 15,
+      },
+    };
+  });
+
+  // ── GET /audit — Agent audit log ──────────────────────────────────────────
+  app.get('/audit', async (req) => {
+    const query = req.query as { limit?: string; agent?: string };
+    const limit = Math.min(Number(query.limit) || 50, 200);
+    return {
+      success: true,
+      logs: getAuditLog(limit, query.agent),
+      stats: getAgentStats(),
     };
   });
 }

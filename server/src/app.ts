@@ -35,6 +35,7 @@ import { brainSummaryRoutes } from './routes/brain-summary';
 import agentRoutes from './routes/agent';
 import { pushRoutes } from './routes/push';
 import { docsRoutes } from './routes/docs';
+import { openApiRoutes } from './routes/openapi';
 import { webhookRoutes } from './routes/webhooks';
 import { followUpRoutes } from './routes/follow-ups';
 import { templatesRoutes } from './routes/templates';
@@ -94,11 +95,18 @@ export async function createApp(): Promise<FastifyInstance> {
     keyGenerator: (request) => request.ip,
   });
 
-  // CORS — support main URL + Vercel preview deploys
+  // CORS — support main URL + Vercel preview deploys + agent API
   await fastify.register(cors, {
     origin: (origin, cb) => {
       const allowed = env.FRONTEND_URL;
-      if (!origin || origin === allowed || origin.endsWith('.vercel.app')) {
+      if (
+        !origin ||                              // server-to-server (no origin)
+        origin === allowed ||                    // main frontend
+        origin.endsWith('.vercel.app') ||        // Vercel preview deploys
+        origin.startsWith('http://localhost') || // local development
+        origin.startsWith('https://claude.ai') || // Claude Cowork artifacts
+        origin.startsWith('https://cdn.claude.ai') // Claude CDN
+      ) {
         cb(null, true);
       } else {
         cb(null, false);
@@ -171,6 +179,8 @@ export async function createApp(): Promise<FastifyInstance> {
 
     if (!cookieToken || !headerToken || cookieToken !== headerToken) {
       return reply.code(403).send({
+        success: false,
+        error_code: 'AUTH_CSRF_MISMATCH',
         error: 'Forbidden',
         message: 'CSRF token mismatch — resend with X-CSRF-Token header',
       });
@@ -215,6 +225,7 @@ export async function createApp(): Promise<FastifyInstance> {
     await api.register(agentRoutes, { prefix: '/agent' });
     await api.register(pushRoutes);
     await api.register(docsRoutes);
+    await api.register(openApiRoutes);  // OpenAPI spec for AI agent discovery
     await api.register(webhookRoutes); // No auth — receives from Google Pub/Sub
     await api.register(followUpRoutes);
     await api.register(templatesRoutes);

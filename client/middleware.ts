@@ -28,7 +28,7 @@ export function middleware(request: NextRequest) {
   // Allow login page, auth API, static files, and OAuth callback
   if (
     pathname === '/login' ||
-    pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/auth/callback') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/icons') ||

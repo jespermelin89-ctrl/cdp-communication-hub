@@ -10,9 +10,13 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Proxy API calls to the backend server
+  // Proxy API calls to the backend server (except local auth routes)
   async rewrites() {
     return [
+      {
+        source: '/api/auth/login',
+        destination: '/api/auth/login',
+      },
       {
         source: '/api/:path*',
         destination: `${backendUrl}/api/:path*`,

@@ -60,6 +60,9 @@ const ALLOWED_ACTIONS = [
   // Gmail archive (remove from inbox) + mark-as-read:
   'gmail-archive',
   'gmail-mark-read',
+  // Sprint 11 — Automation: rules CRUD + unsubscribe:
+  'add-rule', 'list-rules', 'update-rule', 'delete-rule',
+  'unsubscribe',
 ] as const;
 type AgentAction = (typeof ALLOWED_ACTIONS)[number];
 
@@ -1839,6 +1842,395 @@ export default async function agentRoutes(app: FastifyInstance) {
               need_attention: attentionLogs.map(mapLog),
               urgent: urgentLogs.map(mapLog),
               since: since24h.toISOString(),
+            },
+          };
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // Sprint 11 — Automation: Rules CRUD + Unsubscribe
+        // ══════════════════════════════════════════════════════════════════
+
+        // ── ADD-RULE ──────────────────────────────────────────────────────
+        // Create a permanent triage rule.
+        // params: {
+        //   name: string,              — human-readable name, e.g. "Block Skool spam"
+        //   sender_patterns?: string[], — glob patterns, e.g. ["*@skool.com", "*@mail.skool.com"]
+        //   subject_patterns?: string[],— substring matches on subject
+        //   body_patterns?: string[],   — substring matches on body
+        //   action: string,            — "trash" | "archive" | "label_review" | "keep_inbox"
+        //   priority?: string,          — "high" | "medium" | "low" (default: "low")
+        //   unless_priority?: string,   — skip rule if AI classifies thread as this priority or higher
+        //   description?: string        — why this rule exists
+        // }
+        case 'add-rule': {
+          const senderPatterns = params.sender_patterns as string[] | undefined;
+          const subjectPatterns = params.subject_patterns as string[] | undefined;
+          const bodyPatterns = params.body_patterns as string[] | undefined;
+          const ruleName = params.name as string | undefined;
+          const ruleAction = params.action as string | undefined;
+
+          if (!ruleName) {
+            return reply.code(400).send(agentError(ErrorCodes.AGENT_MISSING_PARAM, 'params.name is required.'));
+          }
+          if (!ruleAction) {
+            return reply.code(400).send(agentError(ErrorCodes.AGENT_MISSING_PARAM, 'params.action is required (trash, archive, label_review, keep_inbox).'));
+          }
+
+          const validActions = ['trash', 'archive', 'label_review', 'keep_inbox'];
+          if (!validActions.includes(ruleAction)) {
+            return reply.code(400).send(agentError(ErrorCodes.RULE_INVALID_ACTION, `Invalid action "${ruleAction}". Allowed: ${validActions.join(', ')}`));
+          }
+
+          if (!senderPatterns?.length && !subjectPatterns?.length && !bodyPatterns?.length) {
+            return reply.code(400).send(agentError(ErrorCodes.AGENT_MISSING_PARAM, 'At least one pattern is required: sender_patterns, subject_patterns, or body_patterns.'));
+          }
+
+          // Generate a unique categoryKey from the name
+          const categoryKey = ruleName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+          // Check for duplicate
+          const existing = await prisma.classificationRule.findUnique({
+            where: { userId_categoryKey: { userId, categoryKey } },
+          });
+          if (existing) {
+            return reply.code(409).send(agentError(ErrorCodes.RULE_DUPLICATE, `Rule "${ruleName}" already exists.`, { rule_id: existing.id, category_key: categoryKey }));
+          }
+
+          const rule = await prisma.classificationRule.create({
+            data: {
+              userId,
+              categoryKey,
+              categoryName: ruleName,
+              description: (params.description as string) || `Auto-rule: ${ruleAction} matching threads`,
+              priority: (params.priority as string) || 'low',
+              action: ruleAction,
+              senderPatterns: senderPatterns ?? [],
+              subjectPatterns: subjectPatterns ?? [],
+              bodyPatterns: bodyPatterns ?? [],
+              isActive: true,
+            },
+          });
+
+          return {
+            success: true,
+            action,
+            data: {
+              rule_id: rule.id,
+              category_key: rule.categoryKey,
+              name: rule.categoryName,
+              action: rule.action,
+              sender_patterns: rule.senderPatterns,
+              subject_patterns: rule.subjectPatterns,
+              body_patterns: rule.bodyPatterns,
+              priority: rule.priority,
+              unless_priority: (params.unless_priority as string) || null,
+              is_active: rule.isActive,
+              message: `Rule "${ruleName}" created — will ${ruleAction} matching threads.`,
+            },
+          };
+        }
+
+        // ── LIST-RULES ────────────────────────────────────────────────────
+        // List all triage rules. Optional filter: { active_only?: boolean }
+        case 'list-rules': {
+          const activeOnly = params.active_only !== false; // default true
+          const rules = await prisma.classificationRule.findMany({
+            where: {
+              userId,
+              ...(activeOnly ? { isActive: true } : {}),
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          return {
+            success: true,
+            action,
+            data: {
+              total: rules.length,
+              rules: rules.map(r => ({
+                rule_id: r.id,
+                category_key: r.categoryKey,
+                name: r.categoryName,
+                description: r.description,
+                action: r.action,
+                priority: r.priority,
+                sender_patterns: r.senderPatterns,
+                subject_patterns: r.subjectPatterns,
+                body_patterns: r.bodyPatterns,
+                is_active: r.isActive,
+                times_matched: r.timesMatched,
+                created_at: r.createdAt.toISOString(),
+              })),
+            },
+          };
+        }
+
+        // ── UPDATE-RULE ───────────────────────────────────────────────────
+        // Update an existing rule.
+        // params: { rule_id: string, ...fields to update }
+        case 'update-rule': {
+          const ruleId = params.rule_id as string;
+          if (!ruleId) {
+            return reply.code(400).send(agentError(ErrorCodes.AGENT_MISSING_PARAM, 'params.rule_id is required.'));
+          }
+
+          const existingRule = await prisma.classificationRule.findFirst({
+            where: { id: ruleId, userId },
+          });
+          if (!existingRule) {
+            return reply.code(404).send(agentError(ErrorCodes.RULE_NOT_FOUND, `Rule "${ruleId}" not found.`));
+          }
+
+          // Build update data from provided params
+          const updateData: Record<string, any> = {};
+          if (params.name) updateData.categoryName = params.name;
+          if (params.description) updateData.description = params.description;
+          if (params.action) {
+            const validActions = ['trash', 'archive', 'label_review', 'keep_inbox'];
+            if (!validActions.includes(params.action as string)) {
+              return reply.code(400).send(agentError(ErrorCodes.RULE_INVALID_ACTION, `Invalid action. Allowed: ${validActions.join(', ')}`));
+            }
+            updateData.action = params.action;
+          }
+          if (params.priority) updateData.priority = params.priority;
+          if (params.sender_patterns) updateData.senderPatterns = params.sender_patterns;
+          if (params.subject_patterns) updateData.subjectPatterns = params.subject_patterns;
+          if (params.body_patterns) updateData.bodyPatterns = params.body_patterns;
+          if (typeof params.is_active === 'boolean') updateData.isActive = params.is_active;
+
+          const updated = await prisma.classificationRule.update({
+            where: { id: ruleId },
+            data: updateData,
+          });
+
+          return {
+            success: true,
+            action,
+            data: {
+              rule_id: updated.id,
+              name: updated.categoryName,
+              action: updated.action,
+              is_active: updated.isActive,
+              sender_patterns: updated.senderPatterns,
+              subject_patterns: updated.subjectPatterns,
+              body_patterns: updated.bodyPatterns,
+              message: `Rule "${updated.categoryName}" updated.`,
+            },
+          };
+        }
+
+        // ── DELETE-RULE ───────────────────────────────────────────────────
+        // Delete a rule permanently, or deactivate it.
+        // params: { rule_id: string, soft?: boolean }
+        case 'delete-rule': {
+          const delRuleId = params.rule_id as string;
+          if (!delRuleId) {
+            return reply.code(400).send(agentError(ErrorCodes.AGENT_MISSING_PARAM, 'params.rule_id is required.'));
+          }
+
+          const ruleToDelete = await prisma.classificationRule.findFirst({
+            where: { id: delRuleId, userId },
+          });
+          if (!ruleToDelete) {
+            return reply.code(404).send(agentError(ErrorCodes.RULE_NOT_FOUND, `Rule "${delRuleId}" not found.`));
+          }
+
+          if (params.soft === true) {
+            // Soft delete — just deactivate
+            await prisma.classificationRule.update({
+              where: { id: delRuleId },
+              data: { isActive: false },
+            });
+            return {
+              success: true,
+              action,
+              data: {
+                rule_id: delRuleId,
+                name: ruleToDelete.categoryName,
+                deleted: false,
+                deactivated: true,
+                message: `Rule "${ruleToDelete.categoryName}" deactivated (can be reactivated).`,
+              },
+            };
+          }
+
+          // Hard delete
+          await prisma.classificationRule.delete({ where: { id: delRuleId } });
+          return {
+            success: true,
+            action,
+            data: {
+              rule_id: delRuleId,
+              name: ruleToDelete.categoryName,
+              deleted: true,
+              message: `Rule "${ruleToDelete.categoryName}" permanently deleted.`,
+            },
+          };
+        }
+
+        // ── UNSUBSCRIBE ───────────────────────────────────────────────────
+        // Unsubscribe from a sender using List-Unsubscribe header.
+        // params: {
+        //   thread_id: string,
+        //   auto_trash?: boolean,     — also trash the thread after unsubscribing (default: true)
+        //   create_rule?: boolean,    — create a permanent trash rule for this sender (default: false)
+        // }
+        case 'unsubscribe': {
+          const unsubThreadId = params.thread_id as string;
+          if (!unsubThreadId) {
+            return reply.code(400).send(agentError(ErrorCodes.AGENT_MISSING_PARAM, 'params.thread_id is required.'));
+          }
+
+          // Find the thread and its messages
+          const unsubThread = await prisma.emailThread.findFirst({
+            where: { id: unsubThreadId, account: { userId } },
+            include: {
+              messages: { orderBy: { receivedAt: 'desc' }, take: 1 },
+              account: true,
+            },
+          });
+          if (!unsubThread) {
+            return reply.code(404).send(agentError(ErrorCodes.RESOURCE_NOT_FOUND, 'Thread not found.'));
+          }
+
+          const latestMessage = unsubThread.messages[0];
+          if (!latestMessage) {
+            return reply.code(404).send(agentError(ErrorCodes.RESOURCE_NOT_FOUND, 'No messages in thread.'));
+          }
+
+          const unsubUrl = latestMessage.unsubscribeUrl;
+          const senderEmail = latestMessage.fromAddress;
+          const senderDomain = senderEmail.includes('@') ? senderEmail.split('@')[1] : senderEmail;
+
+          let unsubscribeResult: { method: string; success: boolean; error?: string } = {
+            method: 'none',
+            success: false,
+          };
+
+          if (unsubUrl) {
+            // Try HTTP unsubscribe first
+            if (unsubUrl.startsWith('http://') || unsubUrl.startsWith('https://')) {
+              try {
+                const resp = await fetch(unsubUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'List-Unsubscribe': 'One-Click',
+                  },
+                  body: 'List-Unsubscribe=One-Click',
+                  signal: AbortSignal.timeout(10000),
+                });
+                unsubscribeResult = {
+                  method: 'http-one-click',
+                  success: resp.ok || resp.status === 302 || resp.status === 301,
+                  ...(resp.ok ? {} : { error: `HTTP ${resp.status}` }),
+                };
+              } catch (err: any) {
+                // If POST fails, try GET
+                try {
+                  const resp = await fetch(unsubUrl, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(10000),
+                  });
+                  unsubscribeResult = {
+                    method: 'http-get',
+                    success: resp.ok || resp.status === 302 || resp.status === 301,
+                    ...(resp.ok ? {} : { error: `HTTP ${resp.status}` }),
+                  };
+                } catch (e2: any) {
+                  unsubscribeResult = {
+                    method: 'http',
+                    success: false,
+                    error: e2?.message ?? 'Request failed',
+                  };
+                }
+              }
+            } else if (unsubUrl.startsWith('mailto:')) {
+              // mailto: unsubscribe — send an email to the unsubscribe address
+              const mailtoAddr = unsubUrl.replace('mailto:', '').split('?')[0];
+              try {
+                // Use Gmail API to send unsubscribe email
+                await gmailService.sendEmail(unsubThread.account.id, {
+                  from: unsubThread.account.emailAddress,
+                  to: [mailtoAddr],
+                  subject: 'Unsubscribe',
+                  body: 'Unsubscribe',
+                });
+                unsubscribeResult = { method: 'mailto', success: true };
+              } catch (err: any) {
+                unsubscribeResult = {
+                  method: 'mailto',
+                  success: false,
+                  error: err?.message ?? 'Failed to send unsubscribe email',
+                };
+              }
+            }
+          }
+
+          if (!unsubUrl) {
+            // No unsubscribe URL available
+            unsubscribeResult = {
+              method: 'none',
+              success: false,
+              error: 'No List-Unsubscribe header found on this thread.',
+            };
+          }
+
+          // Auto-trash the thread if requested (default: true)
+          const autoTrash = params.auto_trash !== false;
+          let trashed = false;
+          if (autoTrash && unsubThread.gmailThreadId) {
+            try {
+              await gmailService.trashThread(unsubThread.accountId, unsubThread.gmailThreadId);
+              trashed = true;
+            } catch { /* ignore trash errors */ }
+          }
+
+          // Create permanent trash rule for this sender domain if requested
+          let ruleCreated = false;
+          let ruleId: string | null = null;
+          if (params.create_rule === true) {
+            const domainPattern = `*@${senderDomain}`;
+            const catKey = `unsub-${senderDomain.replace(/\./g, '-')}`;
+            try {
+              const rule = await prisma.classificationRule.create({
+                data: {
+                  userId,
+                  categoryKey: catKey,
+                  categoryName: `Unsubscribed: ${senderDomain}`,
+                  description: `Auto-created after unsubscribing from ${senderEmail}`,
+                  priority: 'low',
+                  action: 'trash',
+                  senderPatterns: [domainPattern],
+                  subjectPatterns: [],
+                  bodyPatterns: [],
+                  isActive: true,
+                },
+              });
+              ruleCreated = true;
+              ruleId = rule.id;
+            } catch (err: any) {
+              // Duplicate rule is fine — means we already block this sender
+              if (err?.code === 'P2002') {
+                ruleCreated = false; // already exists
+              }
+            }
+          }
+
+          return {
+            success: true,
+            action,
+            data: {
+              thread_id: unsubThreadId,
+              sender: senderEmail,
+              sender_domain: senderDomain,
+              unsubscribe: unsubscribeResult,
+              trashed,
+              rule_created: ruleCreated,
+              rule_id: ruleId,
+              message: unsubscribeResult.success
+                ? `Unsubscribed from ${senderDomain}${trashed ? ' and trashed thread' : ''}${ruleCreated ? ' + permanent block rule created' : ''}.`
+                : `Unsubscribe ${unsubscribeResult.method === 'none' ? 'not available' : 'attempted but may have failed'} for ${senderDomain}.${trashed ? ' Thread trashed.' : ''}${ruleCreated ? ' Block rule created.' : ''}`,
             },
           };
         }

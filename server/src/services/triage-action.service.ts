@@ -333,6 +333,20 @@ export class TriageActionService {
         default:
           await keepInInbox(decision);
       }
+
+      // ── Auto-mark as read ────────────────────────
+      // Once the system has triaged a thread, mark it as read in Gmail
+      // so it doesn't stay as "unread" in the user's inbox.
+      // Skip for trash actions — the thread is already gone from inbox.
+      if (decision.action !== 'trash' && decision.action !== 'trash_after_log' && decision.action !== 'notify_then_trash') {
+        try {
+          await gmailService.markAsRead(decision.accountId, decision.gmailThreadId);
+          console.log(`[TriageAction] Marked as read: ${decision.gmailThreadId} (action: ${decision.action})`);
+        } catch (readErr: any) {
+          // Non-critical — log but don't fail the triage pipeline
+          console.warn(`[TriageAction] markAsRead failed for ${decision.gmailThreadId}: ${readErr?.message}`);
+        }
+      }
     } catch (err: any) {
       console.error(`[TriageAction] executeAction failed for thread ${decision.threadId}: ${err?.message}`);
       // Never re-throw — triage failures should not break the sync pipeline

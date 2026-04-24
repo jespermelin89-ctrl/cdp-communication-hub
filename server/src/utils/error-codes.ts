@@ -57,6 +57,15 @@ export const ErrorCodes = {
   // ── AI ────────────────────────────────────────────────────────────────
   AI_PROVIDER_ERROR: 'AI_PROVIDER_ERROR',
 
+  // ── Rules ──────────────────────────────────────────────────────────────
+  RULE_NOT_FOUND: 'RULE_NOT_FOUND',
+  RULE_DUPLICATE: 'RULE_DUPLICATE',
+  RULE_INVALID_ACTION: 'RULE_INVALID_ACTION',
+
+  // ── Unsubscribe ───────────────────────────────────────────────────────
+  UNSUBSCRIBE_NOT_AVAILABLE: 'UNSUBSCRIBE_NOT_AVAILABLE',
+  UNSUBSCRIBE_FAILED: 'UNSUBSCRIBE_FAILED',
+
   // ── General ───────────────────────────────────────────────────────────
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   RATE_LIMITED: 'RATE_LIMITED',

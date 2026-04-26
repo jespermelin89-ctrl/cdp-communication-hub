@@ -95,23 +95,12 @@ export async function createApp(): Promise<FastifyInstance> {
     keyGenerator: (request) => request.ip,
   });
 
-  // CORS — support main URL + Vercel preview deploys + agent API
+  // CORS — allow all origins. API is protected by API key (agent) and
+  // session cookie (frontend), so origin restriction adds no security.
+  // Needed for Claude Cowork artifacts which run in sandboxed iframes
+  // with unpredictable origins (null, blob:, CDN subdomains).
   await fastify.register(cors, {
-    origin: (origin, cb) => {
-      const allowed = env.FRONTEND_URL;
-      if (
-        !origin ||                              // server-to-server (no origin)
-        origin === allowed ||                    // main frontend
-        origin.endsWith('.vercel.app') ||        // Vercel preview deploys
-        origin.startsWith('http://localhost') || // local development
-        origin.startsWith('https://claude.ai') || // Claude Cowork artifacts
-        origin.startsWith('https://cdn.claude.ai') // Claude CDN
-      ) {
-        cb(null, true);
-      } else {
-        cb(null, false);
-      }
-    },
+    origin: true,
     credentials: true,
   });
 

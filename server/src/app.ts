@@ -47,6 +47,7 @@ import { eventRoutes } from './routes/events';
 import { calendarRoutes } from './routes/calendar';
 import { reviewRoutes } from './routes/review';
 import { triageRoutes } from './routes/triage';
+import { mcpRoutes } from './routes/mcp';
 
 export async function createApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -227,6 +228,10 @@ export async function createApp(): Promise<FastifyInstance> {
     await api.register(reviewRoutes);  // Sprint 4: Granskning-vy + regelforslag
     await api.register(triageRoutes);  // Sprint 7: Triage report
   }, { prefix: '/api/v1' });
+
+  // MCP Streamable HTTP — remote MCP server endpoint (outside /api/v1)
+  // Allows Cowork/Claude Code to connect via URL instead of local process
+  await fastify.register(mcpRoutes);
 
   return fastify;
 }
